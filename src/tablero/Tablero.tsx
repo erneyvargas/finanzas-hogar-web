@@ -1,28 +1,276 @@
+import { useEffect, useState } from 'react'
 import { useSesion } from '../auth/sesion'
+import { mesDe, moverMes, resumenDelMes, type ResumenDelMes } from './calculo'
+import type { FuenteDelTablero } from './fuente'
+
+const pesos = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 })
+const dinero = (n: number) => `$${pesos.format(Math.round(n))}`
+
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
+  'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+const nombreDelMes = (mes: string) => MESES[Number(mes.slice(5)) - 1]
+const mesLargo = (mes: string) => {
+  const n = nombreDelMes(mes)
+  return `${n[0].toUpperCase()}${n.slice(1)} ${mes.slice(0, 4)}`
+}
+const mesCorto = (mes: string) => {
+  const n = nombreDelMes(mes)
+  return `${n[0].toUpperCase()}${n.slice(1, 3)}`
+}
+
+/** The color the phone app gives a rubro, from its palette key. */
+const colorDe = (clave: string | null) => (clave ? `var(--p-${clave}, var(--grafito))` : 'var(--grafito)')
 
 /**
- * The month dashboard. For now only the frame: the dashboard itself is
- * built after the user picks one of three mockups.
+ * The month at a glance (option A of the proposals): what was spent
+ * against the month before, by person, the income left, categories by
+ * person, and the last six months.
  */
-export function Tablero() {
+export function Tablero({
+  fuente,
+  mesInicial = mesDe(new Date().toISOString()),
+}: {
+  fuente: FuenteDelTablero
+  mesInicial?: string
+}) {
   const { usuario, salir } = useSesion()
+  const hoy = mesDe(new Date().toISOString())
+  const [mes, setMes] = useState(mesInicial)
+  const [resumen, setResumen] = useState<ResumenDelMes | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let vivo = true
+    setResumen(null)
+    setError(null)
+    fuente
+      .cargar(mes)
+      .then(({ hogarId, datos }) => {
+        if (vivo) setResumen(resumenDelMes({ ...datos, mes, hogarId }))
+      })
+      .catch((e: Error) => {
+        if (vivo) setError(`No se pudo cargar el mes. ${e.message}`)
+      })
+    return () => {
+      vivo = false
+    }
+  }, [fuente, mes])
 
   return (
     <div className="marco">
       <header className="barra">
         <span className="marca-texto">Finanzas del hogar</span>
-        <span className="apagado">{usuario?.email}</span>
+        <nav className="selector-mes" aria-label="Mes">
+          <button className="flecha" aria-label="Mes anterior" onClick={() => setMes(moverMes(mes, -1))}>
+            ‹
+          </button>
+          <span>{mesLargo(mes)}</span>
+          <button
+            className="flecha"
+            aria-label="Mes siguiente"
+            disabled={mes >= hoy}
+            onClick={() => setMes(moverMes(mes, 1))}
+          >
+            ›
+          </button>
+        </nav>
+        <span className="apagado correo">{usuario?.email}</span>
         <button className="secundario" onClick={() => void salir()}>
           Salir
         </button>
       </header>
+
       <main className="contenido">
-        <h1>Tablero del mes</h1>
-        <p className="apagado">
-          Aquí va a estar el mes de un vistazo: por persona, por rubro y comparado con
-          los meses anteriores.
-        </p>
+        {error && (
+          <p role="alert" className="error tarjeta">
+            {error}
+          </p>
+        )}
+        {!error && !resumen && <p className="cargando">Cargando {nombreDelMes(mes)}…</p>}
+        {resumen && <Contenido mes={mes} r={resumen} />}
       </main>
     </div>
+  )
+}
+
+function Contenido({ mes, r }: { mes: string; r: ResumenDelMes }) {
+  const anterior = nombreDelMes(moverMes(mes, -1))
+  const cambio = r.gastadoAnterior > 0 ? (r.gastado - r.gastadoAnterior) / r.gastadoAnterior : null
+  const quedan = r.ingresos - r.gastado
+  const columnas = r.porRubro
+  const maxCelda = Math.max(1, ...r.matriz.flatMap((f) => Object.values(f.porRubro)))
+
+  return (
+    <div className="rejilla">
+      <section className="tarjeta" aria-labelledby="t-gastado">
+        <h2 id="t-gastado">Gastado en {nombreDelMes(mes)}</h2>
+        <p className="grande num">{dinero(r.gastado)}</p>
+        <p className="nota">
+          {cambio === null ? (
+            <>Sin gastos en {anterior} para comparar</>
+          ) : (
+            <>
+              <span className={cambio > 0 ? 'sube' : 'baja'}>
+                {cambio > 0 ? '↑' : '↓'} {Math.abs(Math.round(cambio * 100))} %
+              </span>{' '}
+              contra {anterior} ({dinero(r.gastadoAnterior)})
+            </>
+          )}
+        </p>
+      </section>
+
+      <section className="tarjeta" aria-labelledby="t-personas">
+        <h2 id="t-personas">Por persona</h2>
+        {columnas.length === 0 ? (
+          <p className="nota">Sin gastos este mes.</p>
+        ) : (
+          <>
+            <div className="barra-apilada" aria-hidden="true">
+              {columnas.map((c) => (
+                <div key={c.id} style={{ flex: c.total, background: colorDe(c.color) }} title={c.nombre} />
+              ))}
+            </div>
+            <ul className="leyenda">
+              {columnas.map((c) => (
+                <li key={c.id}>
+                  <i style={{ background: colorDe(c.color) }} />
+                  <span>{c.nombre}</span> <b className="num">{dinero(c.total)}</b>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </section>
+
+      <section className="tarjeta" aria-labelledby="t-ingresos">
+        <h2 id="t-ingresos">Ingresos del mes</h2>
+        <p className="grande num">{dinero(r.ingresos)}</p>
+        <p className="nota">
+          {quedan >= 0 ? 'Te quedan ' : 'Gastaste de más '}
+          <b className={`num ${quedan < 0 ? 'sube' : ''}`}>{dinero(Math.abs(quedan))}</b>
+          {quedan >= 0 ? ' después de los gastos' : ' sobre lo que entró'}
+        </p>
+      </section>
+
+      <section className="tarjeta ancha" aria-labelledby="t-matriz">
+        <h2 id="t-matriz">Categorías por persona</h2>
+        {r.matriz.length === 0 ? (
+          <p className="nota">Sin gastos este mes.</p>
+        ) : (
+          <div className="tabla-envoltura">
+            <table>
+              <thead>
+                <tr>
+                  <th>Categoría</th>
+                  {columnas.map((c) => (
+                    <th key={c.id}>{c.nombre}</th>
+                  ))}
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {r.matriz.map((f) => (
+                  <tr key={f.categoria}>
+                    <td>{f.categoria}</td>
+                    {columnas.map((c) => {
+                      const v = f.porRubro[c.id] ?? 0
+                      const fuerza = v ? Math.round(12 + (55 * v) / maxCelda) : 0
+                      return (
+                        <td key={c.id}>
+                          {v ? (
+                            <span
+                              className="celda num"
+                              style={{
+                                background: `color-mix(in srgb, ${colorDe(c.color)} ${fuerza}%, transparent)`,
+                              }}
+                            >
+                              {dinero(v)}
+                            </span>
+                          ) : (
+                            <span className="apagado">·</span>
+                          )}
+                        </td>
+                      )
+                    })}
+                    <td className="num">
+                      <b>{dinero(f.total)}</b>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="tarjeta" aria-labelledby="t-meses">
+        <h2 id="t-meses">Últimos seis meses</h2>
+        <Tendencia r={r} />
+      </section>
+    </div>
+  )
+}
+
+/** A step of 1, 2 or 5 times a power of ten that leaves about 4 lines. */
+function paso(max: number) {
+  const bruto = max / 4
+  const p = 10 ** Math.floor(Math.log10(bruto || 1))
+  return [1, 2, 5, 10].map((k) => k * p).find((s) => s >= bruto) ?? p * 10
+}
+
+function Tendencia({ r }: { r: ResumenDelMes }) {
+  const W = 320
+  const H = 210
+  const pad = { l: 44, r: 6, t: 10, b: 24 }
+  const maxTotal = Math.max(1, ...r.meses.map((m) => m.total))
+  const s = paso(maxTotal)
+  const tope = Math.ceil(maxTotal / s) * s
+  const alto = H - pad.t - pad.b
+  const ancho = (W - pad.l - pad.r) / r.meses.length
+  const y = (v: number) => H - pad.b - (v / tope) * alto
+  const color = new Map(r.porRubro.map((c) => [c.id, c.color]))
+  const lineas = Array.from({ length: Math.round(tope / s) + 1 }, (_, i) => i * s)
+  const corto = (v: number) => (v >= 1e6 ? `${v / 1e6}M` : v >= 1e3 ? `${v / 1e3}k` : `${v}`)
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Gasto de los últimos seis meses por persona">
+      {lineas.map((v) => (
+        <g key={v}>
+          <line x1={pad.l} x2={W - pad.r} y1={y(v)} y2={y(v)} stroke="var(--regla)" />
+          <text x={pad.l - 6} y={y(v) + 4} textAnchor="end">
+            {corto(v)}
+          </text>
+        </g>
+      ))}
+      {r.meses.map((m, i) => {
+        const x = pad.l + i * ancho + ancho * 0.18
+        let base = H - pad.b
+        const ultimo = i === r.meses.length - 1
+        return (
+          <g key={m.mes}>
+            {Object.entries(m.porRubro).map(([id, v]) => {
+              const h = (v / tope) * alto
+              base -= h
+              return (
+                <rect
+                  key={id}
+                  x={x}
+                  y={base}
+                  width={ancho * 0.64}
+                  height={h}
+                  fill={colorDe(color.get(id) ?? null)}
+                  opacity={ultimo ? 1 : 0.55}
+                >
+                  <title>{`${mesCorto(m.mes)}: ${dinero(v)}`}</title>
+                </rect>
+              )
+            })}
+            <text x={x + ancho * 0.32} y={H - pad.b + 16} textAnchor="middle" fontWeight={ultimo ? 700 : 400}>
+              {mesCorto(m.mes)}
+            </text>
+          </g>
+        )
+      })}
+    </svg>
   )
 }

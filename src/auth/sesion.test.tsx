@@ -3,6 +3,11 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { App } from '../App'
 import type { ClienteDeAuth } from './sesion'
+import type { FuenteDelTablero } from '../tablero/fuente'
+
+const sinDatos: FuenteDelTablero = {
+  cargar: async () => ({ hogarId: 'h1', datos: { movimientos: [], partes: [], categorias: [] } }),
+}
 
 /** A fake of the slice of supabase-js auth the app uses. */
 function clienteFalso(opciones: { conSesion?: boolean; error?: string } = {}) {
@@ -31,7 +36,7 @@ function clienteFalso(opciones: { conSesion?: boolean; error?: string } = {}) {
 
 describe('signing in', () => {
   it('without a session shows the sign-in form, not the dashboard', async () => {
-    render(<App cliente={clienteFalso()} />)
+    render(<App cliente={clienteFalso()} fuente={sinDatos} />)
 
     expect(await screen.findByRole('button', { name: 'Entrar' })).toBeInTheDocument()
     expect(screen.queryByText(/erney@example.com/)).not.toBeInTheDocument()
@@ -39,7 +44,7 @@ describe('signing in', () => {
 
   it('signs in with the same email and password as the phone app', async () => {
     const cliente = clienteFalso()
-    render(<App cliente={cliente} />)
+    render(<App cliente={cliente} fuente={sinDatos} />)
 
     await userEvent.type(await screen.findByLabelText('Correo'), 'erney@example.com')
     await userEvent.type(screen.getByLabelText('Contraseña'), 'secreta')
@@ -53,7 +58,7 @@ describe('signing in', () => {
   })
 
   it('says plainly when the email or password is wrong', async () => {
-    render(<App cliente={clienteFalso({ error: 'Invalid login credentials' })} />)
+    render(<App cliente={clienteFalso({ error: 'Invalid login credentials' })} fuente={sinDatos} />)
 
     await userEvent.type(await screen.findByLabelText('Correo'), 'erney@example.com')
     await userEvent.type(screen.getByLabelText('Contraseña'), 'mala')
@@ -66,7 +71,7 @@ describe('signing in', () => {
 
   it('an existing session goes straight in, and signing out comes back', async () => {
     const cliente = clienteFalso({ conSesion: true })
-    render(<App cliente={cliente} />)
+    render(<App cliente={cliente} fuente={sinDatos} />)
 
     expect(await screen.findByText(/erney@example.com/)).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Salir' }))
