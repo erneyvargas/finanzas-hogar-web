@@ -3,7 +3,7 @@ import { useSesion } from './sesion'
 
 /** Sign in with the same email and password as the phone app. */
 export function Entrar() {
-  const { entrar } = useSesion()
+  const { entrar, entrarConGoogle } = useSesion()
   const [correo, setCorreo] = useState('')
   const [clave, setClave] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -23,6 +23,20 @@ export function Entrar() {
       <form className="tarjeta-entrar" onSubmit={enviar}>
         <h1>Finanzas del hogar</h1>
         <p className="apagado">Entra con la misma cuenta de la app del teléfono.</p>
+
+        <button
+          type="button"
+          className="google"
+          disabled={entrando}
+          onClick={async () => {
+            setError(null)
+            const fallo = await entrarConGoogle()
+            if (fallo) setError(fallo)
+          }}
+        >
+          Entrar con Google
+        </button>
+        <p className="separador apagado">o con tu correo</p>
 
         <label htmlFor="correo">Correo</label>
         <input

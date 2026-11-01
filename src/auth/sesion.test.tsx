@@ -26,6 +26,7 @@ function clienteFalso(opciones: { conSesion?: boolean; error?: string } = {}) {
       alCambiar?.(sesion)
       return { error: null }
     }),
+    signInWithOAuth: vi.fn(async () => ({ error: null })),
     signOut: vi.fn(async () => {
       alCambiar?.(null)
       return { error: null }
@@ -80,5 +81,31 @@ describe('signing in', () => {
       expect(screen.getByRole('button', { name: 'Entrar' })).toBeInTheDocument(),
     )
     expect(cliente.signOut).toHaveBeenCalled()
+  })
+
+  it('signs in with Google and comes back to the web', async () => {
+    const cliente = clienteFalso()
+    render(<App cliente={cliente} fuente={sinDatos} />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Entrar con Google' }))
+
+    expect(cliente.signInWithOAuth).toHaveBeenCalledWith({
+      provider: 'google',
+      options: { redirectTo: window.location.origin + import.meta.env.BASE_URL },
+    })
+  })
+
+  it('says so when Google sign-in cannot start', async () => {
+    const cliente = clienteFalso()
+    cliente.signInWithOAuth = vi.fn(async () => ({
+      error: { message: 'Unsupported provider: provider is not enabled' },
+    }))
+    render(<App cliente={cliente} fuente={sinDatos} />)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Entrar con Google' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'La entrada con Google no está activada todavía.',
+    )
   })
 })

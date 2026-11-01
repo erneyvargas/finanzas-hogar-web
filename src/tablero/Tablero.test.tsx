@@ -9,6 +9,7 @@ const auth: ClienteDeAuth = {
   getSession: async () => ({ data: { session: { user: { email: 'erney@example.com' } } } }),
   onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
   signInWithPassword: async () => ({ error: null }),
+  signInWithOAuth: async () => ({ error: null }),
   signOut: async () => ({ error: null }),
 }
 

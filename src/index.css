@@ -195,3 +195,7 @@ button.peligro { background: var(--alerta); }
   .marco.con-panel { padding-right: 0; }
   .panel { width: 100%; }
 }
+
+/* Google sign-in, above the email form. */
+button.google { background: var(--papel); color: var(--tinta); border: 1px solid var(--borde); margin-top: 8px; }
+.separador { text-align: center; font-size: 14px; margin: 4px 0; }

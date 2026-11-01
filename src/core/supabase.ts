@@ -12,4 +12,8 @@ const clave = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
  * instead of failing with a blank screen.
  */
 export const supabase: SupabaseClient | null =
-  url && clave ? createClient(url, clave) : null
+  url && clave
+    ? // PKCE: Google sends back a `?code=` instead of tokens in the hash,
+      // which the `#/` routes of the HashRouter would swallow.
+      createClient(url, clave, { auth: { flowType: 'pkce' } })
+    : null

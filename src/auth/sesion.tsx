@@ -18,6 +18,10 @@ export interface ClienteDeAuth {
     email: string
     password: string
   }): Promise<{ error: { message: string } | null }>
+  signInWithOAuth(credenciales: {
+    provider: 'google'
+    options: { redirectTo: string }
+  }): Promise<{ error: { message: string } | null }>
   signOut(): Promise<{ error: unknown }>
 }
 
@@ -25,6 +29,8 @@ interface EstadoDeSesion {
   /** `undefined` while the stored session is still being read. */
   usuario: Usuario | null | undefined
   entrar(correo: string, clave: string): Promise<string | null>
+  /** Leaves for Google and comes back signed in; a message when it cannot start. */
+  entrarConGoogle(): Promise<string | null>
   salir(): Promise<void>
 }
 
@@ -40,6 +46,8 @@ export function mensajeDeEntrada(error: string): string {
   if (/invalid login credentials/i.test(error)) return 'Correo o contraseña incorrectos.'
   if (/email not confirmed/i.test(error)) return 'Confirma tu correo antes de entrar.'
   if (/fetch|network/i.test(error)) return 'No hay conexión con el servidor. Revisa tu internet.'
+  if (/provider is not enabled|unsupported provider/i.test(error))
+    return 'La entrada con Google no está activada todavía.'
   return 'No se pudo entrar. Intenta de nuevo.'
 }
 
@@ -70,6 +78,16 @@ export function ProveedorDeSesion({
       const { error } = await cliente.signInWithPassword({
         email: correo.trim(),
         password: clave,
+      })
+      return error ? mensajeDeEntrada(error.message) : null
+    },
+    async entrarConGoogle() {
+      // Back to the site root (the Pages base path): Supabase returns a
+      // `?code=` the client exchanges on load (PKCE, see core/supabase.ts),
+      // which does not clash with the `#/` routes.
+      const { error } = await cliente.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin + import.meta.env.BASE_URL },
       })
       return error ? mensajeDeEntrada(error.message) : null
     },
