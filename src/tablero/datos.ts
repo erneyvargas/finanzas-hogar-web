@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { limitesDelMes, moverMes, type Categoria, type Movimiento, type Parte } from './calculo'
 
 /** Supabase answers at most 1000 rows per request; this reads them all. */
-async function todas<T>(
+export async function todas<T>(
   pedir: (desde: number, hasta: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
 ): Promise<T[]> {
   const pagina = 1000

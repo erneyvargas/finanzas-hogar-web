@@ -2,13 +2,12 @@ import { useEffect, useState } from 'react'
 import { useSesion } from '../auth/sesion'
 import { mesDe, moverMes, resumenDelMes, type ResumenDelMes } from './calculo'
 import type { FuenteDelTablero } from './fuente'
+import { colorDe, dinero, nombreDelMes } from '../core/formato'
+import type { FuenteDeMovimientos } from '../movimientos/fuente'
+import { ListaDeMovimientos } from '../movimientos/ListaDeMovimientos'
+import { Panel } from '../movimientos/Panel'
+import type { DatosDeMovimientos, FilaDeMovimiento } from '../movimientos/reglas'
 
-const pesos = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 })
-const dinero = (n: number) => `$${pesos.format(Math.round(n))}`
-
-const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio',
-  'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
-const nombreDelMes = (mes: string) => MESES[Number(mes.slice(5)) - 1]
 const mesLargo = (mes: string) => {
   const n = nombreDelMes(mes)
   return `${n[0].toUpperCase()}${n.slice(1)} ${mes.slice(0, 4)}`
@@ -18,26 +17,36 @@ const mesCorto = (mes: string) => {
   return `${n[0].toUpperCase()}${n.slice(1, 3)}`
 }
 
-/** The color the phone app gives a rubro, from its palette key. */
-const colorDe = (clave: string | null) => (clave ? `var(--p-${clave}, var(--grafito))` : 'var(--grafito)')
-
 /**
  * The month at a glance (option A of the proposals): what was spent
  * against the month before, by person, the income left, categories by
- * person, and the last six months.
+ * person, and the last six months. With [movimientos], the month's
+ * list below it and the side panel to register and correct.
  */
 export function Tablero({
   fuente,
+  movimientos,
   mesInicial = mesDe(new Date().toISOString()),
+  ahora = () => new Date(),
 }: {
   fuente: FuenteDelTablero
+  movimientos?: FuenteDeMovimientos
   mesInicial?: string
+  /** The clock; tests fix it. */
+  ahora?: () => Date
 }) {
   const { usuario, salir } = useSesion()
   const hoy = mesDe(new Date().toISOString())
   const [mes, setMes] = useState(mesInicial)
   const [resumen, setResumen] = useState<ResumenDelMes | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /** Bumped after a save so the dashboard and the list load again. */
+  const [recarga, setRecarga] = useState(0)
+  const [lista, setLista] = useState<{ mes: string; datos: DatosDeMovimientos } | null>(null)
+  const [errorDeLista, setErrorDeLista] = useState<string | null>(null)
+  /** `undefined`: closed; `null`: registering; a movement: correcting it. */
+  const [enPanel, setEnPanel] = useState<FilaDeMovimiento | null | undefined>(undefined)
+  const [aperturas, setAperturas] = useState(0)
 
   useEffect(() => {
     let vivo = true
@@ -54,10 +63,37 @@ export function Tablero({
     return () => {
       vivo = false
     }
-  }, [fuente, mes])
+  }, [fuente, mes, recarga])
+
+  useEffect(() => {
+    if (!movimientos) return
+    let vivo = true
+    setErrorDeLista(null)
+    movimientos
+      .cargar(mes)
+      .then((d) => {
+        if (vivo) setLista({ mes, datos: d })
+      })
+      .catch((e: Error) => {
+        if (vivo) setErrorDeLista(`No se pudieron cargar los movimientos. ${e.message}`)
+      })
+    return () => {
+      vivo = false
+    }
+  }, [movimientos, mes, recarga])
+
+  const abrir = (m: FilaDeMovimiento | null) => {
+    setAperturas((n) => n + 1)
+    setEnPanel(m)
+  }
+  const cerrar = (guardado: boolean) => {
+    setEnPanel(undefined)
+    if (guardado) setRecarga((n) => n + 1)
+  }
+  const listaDelMes = lista?.mes === mes ? lista.datos : null
 
   return (
-    <div className="marco">
+    <div className={`marco ${enPanel !== undefined ? 'con-panel' : ''}`}>
       <header className="barra">
         <span className="marca-texto">Finanzas del hogar</span>
         <nav className="selector-mes" aria-label="Mes">
@@ -74,6 +110,11 @@ export function Tablero({
             ›
           </button>
         </nav>
+        {movimientos && (
+          <button disabled={!lista} onClick={() => abrir(null)}>
+            + Registrar
+          </button>
+        )}
         <span className="apagado correo">{usuario?.email}</span>
         <button className="secundario" onClick={() => void salir()}>
           Salir
@@ -88,7 +129,26 @@ export function Tablero({
         )}
         {!error && !resumen && <p className="cargando">Cargando {nombreDelMes(mes)}…</p>}
         {resumen && <Contenido mes={mes} r={resumen} />}
+        {movimientos && errorDeLista && (
+          <p role="alert" className="error tarjeta">
+            {errorDeLista}
+          </p>
+        )}
+        {movimientos && !errorDeLista && listaDelMes && (
+          <ListaDeMovimientos mes={mes} datos={listaDelMes} alElegir={abrir} />
+        )}
       </main>
+
+      {movimientos && lista && enPanel !== undefined && (
+        <Panel
+          key={aperturas}
+          datos={lista.datos}
+          original={enPanel}
+          fuente={movimientos}
+          ahora={ahora}
+          alCerrar={cerrar}
+        />
+      )}
     </div>
   )
 }

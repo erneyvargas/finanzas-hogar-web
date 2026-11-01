@@ -83,6 +83,16 @@ export function mesDe(iso: string): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
 }
 
+/** `YYYY-MM-DD` of a timestamp, in Bogotá. */
+export function diaDe(iso: string | Date): string {
+  return new Date(new Date(iso).getTime() - HORAS_DE_BOGOTA * 3600_000).toISOString().slice(0, 10)
+}
+
+/** `HH:MM:SS` of a timestamp, in Bogotá. */
+export function horaDe(iso: string | Date): string {
+  return new Date(new Date(iso).getTime() - HORAS_DE_BOGOTA * 3600_000).toISOString().slice(11, 19)
+}
+
 /** Moves a `YYYY-MM` key by [delta] months. */
 export function moverMes(mes: string, delta: number): string {
   const [a, m] = mes.split('-').map(Number)

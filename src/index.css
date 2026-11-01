@@ -130,3 +130,68 @@ svg text { fill: var(--grafito); font-family: inherit; font-size: 12px; }
   .tarjeta.ancha { grid-column: auto; }
   .correo { display: none; }
 }
+
+/* Movements list and the side panel (option A of the register proposals). */
+.movimientos { margin-top: 16px; }
+.movimientos th:last-child, .movimientos td:last-child { text-align: right; }
+.movimientos tr.elegible { cursor: pointer; }
+.movimientos tr.elegible:hover, .movimientos tr.elegible:focus-visible { background: color-mix(in srgb, var(--marca) 10%, transparent); outline: none; }
+.gasto { color: var(--alerta); font-weight: 600; }
+.ingreso { color: var(--marca); font-weight: 600; }
+.punto { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; flex: none; }
+.cara {
+  width: 22px; height: 22px; border-radius: 6px; display: inline-grid; place-items: center; flex: none;
+  background: var(--grafito); color: var(--papel); font-size: 10px; font-weight: 700; margin-right: 6px; vertical-align: -5px;
+}
+.marco.con-panel { padding-right: 400px; }
+.panel {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 400px; overflow-y: auto; z-index: 10;
+  background: var(--papel); border-left: 1px solid var(--regla); box-shadow: -8px 0 24px rgba(0, 0, 0, 0.08);
+  padding: 18px;
+}
+.panel-cabeza { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.panel-cabeza h2 { margin: 0; font-size: 20px; }
+.panel-cuerpo { display: grid; gap: 14px; }
+.campo { display: grid; gap: 4px; position: relative; min-width: 0; }
+.campo label, .campo legend { font-size: 13px; color: var(--grafito); font-weight: 600; padding: 0; }
+fieldset.campo { border: 0; margin: 0; padding: 0; }
+.panel input, .panel select, .panel textarea {
+  font: inherit; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--borde);
+  background: var(--papel); color: var(--tinta); width: 100%;
+}
+.panel input:disabled { color: var(--grafito); }
+.panel .valor { font-size: 24px; font-weight: 700; }
+.alternar { display: flex; gap: 6px; }
+.alternar button { flex: 1; background: transparent; color: var(--tinta); border: 1px solid var(--borde); padding: 9px; }
+.alternar button[aria-pressed='true'] { background: var(--marca); color: #fff; border-color: var(--marca); }
+.elegida { display: flex; align-items: center; font-weight: 600; }
+.sugerencias {
+  list-style: none; margin: 4px 0 0; padding: 0; border: 1px solid var(--regla); border-radius: 10px; overflow: hidden;
+  background: var(--papel); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+.sugerencias li { padding: 8px 12px; border-bottom: 1px solid var(--regla); cursor: pointer; display: flex; align-items: center; }
+.sugerencias li:last-child { border-bottom: 0; }
+.sugerencias li:hover, .sugerencias li[aria-selected='true'] { background: color-mix(in srgb, var(--marca) 12%, transparent); }
+.cuenta-elegida {
+  display: flex; align-items: center; gap: 4px; font-size: 18px; padding: 10px 12px;
+  border: 2px solid var(--marca); border-radius: 10px;
+}
+.cuenta-elegida .saldo { margin-left: auto; font-size: 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.chip {
+  display: inline-flex; align-items: center; background: transparent; color: var(--tinta);
+  border: 1px solid var(--regla); border-radius: 999px; padding: 4px 10px 4px 4px; font-size: 13px;
+}
+.cuenta select { margin-top: 6px; }
+.aviso {
+  display: grid; gap: 8px; border-radius: 10px; padding: 10px 12px; font-size: 14px;
+  background: color-mix(in srgb, var(--alerta) 12%, transparent); color: var(--tinta);
+}
+.aviso button { justify-self: start; padding: 8px 14px; }
+.acciones, .confirmar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.confirmar span { width: 100%; font-weight: 600; }
+button.peligro { background: var(--alerta); }
+@media (max-width: 900px) {
+  .marco.con-panel { padding-right: 0; }
+  .panel { width: 100%; }
+}
