@@ -133,9 +133,6 @@ svg text { fill: var(--grafito); font-family: inherit; font-size: 12px; }
 
 /* Movements list and the side panel (option A of the register proposals). */
 .movimientos { margin-top: 16px; }
-.movimientos th:last-child, .movimientos td:last-child { text-align: right; }
-.movimientos tr.elegible { cursor: pointer; }
-.movimientos tr.elegible:hover, .movimientos tr.elegible:focus-visible { background: color-mix(in srgb, var(--marca) 10%, transparent); outline: none; }
 .gasto { color: var(--alerta); font-weight: 600; }
 .ingreso { color: var(--marca); font-weight: 600; }
 .punto { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; flex: none; }
@@ -289,3 +286,34 @@ button.google { background: var(--papel); color: var(--tinta); border: 1px solid
 .esqueleto-alto { height: 287px; display: flex; flex-direction: column; }
 .esqueleto-alto > .skeleton:last-child:not(.skeleton--text) { flex: 1; height: auto !important; }
 .fallo { display: flex; align-items: center; gap: 12px; justify-content: space-between; flex-wrap: wrap; margin-bottom: 16px; }
+
+/* Movements by day (option A of the list proposals). */
+.filtros { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; }
+.filtros input {
+  flex: 1 1 260px; min-width: 0; height: 44px; padding: 0 12px; font: inherit; font-size: 15px;
+  border: 1px solid var(--borde); border-radius: 12px; background: var(--papel); color: var(--tinta);
+}
+.chips { display: flex; gap: 6px; }
+button.chip {
+  height: 40px; padding: 0 14px; font-size: 14px; font-weight: 600; border-radius: 999px;
+  background: var(--papel); color: var(--tinta); border: 1px solid var(--regla);
+}
+button.chip[aria-pressed='true'] { background: var(--tinta); color: var(--papel); border-color: var(--tinta); }
+.resumen { margin-bottom: 4px; }
+.vacio { padding: 24px 0; text-align: center; }
+.dia h3 {
+  display: flex; justify-content: space-between; gap: 12px; margin: 14px 0 4px;
+  font-size: 13px; font-weight: 700; color: var(--grafito);
+}
+.dia ul { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--regla); }
+.dia li { border-bottom: 1px solid var(--regla); }
+button.fila {
+  width: 100%; display: flex; flex-direction: column; gap: 4px; padding: 10px 8px; min-height: 56px;
+  background: transparent; color: var(--tinta); border-radius: 8px; text-align: left; font-weight: 400;
+}
+button.fila:hover, button.fila:focus-visible { background: color-mix(in srgb, var(--marca) 10%, transparent); }
+.fila-arriba { display: flex; justify-content: space-between; gap: 12px; font-size: 16px; line-height: 1.25; }
+.fila-titulo { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fila-abajo { display: flex; align-items: center; font-size: 13px; color: var(--grafito); min-width: 0; }
+.fila-abajo .cara { width: 18px; height: 18px; font-size: 9px; vertical-align: 0; }
+.fila-detalle { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

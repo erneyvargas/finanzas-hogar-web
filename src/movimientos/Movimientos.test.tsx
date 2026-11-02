@@ -76,29 +76,86 @@ async function registrarGasto() {
 }
 
 describe('the movements of the month', () => {
-  it('lists the month movements with merchant or category, path, account and signed amount', async () => {
+  const abrirLista = async () => {
     montar(movimientos())
+    return screen.findByRole('region', { name: 'Movimientos de octubre' })
+  }
+  const filasDe = (lista: HTMLElement) => within(lista).getAllByRole('listitem')
 
-    const lista = await screen.findByRole('region', { name: 'Movimientos de octubre' })
-    const filas = await within(lista).findAllByRole('row')
-    expect(filas).toHaveLength(4)
-    expect(filas[1]).toHaveTextContent('27 oct')
-    expect(filas[1]).toHaveTextContent('Aseo')
-    expect(filas[1]).toHaveTextContent('Efectivo')
-    expect(filas[2]).toHaveTextContent('Aguacate')
-    expect(filas[2]).toHaveTextContent('Hogar › Mercado › Frutas y verduras')
-    expect(filas[2]).toHaveTextContent('−$5.000')
-    expect(filas[3]).toHaveTextContent('+$100.000')
+  it('groups the movements by day, newest first, with each day subtotal', async () => {
+    const lista = await abrirLista()
+
+    const dias = await within(lista).findAllByRole('heading', { level: 3 })
+    expect(dias.map((d) => d.textContent)).toEqual([
+      'Martes 27 oct−$2.600',
+      'Sábado 24 oct−$5.000',
+      'Jueves 1 oct+$100.000',
+    ])
+  })
+
+  it('shows merchant (or category), path without the person, person, account and signed amount', async () => {
+    const lista = await abrirLista()
+
+    const filas = filasDe(lista)
+    expect(filas).toHaveLength(3)
+    expect(filas[0]).toHaveTextContent('Aseo')
+    expect(filas[0]).toHaveTextContent('Efectivo')
+    expect(filas[1]).toHaveTextContent('Aguacate')
+    expect(filas[1]).toHaveTextContent('Mercado › Frutas y verduras · Hogar · Master Card BBVA')
+    expect(filas[1]).toHaveTextContent('−$5.000')
+    expect(filas[2]).toHaveTextContent('+$100.000')
+  })
+
+  it('sums what it shows', async () => {
+    const lista = await abrirLista()
+
+    expect(within(lista).getByText('3 movimientos')).toBeInTheDocument()
+    expect(within(lista).getByText('−$7.600')).toBeInTheDocument()
+    expect(within(lista).getByText('+$100.000', { selector: '.resumen b' })).toBeInTheDocument()
+  })
+
+  it('filters by kind', async () => {
+    const lista = await abrirLista()
+
+    await userEvent.click(within(lista).getByRole('button', { name: 'Gastos' }))
+
+    expect(within(lista).getByRole('button', { name: 'Gastos' })).toHaveAttribute('aria-pressed', 'true')
+    expect(filasDe(lista)).toHaveLength(2)
+    expect(within(lista).getByText('2 movimientos')).toBeInTheDocument()
+
+    await userEvent.click(within(lista).getByRole('button', { name: 'Ingresos' }))
+    expect(filasDe(lista)).toHaveLength(1)
+  })
+
+  it('searches merchant, category and account, without caring for accents or case', async () => {
+    const lista = await abrirLista()
+    const buscar = within(lista).getByRole('searchbox', { name: 'Buscar movimientos' })
+
+    await userEvent.type(buscar, 'MASTER')
+    expect(filasDe(lista)).toHaveLength(1)
+    expect(filasDe(lista)[0]).toHaveTextContent('Aguacate')
+
+    await userEvent.clear(buscar)
+    await userEvent.type(buscar, 'mercado')
+    expect(filasDe(lista)).toHaveLength(2)
+
+    await userEvent.clear(buscar)
+    await userEvent.type(buscar, 'sueldó')
+    expect(filasDe(lista)).toHaveLength(1)
+
+    await userEvent.clear(buscar)
+    await userEvent.type(buscar, 'zzz')
+    expect(within(lista).queryAllByRole('listitem')).toHaveLength(0)
+    expect(within(lista).getByText('Ningún movimiento coincide.')).toBeInTheDocument()
   })
 
   it('shows the account photo when it has one, and its initials when not', async () => {
-    montar(movimientos())
+    const lista = await abrirLista()
 
-    const lista = await screen.findByRole('region', { name: 'Movimientos de octubre' })
-    const filas = await within(lista).findAllByRole('row')
-    expect(filas[2].querySelector('img.cara')).toHaveAttribute('src', 'https://fotos.test/tc.png')
-    expect(filas[1].querySelector('img.cara')).toBeNull()
-    expect(filas[1].querySelector('.cara')).toHaveTextContent('E')
+    const filas = filasDe(lista)
+    expect(filas[1].querySelector('img.cara')).toHaveAttribute('src', 'https://fotos.test/tc.png')
+    expect(filas[0].querySelector('img.cara')).toBeNull()
+    expect(filas[0].querySelector('.cara')).toHaveTextContent('E')
   })
 })
 
@@ -281,7 +338,7 @@ describe('correcting a movement', () => {
   async function abrirAguacate(m: FuenteDeMovimientos) {
     montar(m)
     const lista = await screen.findByRole('region', { name: 'Movimientos de octubre' })
-    await userEvent.click(await within(lista).findByRole('row', { name: /Aguacate/ }))
+    await userEvent.click(await within(lista).findByRole('button', { name: /Aguacate/ }))
     return panel()
   }
 
