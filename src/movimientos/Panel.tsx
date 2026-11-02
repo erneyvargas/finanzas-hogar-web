@@ -19,6 +19,22 @@ import {
   type Tipo,
 } from './reglas'
 
+/** `14500` → `14.500` while typing; a decimal comma is left as typed. */
+function agrupar(texto: string): string {
+  if (texto.includes(',')) return texto
+  const digitos = texto.replace(/\D/g, '')
+  return digitos ? miles(Number(digitos)) : ''
+}
+
+const hojaDe = (ruta: string) => ruta.split(' › ').pop() ?? ruta
+const padresDe = (ruta: string) => ruta.split(' › ').slice(0, -1).join(' › ')
+
+/** `Guardar gasto · $14.500`, without the amount until there is one. */
+function textoDeGuardar(tipo: Tipo, monto: number): string {
+  const base = tipo === 'expense' ? 'Guardar gasto' : 'Guardar ingreso'
+  return Number.isFinite(monto) && monto > 0 ? `${base} · ${dinero(monto)}` : base
+}
+
 const comoError = (e: unknown) =>
   e instanceof ErrorDelServidor ? e : new ErrorDelServidor(MENSAJE_GENERICO, null)
 
@@ -70,6 +86,8 @@ export function Panel({
   const [montoTexto, setMontoTexto] = useState(original ? miles(original.monto) : '')
   const [categoriaId, setCategoriaId] = useState(original?.categoriaId ?? '')
   const [busqueda, setBusqueda] = useState('')
+  /** The search box shows while there is no category yet, or after Cambiar. */
+  const [buscando, setBuscando] = useState(false)
   const [cuentaId, setCuentaId] = useState(original?.cuentaId ?? inicial('expense'))
   const [otra, setOtra] = useState(false)
   const [dia, setDia] = useState(original ? diaDe(original.fecha) : diaDe(ahora()))
@@ -249,47 +267,68 @@ export function Panel({
           void (corrigiendo ? corregir() : registrar(false))
         }}
       >
-        <div className="campo">
+        <div className="cabecera-monto">
+          <div className="alternar" role="group" aria-label="Tipo">
+            {(['expense', 'income'] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                aria-pressed={tipo === t}
+                disabled={corrigiendo}
+                onClick={() => cambiarTipo(t)}
+              >
+                {t === 'expense' ? 'Gasto' : 'Ingreso'}
+              </button>
+            ))}
+          </div>
           <label htmlFor="p-valor">Valor</label>
-          <input
-            id="p-valor"
-            className="valor num"
-            inputMode="decimal"
-            autoComplete="off"
-            value={montoTexto}
-            onChange={(e) => setMontoTexto(e.target.value)}
-          />
-        </div>
-
-        <div className="alternar" role="group" aria-label="Tipo">
-          {(['expense', 'income'] as const).map((t) => (
-            <button
-              key={t}
-              type="button"
-              aria-pressed={tipo === t}
-              disabled={corrigiendo}
-              onClick={() => cambiarTipo(t)}
-            >
-              {t === 'expense' ? 'Gasto' : 'Ingreso'}
-            </button>
-          ))}
+          <div className={`monto ${tipo === 'expense' ? 'gasto' : 'ingreso'}`}>
+            <span aria-hidden="true">$</span>
+            <input
+              id="p-valor"
+              className="num"
+              inputMode="decimal"
+              autoComplete="off"
+              placeholder="0"
+              value={montoTexto}
+              onChange={(e) => setMontoTexto(agrupar(e.target.value))}
+            />
+          </div>
         </div>
 
         <div className="campo">
-          <label htmlFor="p-categoria">Categoría</label>
-          {elegida && (
-            <span className="elegida">
-              <span className="punto" style={{ background: colorDe(elegida.color) }} />
-              {elegida.texto}
-            </span>
+          {elegida && !buscando ? (
+            <>
+              <span className="etiqueta">Categoría</span>
+              <button
+                type="button"
+                className="categoria-elegida"
+                onClick={() => setBuscando(true)}
+              >
+                <span className="punto" style={{ background: colorDe(elegida.color) }} />
+                <span className="categoria-texto">
+                  <b>{hojaDe(elegida.texto)}</b>
+                  <span className="apagado">{padresDe(elegida.texto)}</span>
+                </span>
+                <span className="cambiar">Cambiar</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <label htmlFor="p-categoria">Categoría</label>
+              <input
+                id="p-categoria"
+                placeholder="Buscar categoría…"
+                autoComplete="off"
+                autoFocus={buscando}
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                onBlur={() => {
+                  if (!busqueda.trim()) setBuscando(false)
+                }}
+              />
+            </>
           )}
-          <input
-            id="p-categoria"
-            placeholder={elegida ? 'Cambiar categoría…' : 'Buscar categoría…'}
-            autoComplete="off"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-          />
           {opciones.length > 0 && (
             <ul className="sugerencias" role="listbox" aria-label="Categorías">
               {opciones.map((o) => (
@@ -297,9 +336,11 @@ export function Panel({
                   key={o.id}
                   role="option"
                   aria-selected={o.id === categoriaId}
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => {
                     setCategoriaId(o.id)
                     setBusqueda('')
+                    setBuscando(false)
                   }}
                 >
                   <span className="punto" style={{ background: colorDe(o.color) }} />
@@ -360,26 +401,33 @@ export function Panel({
           )}
         </fieldset>
 
-        <div className="campo">
-          <label htmlFor="p-fecha">Fecha</label>
-          <input id="p-fecha" type="date" value={dia} onChange={(e) => setDia(e.target.value)} />
-        </div>
-
-        <div className="campo">
-          <label htmlFor="p-comercio">Comercio</label>
-          <input
-            id="p-comercio"
-            autoComplete="off"
-            value={comercio}
-            disabled={corrigiendo}
-            title={corrigiendo ? 'El comercio no se corrige desde aquí' : undefined}
-            onChange={(e) => setComercio(e.target.value)}
-          />
+        <div className="dos-columnas">
+          <div className="campo">
+            <label htmlFor="p-fecha">Fecha</label>
+            <input id="p-fecha" type="date" value={dia} onChange={(e) => setDia(e.target.value)} />
+          </div>
+          <div className="campo">
+            <label htmlFor="p-comercio">Comercio</label>
+            <input
+              id="p-comercio"
+              autoComplete="off"
+              value={comercio}
+              disabled={corrigiendo}
+              title={corrigiendo ? 'El comercio no se corrige desde aquí' : undefined}
+              onChange={(e) => setComercio(e.target.value)}
+            />
+          </div>
         </div>
 
         <div className="campo">
           <label htmlFor="p-nota">Observaciones</label>
-          <textarea id="p-nota" rows={2} value={nota} onChange={(e) => setNota(e.target.value)} />
+          <input
+            id="p-nota"
+            autoComplete="off"
+            placeholder="Opcional"
+            value={nota}
+            onChange={(e) => setNota(e.target.value)}
+          />
         </div>
 
         {error && (
@@ -394,7 +442,7 @@ export function Panel({
         )}
 
         {borrando ? (
-          <div className="confirmar">
+          <div className="confirmar pie">
             <span>¿Borrar este movimiento?</span>
             <button type="button" className="peligro" disabled={guardando} onClick={() => void borrar()}>
               Sí, borrar
@@ -404,9 +452,9 @@ export function Panel({
             </button>
           </div>
         ) : (
-          <div className="acciones">
-            <button type="submit" disabled={guardando}>
-              {corrigiendo ? 'Guardar cambios' : 'Guardar'}
+          <div className="acciones pie">
+            <button type="submit" className="guardar" disabled={guardando}>
+              {corrigiendo ? 'Guardar cambios' : textoDeGuardar(tipo, leerMonto(montoTexto))}
             </button>
             {corrigiendo && (
               <button type="button" className="secundario" disabled={guardando} onClick={() => setBorrando(true)}>

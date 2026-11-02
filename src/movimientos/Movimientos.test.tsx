@@ -63,6 +63,7 @@ function montar(m: FuenteDeMovimientos, t: FuenteDelTablero = tablero()) {
 }
 
 const panel = () => screen.getByRole('dialog')
+const guardar = (p: HTMLElement) => within(p).getByRole('button', { name: /^Guardar (gasto|ingreso)/ })
 
 async function registrarGasto() {
   await userEvent.click(await screen.findByRole('button', { name: '+ Registrar' }))
@@ -110,7 +111,7 @@ describe('registering a movement', () => {
     await userEvent.type(within(p).getByLabelText('Fecha'), '2026-10-25')
     await userEvent.type(within(p).getByLabelText('Observaciones'), 'Para la semana')
 
-    await userEvent.click(within(p).getByRole('button', { name: 'Guardar' }))
+    await userEvent.click(guardar(p))
 
     expect(m.ejecutar).toHaveBeenCalledWith('registrar_movimiento', {
       p_household_id: 'h1',
@@ -127,6 +128,31 @@ describe('registering a movement', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     await waitFor(() => expect(m.cargar).toHaveBeenCalledTimes(2))
     expect(t.cargar).toHaveBeenCalledTimes(2)
+  })
+
+  it('shows the amount large and grouped, and says what Guardar saves', async () => {
+    montar(movimientos())
+    await userEvent.click(await screen.findByRole('button', { name: '+ Registrar' }))
+    const p = panel()
+    expect(within(p).getByRole('button', { name: 'Guardar gasto' })).toBeInTheDocument()
+
+    await userEvent.type(within(p).getByLabelText('Valor'), '14500')
+
+    expect(within(p).getByLabelText('Valor')).toHaveValue('14.500')
+    expect(within(p).getByRole('button', { name: 'Guardar gasto · $14.500' })).toBeInTheDocument()
+    await userEvent.click(within(p).getByRole('button', { name: 'Ingreso' }))
+    expect(within(p).getByRole('button', { name: 'Guardar ingreso · $14.500' })).toBeInTheDocument()
+  })
+
+  it('shows the chosen category as leaf and path, and Cambiar opens the search', async () => {
+    montar(movimientos())
+    const p = await registrarGasto()
+
+    const elegida = within(p).getByRole('button', { name: /Frutas y verduras.*Hogar › Mercado.*Cambiar/ })
+    expect(within(p).queryByLabelText('Categoría')).not.toBeInTheDocument()
+    await userEvent.click(elegida)
+
+    expect(within(p).getByLabelText('Categoría')).toHaveFocus()
   })
 
   it('offers the accounts that accept the kind, the most used first, with its balance', async () => {
@@ -157,7 +183,7 @@ describe('registering a movement', () => {
     montar(m)
     const p = await registrarGasto()
 
-    await userEvent.click(within(p).getByRole('button', { name: 'Guardar' }))
+    await userEvent.click(guardar(p))
 
     expect(await within(p).findByRole('alert')).toHaveTextContent('No te alcanza el saldo de Efectivo.')
     expect(screen.getByRole('dialog')).toBeInTheDocument()
@@ -174,7 +200,7 @@ describe('registering a movement', () => {
     })
     montar(m)
     const p = await registrarGasto()
-    await userEvent.click(within(p).getByRole('button', { name: 'Guardar' }))
+    await userEvent.click(guardar(p))
     expect(await within(p).findByRole('alert')).toHaveTextContent('Ya registraste «Fruver» ese día.')
 
     await userEvent.click(within(p).getByRole('button', { name: 'Guardar igual' }))
@@ -197,9 +223,9 @@ describe('saving again after a failure', () => {
     montar(m)
     const p = await registrarGasto()
 
-    await userEvent.click(within(p).getByRole('button', { name: 'Guardar' }))
+    await userEvent.click(guardar(p))
     expect(await within(p).findByRole('alert')).toHaveTextContent(MENSAJE_GENERICO)
-    await userEvent.click(within(p).getByRole('button', { name: 'Guardar' }))
+    await userEvent.click(guardar(p))
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     const ids = vi.mocked(m.ejecutar).mock.calls.map(([, params]) => params.p_id)
@@ -216,9 +242,9 @@ describe('saving again after a failure', () => {
     montar(m)
     const p = await registrarGasto()
 
-    await userEvent.click(within(p).getByRole('button', { name: 'Guardar' }))
+    await userEvent.click(guardar(p))
     await within(p).findByRole('alert')
-    await userEvent.click(within(p).getByRole('button', { name: 'Guardar' }))
+    await userEvent.click(guardar(p))
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     await waitFor(() => expect(m.cargar).toHaveBeenCalledTimes(2))
@@ -241,7 +267,7 @@ describe('closing the panel', () => {
     const m = movimientos(() => new Promise<void>((ok) => (terminar = ok)))
     montar(m)
     const p = await registrarGasto()
-    await userEvent.click(within(p).getByRole('button', { name: 'Guardar' }))
+    await userEvent.click(guardar(p))
 
     await userEvent.keyboard('{Escape}')
     expect(panel()).toBeInTheDocument()
@@ -264,7 +290,7 @@ describe('correcting a movement', () => {
 
     expect(within(p).getByRole('heading', { name: 'Corregir movimiento' })).toBeInTheDocument()
     expect(within(p).getByLabelText('Valor')).toHaveValue('5.000')
-    expect(within(p).getByText('Hogar › Mercado › Frutas y verduras')).toBeInTheDocument()
+    expect(within(p).getByRole('button', { name: /Frutas y verduras.*Hogar › Mercado/ })).toBeInTheDocument()
     expect(within(p).getByRole('group', { name: 'Sale de' })).toHaveTextContent('Master Card BBVA')
     expect(within(p).getByLabelText('Fecha')).toHaveValue('2026-10-24')
     expect(within(p).getByLabelText('Comercio')).toHaveValue('Aguacate')

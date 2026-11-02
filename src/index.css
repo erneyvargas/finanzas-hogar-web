@@ -161,10 +161,32 @@ fieldset.campo { border: 0; margin: 0; padding: 0; }
   background: var(--papel); color: var(--tinta); width: 100%;
 }
 .panel input:disabled { color: var(--grafito); }
-.panel .valor { font-size: 24px; font-weight: 700; }
-.alternar { display: flex; gap: 6px; }
-.alternar button { flex: 1; background: transparent; color: var(--tinta); border: 1px solid var(--borde); padding: 9px; }
-.alternar button[aria-pressed='true'] { background: var(--marca); color: #fff; border-color: var(--marca); }
+.cabecera-monto { display: grid; gap: 10px; padding-bottom: 14px; border-bottom: 1px solid var(--regla); }
+.cabecera-monto > label { text-align: center; font-size: 13px; color: var(--grafito); font-weight: 600; }
+.monto { display: flex; align-items: baseline; justify-content: center; gap: 4px; font-size: 44px; font-weight: 800; }
+.monto.gasto { color: var(--alerta); }
+.monto.ingreso { color: var(--marca); }
+.panel .monto input {
+  font: inherit; color: inherit; border: 0; padding: 0; width: 7.5ch; text-align: left; background: transparent; outline: none;
+}
+.panel .monto input:focus-visible { border-bottom: 2px solid currentColor; }
+.alternar { display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--fondo); }
+.alternar button { flex: 1; background: transparent; color: var(--grafito); border: 0; border-radius: 999px; padding: 8px; font-weight: 600; }
+.alternar button[aria-pressed='true'] { color: #fff; font-weight: 700; }
+.alternar button[aria-pressed='true']:first-child { background: var(--alerta); }
+.alternar button[aria-pressed='true']:last-child { background: var(--marca); }
+.etiqueta { font-size: 13px; color: var(--grafito); font-weight: 600; }
+.categoria-elegida {
+  display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 8px 12px; text-align: left;
+  border: 1px solid var(--borde); border-radius: 12px; background: var(--papel); color: var(--tinta);
+}
+.categoria-texto { flex: 1; display: grid; }
+.categoria-texto b { font-size: 17px; }
+.categoria-texto span { font-size: 13px; }
+.cambiar { font-size: 13px; font-weight: 700; color: var(--marca); }
+.dos-columnas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.pie { position: sticky; bottom: -18px; margin: 0 -18px -18px; padding: 14px 18px 18px; background: var(--papel); border-top: 1px solid var(--regla); }
+.guardar { width: 100%; min-height: 52px; font-size: 17px; font-weight: 700; border-radius: 14px; }
 .elegida { display: flex; align-items: center; font-weight: 600; }
 .sugerencias {
   list-style: none; margin: 4px 0 0; padding: 0; border: 1px solid var(--regla); border-radius: 10px; overflow: hidden;
