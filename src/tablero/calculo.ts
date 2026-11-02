@@ -61,6 +61,8 @@ export interface MesDeTendencia {
 export interface ResumenDelMes {
   gastado: number
   gastadoAnterior: number
+  /** Day of the month the comparison stops at, when the month is still running. */
+  comparadoHasta: number | null
   ingresos: number
   porRubro: TotalDeRubro[]
   matriz: FilaDeMatriz[]
@@ -116,6 +118,8 @@ export function limitesDelMes(mes: string): { desde: string; hasta: string } {
 
 interface Linea {
   mes: string
+  /** Day of the month, in Bogotá. */
+  dia: number
   monto: number
   rubroId: string | null
   categoriaId: string | null
@@ -138,13 +142,14 @@ function lineasDeGasto(
   for (const m of movimientos) {
     if (m.tipo !== 'expense' || m.anulado) continue
     const mes = mesDe(m.fecha)
+    const dia = Number(diaDe(m.fecha).slice(8))
     const suyas = partesDe.get(m.id)
     const fuente = suyas?.length
       ? suyas.map((p) => ({ monto: p.monto, rubroId: p.rubroId, categoriaId: p.categoriaId }))
       : [{ monto: m.monto, rubroId: m.rubroId, categoriaId: m.categoriaId }]
     for (const f of fuente) {
       if (f.rubroId === ajuste) continue
-      lineas.push({ mes, ...f })
+      lineas.push({ mes, dia, ...f })
     }
   }
   return lineas
@@ -158,8 +163,11 @@ export function resumenDelMes(entrada: {
   categorias: Categoria[]
   mes: string
   hogarId: string
+  /** Today as `YYYY-MM-DD` in Bogotá; a running month is compared up to this day. */
+  hoy?: string
 }): ResumenDelMes {
-  const { movimientos, partes, categorias, mes, hogarId } = entrada
+  const { movimientos, partes, categorias, mes, hogarId, hoy } = entrada
+  const comparadoHasta = hoy?.slice(0, 7) === mes ? Number(hoy.slice(8, 10)) : null
   const ajuste = idDelRubroDeAjuste(hogarId)
   const cat = new Map(categorias.map((c) => [c.id, c]))
   const lineas = lineasDeGasto(movimientos, partes, ajuste)
@@ -197,8 +205,12 @@ export function resumenDelMes(entrada: {
   return {
     gastado: sumar(delMes.map((l) => l.monto)),
     gastadoAnterior: sumar(
-      lineas.filter((l) => l.mes === moverMes(mes, -1)).map((l) => l.monto),
+      lineas
+        .filter((l) => l.mes === moverMes(mes, -1))
+        .filter((l) => comparadoHasta === null || l.dia <= comparadoHasta)
+        .map((l) => l.monto),
     ),
+    comparadoHasta,
     ingresos,
     porRubro: [...rubros.entries()]
       .map(([id, total]) => ({

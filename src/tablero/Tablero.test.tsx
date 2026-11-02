@@ -54,6 +54,17 @@ describe('the month dashboard', () => {
     expect(within(gastado).getByText(/septiembre/)).toBeInTheDocument()
   })
 
+  it('compares a running month with the same days of the month before', async () => {
+    render(
+      <ProveedorDeSesion cliente={auth}>
+        <Tablero fuente={fuente()} mesInicial="2026-10" ahora={() => new Date('2026-10-05T15:00:00Z')} />
+      </ProveedorDeSesion>,
+    )
+
+    const gastado = await screen.findByRole('region', { name: 'Gastado en octubre' })
+    expect(within(gastado).getByText(/Sin gastos en septiembre hasta el día 5 para comparar/)).toBeInTheDocument()
+  })
+
   it('splits the month by person and shows the income left', async () => {
     montar(fuente())
 

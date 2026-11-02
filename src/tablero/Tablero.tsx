@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSesion } from '../auth/sesion'
-import { mesDe, moverMes, resumenDelMes, type ResumenDelMes } from './calculo'
+import { diaDe, mesDe, moverMes, resumenDelMes, type ResumenDelMes } from './calculo'
 import type { FuenteDelTablero } from './fuente'
 import { colorDe, dinero, nombreDelMes } from '../core/formato'
 import type { FuenteDeMovimientos } from '../movimientos/fuente'
@@ -37,6 +37,8 @@ export function Tablero({
 }) {
   const { usuario, salir } = useSesion()
   const hoy = mesDe(new Date().toISOString())
+  /** Today in Bogotá; a string, so the effect below reruns only when the day changes. */
+  const diaDeHoy = diaDe(ahora())
   const [mes, setMes] = useState(mesInicial)
   const [resumen, setResumen] = useState<ResumenDelMes | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -55,7 +57,7 @@ export function Tablero({
     fuente
       .cargar(mes)
       .then(({ hogarId, datos }) => {
-        if (vivo) setResumen(resumenDelMes({ ...datos, mes, hogarId }))
+        if (vivo) setResumen(resumenDelMes({ ...datos, mes, hogarId, hoy: diaDeHoy }))
       })
       .catch((e: Error) => {
         if (vivo) setError(`No se pudo cargar el mes. ${e.message}`)
@@ -63,7 +65,7 @@ export function Tablero({
     return () => {
       vivo = false
     }
-  }, [fuente, mes, recarga])
+  }, [fuente, mes, recarga, diaDeHoy])
 
   useEffect(() => {
     if (!movimientos) return
@@ -154,7 +156,9 @@ export function Tablero({
 }
 
 function Contenido({ mes, r }: { mes: string; r: ResumenDelMes }) {
-  const anterior = nombreDelMes(moverMes(mes, -1))
+  const anterior =
+    nombreDelMes(moverMes(mes, -1)) +
+    (r.comparadoHasta === null ? '' : ` hasta el día ${r.comparadoHasta}`)
   const cambio = r.gastadoAnterior > 0 ? (r.gastado - r.gastadoAnterior) / r.gastadoAnterior : null
   const quedan = r.ingresos - r.gastado
   const columnas = r.porRubro

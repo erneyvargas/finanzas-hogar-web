@@ -73,6 +73,25 @@ describe('resumenDelMes', () => {
     expect(r.gastadoAnterior).toBe(120000)
   })
 
+  it('compares the running month with the same days of the previous month', () => {
+    const movimientos = [
+      mov({ monto: 40000, fecha: '2026-11-01T15:00:00Z' }),
+      mov({ monto: 30000, fecha: '2026-10-01T15:00:00Z' }),
+      // 2026-10-02 at 11 pm in Bogotá: already past the first day.
+      mov({ monto: 500000, fecha: '2026-10-03T04:00:00Z' }),
+      mov({ monto: 900000, fecha: '2026-10-20T15:00:00Z' }),
+    ]
+    const base = { movimientos, partes: [], categorias: cats, mes: '2026-11', hogarId: HOGAR }
+
+    const enCurso = resumenDelMes({ ...base, hoy: '2026-11-01' })
+    expect(enCurso.gastadoAnterior).toBe(30000)
+    expect(enCurso.comparadoHasta).toBe(1)
+
+    const cerrado = resumenDelMes({ ...base, hoy: '2026-12-05' })
+    expect(cerrado.gastadoAnterior).toBe(1430000)
+    expect(cerrado.comparadoHasta).toBeNull()
+  })
+
   it('leaves out voided movements, transfers and the adjustment rubro', () => {
     const r = resumenDelMes({
       movimientos: [
