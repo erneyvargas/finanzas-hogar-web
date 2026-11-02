@@ -129,7 +129,7 @@ export function Tablero({
           </button>
         </nav>
         {movimientos && (
-          <button disabled={!lista} onClick={() => abrir(null)}>
+          <button className="registrar" disabled={!lista} onClick={() => abrir(null)}>
             + Registrar
           </button>
         )}

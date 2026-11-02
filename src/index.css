@@ -129,6 +129,13 @@ svg text { fill: var(--grafito); font-family: inherit; font-size: 12px; }
   .rejilla { grid-template-columns: 1fr; }
   .tarjeta.ancha { grid-column: auto; }
   .correo { display: none; }
+  /* Phone: brand and Salir on top, the month and Registrar below. */
+  .barra { flex-wrap: wrap; gap: 8px 12px; padding: 10px 16px; }
+  .barra .secundario { order: 2; }
+  .selector-mes { order: 3; }
+  .selector-mes span { min-width: 120px; }
+  .barra .registrar { order: 4; margin-left: auto; }
+  .contenido { padding: 16px; }
 }
 
 /* Movements list and the side panel (option A of the register proposals). */
