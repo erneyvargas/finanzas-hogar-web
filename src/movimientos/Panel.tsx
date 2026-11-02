@@ -87,9 +87,12 @@ export function Panel({
   const [nuevoId] = useState(() => crypto.randomUUID())
   const yaIntento = useRef(false)
 
-  // Escape closes, like the ✕.
-  const cerrarRef = useRef(() => alCerrar(huboCambios))
-  cerrarRef.current = () => alCerrar(huboCambios)
+  // Escape closes, like the ✕, but not while a save is on its way: its
+  // answer (or its error) still belongs to this panel.
+  const cerrarRef = useRef(() => {})
+  cerrarRef.current = () => {
+    if (!guardando) alCerrar(huboCambios)
+  }
   useEffect(() => {
     const alTeclear = (e: KeyboardEvent) => {
       if (e.key === 'Escape') cerrarRef.current()

@@ -235,6 +235,20 @@ describe('closing the panel', () => {
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
+
+  it('does not close with Escape while saving', async () => {
+    let terminar: () => void = () => {}
+    const m = movimientos(() => new Promise<void>((ok) => (terminar = ok)))
+    montar(m)
+    const p = await registrarGasto()
+    await userEvent.click(within(p).getByRole('button', { name: 'Guardar' }))
+
+    await userEvent.keyboard('{Escape}')
+    expect(panel()).toBeInTheDocument()
+
+    terminar()
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
 })
 
 describe('correcting a movement', () => {
