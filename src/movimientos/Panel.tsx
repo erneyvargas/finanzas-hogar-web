@@ -290,6 +290,7 @@ export function Panel({
               inputMode="decimal"
               autoComplete="off"
               placeholder="0"
+              style={{ width: `${Math.max(1, montoTexto.length) + 0.3}ch` }}
               value={montoTexto}
               onChange={(e) => setMontoTexto(agrupar(e.target.value))}
             />
