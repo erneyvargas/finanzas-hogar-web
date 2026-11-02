@@ -176,8 +176,8 @@ function Fallo({ texto, alReintentar }: { texto: string; alReintentar: () => voi
 
 /**
  * The dashboard's shape while the month loads. Sizes measured on the live
- * page at 1920px: top cards 128px, matrix and chart cards 287px, list rows
- * 37px. Below 900px the grid is one column, as the real one.
+ * page at 1920px: top cards 128px, matrix and chart cards 287px, list search
+ * 44px and rows 62px. Below 900px the grid is one column, as the real one.
  */
 function Esqueleto({ mes, conLista }: { mes: string; conLista: boolean }) {
   const pequena = (
@@ -210,8 +210,9 @@ function Esqueleto({ mes, conLista }: { mes: string; conLista: boolean }) {
       {conLista && (
         <div className="tarjeta movimientos" aria-hidden="true">
           <span className="skeleton skeleton--text sk-w30" style={{ ['--sk-line' as string]: '19px', marginBottom: 15 }} />
-          {[100, 100, 100, 100].map((w, i) => (
-            <span key={i} className={`skeleton skeleton--text sk-w${w}`} style={{ ['--sk-line' as string]: '37px' }} />
+          <span className="skeleton" style={{ height: 44, marginBottom: 14 }} />
+          {[65, 80, 50, 70].map((w, i) => (
+            <span key={i} className={`skeleton skeleton--text sk-w${w}`} style={{ ['--sk-line' as string]: '62px' }} />
           ))}
         </div>
       )}

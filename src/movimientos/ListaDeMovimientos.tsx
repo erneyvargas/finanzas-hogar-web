@@ -90,14 +90,17 @@ export function ListaDeMovimientos({
       const partes = ruta.texto.split(' › ')
       const persona = partes.length > 1 ? partes[0] : ''
       const sinPersona = partes.slice(persona ? 1 : 0)
-      const utiles = sinPersona.filter((p) => p !== 'General')
-      const camino = (utiles.length ? utiles : sinPersona).join(' › ')
+      const titulo = m.comercio || partes[partes.length - 1]
+      // Without "General", a level that repeats the one above, or the title itself.
+      const camino = sinPersona
+        .filter((p, i) => p !== 'General' && p !== sinPersona[i - 1] && p !== titulo)
+        .join(' › ')
       const cuenta = cuentas.get(m.cuentaId)
       const nombreCuenta = cuenta?.nombre ?? 'Cuenta'
       const detalle = [camino, persona, nombreCuenta].filter(Boolean).join(' · ')
       return {
         fila: m,
-        titulo: m.comercio || partes[partes.length - 1],
+        titulo,
         detalle,
         color: ruta.color,
         cuenta: nombreCuenta,

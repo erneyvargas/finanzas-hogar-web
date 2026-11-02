@@ -149,6 +149,27 @@ describe('the movements of the month', () => {
     expect(within(lista).getByText('Ningún movimiento coincide.')).toBeInTheDocument()
   })
 
+  it('does not repeat the merchant or a repeated level in the path', async () => {
+    const m = movimientos()
+    m.cargar = vi.fn(async (): Promise<DatosDeMovimientos> => ({
+      ...datos,
+      categorias: [
+        ...datos.categorias,
+        { id: 'aj', nombre: 'Ajuste de saldo', tipo: 'income', nivel: 'rubro', padreId: null, color: null, viva: true },
+        { id: 'aj-c', nombre: 'Corrección', tipo: 'income', nivel: 'category', padreId: 'aj', color: null, viva: true },
+        { id: 'aj-s', nombre: 'Corrección', tipo: 'income', nivel: 'subcategory', padreId: 'aj-c', color: null, viva: true },
+      ],
+      movimientos: [
+        { id: 'a1', tipo: 'income', monto: 59800, fecha: '2026-10-20T15:00:00Z', cuentaId: 'efe', categoriaId: 'aj-s', rubroId: 'aj', comercio: 'Corrección', nota: null },
+      ],
+    }))
+    montar(m)
+
+    const lista = await screen.findByRole('region', { name: 'Movimientos de octubre' })
+    const [fila] = await within(lista).findAllByRole('listitem')
+    expect(fila.querySelector('.fila-detalle')).toHaveTextContent(/^Ajuste de saldo · Efectivo$/)
+  })
+
   it('shows the account photo when it has one, and its initials when not', async () => {
     const lista = await abrirLista()
 
