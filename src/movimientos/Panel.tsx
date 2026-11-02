@@ -119,6 +119,13 @@ export function Panel({
     return () => window.removeEventListener('keydown', alTeclear)
   }, [])
 
+  // The focus moves into the panel when it opens, to the first field that
+  // takes input; the dashboard gives it back to its opener when it closes.
+  const raiz = useRef<HTMLElement>(null)
+  useEffect(() => {
+    raiz.current?.querySelector<HTMLElement>('input:not(:disabled), button')?.focus()
+  }, [])
+
   const ofrecidas = useMemo(() => {
     const deTipo = cuentasPara(tipo, datos.cuentas)
     // A correction keeps showing its account even if it no longer qualifies.
@@ -252,7 +259,7 @@ export function Panel({
   const saldo = cuentaId ? saldos[cuentaId] : undefined
 
   return (
-    <aside className="panel" role="dialog" aria-labelledby="t-panel">
+    <aside ref={raiz} className="panel" role="dialog" aria-labelledby="t-panel">
       <div className="panel-cabeza">
         <h2 id="t-panel">{titulo}</h2>
         <button className="flecha" aria-label="Cerrar" onClick={() => alCerrar(huboCambios)}>

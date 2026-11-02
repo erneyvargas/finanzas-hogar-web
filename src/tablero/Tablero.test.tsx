@@ -102,4 +102,56 @@ describe('the month dashboard', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo cargar el mes')
   })
+
+  it('retries a failed load from the error itself', async () => {
+    const buena = fuente()
+    const cargar = vi
+      .fn<FuenteDelTablero['cargar']>()
+      .mockRejectedValueOnce(new Error('Failed to fetch'))
+      .mockImplementation(buena.cargar)
+    montar({ cargar })
+
+    const alerta = await screen.findByRole('alert')
+    await userEvent.click(within(alerta).getByRole('button', { name: 'Reintentar' }))
+
+    expect(await screen.findByRole('region', { name: 'Gastado en octubre' })).toBeInTheDocument()
+    expect(cargar).toHaveBeenCalledTimes(2)
+  })
+
+  it('shows the dashboard shape while the month loads', async () => {
+    let soltar: () => void = () => {}
+    const buena = fuente()
+    const cargar = vi.fn<FuenteDelTablero['cargar']>(
+      (mes) => new Promise((ok) => (soltar = () => ok(buena.cargar(mes)))),
+    )
+    montar({ cargar })
+
+    expect(screen.getByRole('status')).toHaveTextContent('Cargando octubre…')
+    expect(document.querySelector('[aria-busy="true"]')).not.toBeNull()
+
+    soltar()
+    expect(await screen.findByRole('region', { name: 'Gastado en octubre' })).toBeInTheDocument()
+  })
+
+  it('in the first days of a month shows the day instead of a percentage', async () => {
+    const buena = fuente()
+    const cargar = vi.fn<FuenteDelTablero['cargar']>(async (mes) => {
+      const r = await buena.cargar(mes)
+      r.datos.movimientos.push({
+        id: '9', tipo: 'expense', monto: 20000, fecha: '2026-09-01T15:00:00Z',
+        rubroId: 'hogar', categoriaId: 'h-mercado', anulado: false,
+      })
+      return r
+    })
+    render(
+      <ProveedorDeSesion cliente={auth}>
+        <Tablero fuente={{ cargar }} mesInicial="2026-10" ahora={() => new Date('2026-10-02T15:00:00Z')} />
+      </ProveedorDeSesion>,
+    )
+
+    const gastado = await screen.findByRole('region', { name: 'Gastado en octubre' })
+    expect(within(gastado).getByText(/Día 2 de 31/)).toBeInTheDocument()
+    expect(within(gastado).getByText(/septiembre hasta el día 2: \$20\.000/)).toBeInTheDocument()
+    expect(within(gastado).queryByText(/%/)).toBeNull()
+  })
 })

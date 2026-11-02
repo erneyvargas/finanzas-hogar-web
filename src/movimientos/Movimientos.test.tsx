@@ -325,4 +325,17 @@ describe('correcting a movement', () => {
     expect(m.ejecutar).toHaveBeenCalledWith('borrar_movimiento', { p_id: 'm1' })
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
+
+  it('moves the focus into the panel and back to what opened it', async () => {
+    montar(movimientos())
+    const registrar = await screen.findByRole('button', { name: '+ Registrar' })
+    await waitFor(() => expect(registrar).toBeEnabled())
+
+    await userEvent.click(registrar)
+    await screen.findByRole('dialog')
+    expect(panel()).toContainElement(document.activeElement as HTMLElement)
+    await userEvent.keyboard('{Escape}')
+
+    await waitFor(() => expect(registrar).toHaveFocus())
+  })
 })

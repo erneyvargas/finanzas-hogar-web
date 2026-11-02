@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useCargaVisible } from '../core/cargaVisible'
 import { useSesion } from '../auth/sesion'
 import { diaDe, mesDe, moverMes, resumenDelMes, type ResumenDelMes } from './calculo'
 import type { FuenteDelTablero } from './fuente'
@@ -84,7 +85,10 @@ export function Tablero({
     }
   }, [movimientos, mes, recarga])
 
+  /** What had the focus when the panel opened; it gets it back on close. */
+  const abridor = useRef<HTMLElement | null>(null)
   const abrir = (m: FilaDeMovimiento | null) => {
+    abridor.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     setAperturas((n) => n + 1)
     setEnPanel(m)
   }
@@ -92,6 +96,18 @@ export function Tablero({
     setEnPanel(undefined)
     if (guardado) setRecarga((n) => n + 1)
   }
+  useEffect(() => {
+    if (enPanel === undefined && abridor.current?.isConnected) {
+      abridor.current.focus()
+      abridor.current = null
+    }
+  }, [enPanel])
+  const reintentar = () => {
+    setError(null)
+    setErrorDeLista(null)
+    setRecarga((n) => n + 1)
+  }
+  const esqueleto = useCargaVisible(!error && !resumen)
   const listaDelMes = lista?.mes === mes ? lista.datos : null
 
   return (
@@ -124,19 +140,11 @@ export function Tablero({
       </header>
 
       <main className="contenido">
-        {error && (
-          <p role="alert" className="error tarjeta">
-            {error}
-          </p>
-        )}
-        {!error && !resumen && <p className="cargando">Cargando {nombreDelMes(mes)}…</p>}
-        {resumen && <Contenido mes={mes} r={resumen} />}
-        {movimientos && errorDeLista && (
-          <p role="alert" className="error tarjeta">
-            {errorDeLista}
-          </p>
-        )}
-        {movimientos && !errorDeLista && listaDelMes && (
+        {error && <Fallo texto={error} alReintentar={reintentar} />}
+        {!error && esqueleto && <Esqueleto mes={mes} conLista={!!movimientos} />}
+        {resumen && !esqueleto && <Contenido mes={mes} r={resumen} />}
+        {movimientos && errorDeLista && <Fallo texto={errorDeLista} alReintentar={reintentar} />}
+        {movimientos && !errorDeLista && listaDelMes && !esqueleto && (
           <ListaDeMovimientos mes={mes} datos={listaDelMes} alElegir={abrir} />
         )}
       </main>
@@ -155,6 +163,70 @@ export function Tablero({
   )
 }
 
+function Fallo({ texto, alReintentar }: { texto: string; alReintentar: () => void }) {
+  return (
+    <div role="alert" className="tarjeta fallo">
+      <p className="error">{texto}</p>
+      <button className="secundario" onClick={alReintentar}>
+        Reintentar
+      </button>
+    </div>
+  )
+}
+
+/**
+ * The dashboard's shape while the month loads. Sizes measured on the live
+ * page at 1920px: top cards 128px, matrix and chart cards 287px, list rows
+ * 37px. Below 900px the grid is one column, as the real one.
+ */
+function Esqueleto({ mes, conLista }: { mes: string; conLista: boolean }) {
+  const pequena = (
+    <div className="tarjeta" aria-hidden="true">
+      <span className="skeleton skeleton--text sk-w40" style={{ ['--sk-line' as string]: '19px', marginBottom: 15 }} />
+      <span className="skeleton sk-w65" style={{ height: 40, marginBottom: 8 }} />
+      <span className="skeleton skeleton--text sk-w80" style={{ ['--sk-line' as string]: '18px' }} />
+    </div>
+  )
+  return (
+    <div aria-busy="true" className="sk-delay">
+      <p role="status" className="sk-sr">
+        Cargando {nombreDelMes(mes)}…
+      </p>
+      <div className="rejilla">
+        {pequena}
+        {pequena}
+        {pequena}
+        <div className="tarjeta ancha esqueleto-alto" aria-hidden="true">
+          <span className="skeleton skeleton--text sk-w30" style={{ ['--sk-line' as string]: '19px', marginBottom: 15 }} />
+          {[100, 80, 65].map((w) => (
+            <span key={w} className={`skeleton skeleton--text sk-w${w}`} style={{ ['--sk-line' as string]: '37px' }} />
+          ))}
+        </div>
+        <div className="tarjeta esqueleto-alto" aria-hidden="true">
+          <span className="skeleton skeleton--text sk-w40" style={{ ['--sk-line' as string]: '19px', marginBottom: 15 }} />
+          <span className="skeleton" style={{ height: 200 }} />
+        </div>
+      </div>
+      {conLista && (
+        <div className="tarjeta movimientos" aria-hidden="true">
+          <span className="skeleton skeleton--text sk-w30" style={{ ['--sk-line' as string]: '19px', marginBottom: 15 }} />
+          {[100, 100, 100, 100].map((w, i) => (
+            <span key={i} className={`skeleton skeleton--text sk-w${w}`} style={{ ['--sk-line' as string]: '37px' }} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Days before this one in a running month read as "Día N de M", not as a percentage. */
+const DIAS_PARA_COMPARAR = 5
+
+function diasDelMes(mes: string): number {
+  const [a, m] = mes.split('-').map(Number)
+  return new Date(Date.UTC(a, m, 0)).getUTCDate()
+}
+
 function Contenido({ mes, r }: { mes: string; r: ResumenDelMes }) {
   const anterior =
     nombreDelMes(moverMes(mes, -1)) +
@@ -170,7 +242,11 @@ function Contenido({ mes, r }: { mes: string; r: ResumenDelMes }) {
         <h2 id="t-gastado">Gastado en {nombreDelMes(mes)}</h2>
         <p className="grande num">{dinero(r.gastado)}</p>
         <p className="nota">
-          {cambio === null ? (
+          {r.comparadoHasta !== null && r.comparadoHasta < DIAS_PARA_COMPARAR ? (
+            <>
+              Día {r.comparadoHasta} de {diasDelMes(mes)} · {anterior}: {dinero(r.gastadoAnterior)}
+            </>
+          ) : cambio === null ? (
             <>Sin gastos en {anterior} para comparar</>
           ) : (
             <>
