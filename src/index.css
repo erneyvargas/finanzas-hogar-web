@@ -143,6 +143,7 @@ svg text { fill: var(--grafito); font-family: inherit; font-size: 12px; }
   width: 22px; height: 22px; border-radius: 6px; display: inline-grid; place-items: center; flex: none;
   background: var(--grafito); color: var(--papel); font-size: 10px; font-weight: 700; margin-right: 6px; vertical-align: -5px;
 }
+img.cara { object-fit: cover; background: var(--papel); border: 1px solid var(--regla); }
 .marco.con-panel { padding-right: 400px; }
 .panel {
   position: fixed; top: 0; right: 0; bottom: 0; width: 400px; overflow-y: auto; z-index: 10;

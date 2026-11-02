@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { colorDe, dinero, miles } from '../core/formato'
 import { diaDe } from '../tablero/calculo'
 import type { FuenteDeMovimientos } from './fuente'
@@ -80,6 +80,23 @@ export function Panel({
   const [guardando, setGuardando] = useState(false)
   const [borrando, setBorrando] = useState(false)
   const [huboCambios, setHuboCambios] = useState(false)
+  /**
+   * The new movement's id, fixed when the panel opens: a retry after a
+   * lost answer sends the same id, so the server cannot store it twice.
+   */
+  const [nuevoId] = useState(() => crypto.randomUUID())
+  const yaIntento = useRef(false)
+
+  // Escape closes, like the ✕.
+  const cerrarRef = useRef(() => alCerrar(huboCambios))
+  cerrarRef.current = () => alCerrar(huboCambios)
+  useEffect(() => {
+    const alTeclear = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') cerrarRef.current()
+    }
+    window.addEventListener('keydown', alTeclear)
+    return () => window.removeEventListener('keydown', alTeclear)
+  }, [])
 
   const ofrecidas = useMemo(() => {
     const deTipo = cuentasPara(tipo, datos.cuentas)
@@ -154,10 +171,19 @@ export function Panel({
         p_note: nota.trim() || null,
         p_merchant_name: comercio.trim() || null,
         p_guardar_igual: guardarIgual,
+        p_id: nuevoId,
       })
       alCerrar(true)
     } catch (e) {
-      setError(comoError(e))
+      const fallo = comoError(e)
+      // Only a retry after an unknown outcome (no answer, no rule) can meet
+      // its own earlier save; a rule rejection stored nothing.
+      if (fallo.codigo === 'ya_existe' && yaIntento.current) {
+        alCerrar(true)
+        return
+      }
+      if (fallo.codigo === null) yaIntento.current = true
+      setError(fallo)
       setGuardando(false)
     }
   }
@@ -287,7 +313,7 @@ export function Panel({
           <div className="cuenta-elegida">
             {cuenta ? (
               <>
-                <Cara nombre={cuenta.nombre} />
+                <Cara nombre={cuenta.nombre} foto={cuenta.foto} />
                 <b>{cuenta.nombre}</b>
                 {typeof saldo === 'number' && (
                   <span className="apagado saldo num">
@@ -304,7 +330,7 @@ export function Panel({
               const c = datos.cuentas.find((x) => x.id === id)!
               return (
                 <button key={id} type="button" className="chip" onClick={() => setCuentaId(id)}>
-                  <Cara nombre={c.nombre} />
+                  <Cara nombre={c.nombre} foto={c.foto} />
                   {c.nombre}
                 </button>
               )

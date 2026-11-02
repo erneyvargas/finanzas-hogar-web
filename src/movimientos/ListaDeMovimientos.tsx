@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { colorDe, dinero, MESES, nombreDelMes } from '../core/formato'
 import { diaDe } from '../tablero/calculo'
 import { rutaDeCategoria, type DatosDeMovimientos, type FilaDeMovimiento } from './reglas'
@@ -8,8 +9,15 @@ function diaCorto(iso: string) {
   return `${d} ${MESES[m - 1].slice(0, 3)}`
 }
 
-/** The account's face: its initials on a tile, as the phone shows it without a logo. */
-export function Cara({ nombre }: { nombre: string }) {
+/**
+ * The account's face: its photo when it has one, else its initials on a
+ * tile, as the phone shows it without a logo.
+ */
+export function Cara({ nombre, foto }: { nombre: string; foto?: string | null }) {
+  const [rota, setRota] = useState(false)
+  if (foto && !rota) {
+    return <img className="cara" src={foto} alt="" aria-hidden="true" onError={() => setRota(true)} />
+  }
   const iniciales = nombre
     .split(/\s+/)
     .filter(Boolean)
@@ -61,7 +69,7 @@ export function ListaDeMovimientos({
                 const ruta = rutaDeCategoria(m.categoriaId, datos.categorias)
                 const partes = ruta.texto.split(' › ')
                 const hoja = partes[partes.length - 1]
-                const cuenta = cuentas.get(m.cuentaId)?.nombre ?? 'Cuenta'
+                const cuenta = cuentas.get(m.cuentaId)
                 return (
                   <tr
                     key={m.id}
@@ -82,8 +90,8 @@ export function ListaDeMovimientos({
                       {ruta.texto}
                     </td>
                     <td>
-                      <Cara nombre={cuenta} />
-                      {cuenta}
+                      <Cara nombre={cuenta?.nombre ?? 'Cuenta'} foto={cuenta?.foto} />
+                      {cuenta?.nombre ?? 'Cuenta'}
                     </td>
                     <td className={`num ${m.tipo === 'expense' ? 'gasto' : 'ingreso'}`}>
                       {m.tipo === 'expense' ? '−' : '+'}

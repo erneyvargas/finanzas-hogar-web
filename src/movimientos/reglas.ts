@@ -16,6 +16,8 @@ export interface Cuenta {
   tipo: string
   /** Not archived and not deleted. */
   viva: boolean
+  /** Signed link to the account's photo; absent when it has none. */
+  foto?: string | null
 }
 
 export interface CategoriaDeMovimiento {
@@ -184,6 +186,9 @@ export function traducirError(e: {
   details?: string | null
   hint?: string | null
 }): ErrorDelServidor {
+  // A duplicate key on a register means a save with this same id already
+  // landed (the answer was lost on the way back): the panel takes it as saved.
+  if (e.code === '23505') return new ErrorDelServidor(MENSAJE_GENERICO, 'ya_existe')
   if (e.code !== 'P0001' || !e.message) return new ErrorDelServidor(MENSAJE_GENERICO, null)
   const codigo = e.details || null
   let gemelo: Gemelo | null = null

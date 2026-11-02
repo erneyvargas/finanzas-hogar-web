@@ -16,6 +16,26 @@ export interface FuenteDeMovimientos {
   ejecutar(funcion: FuncionDelServidor, params: Record<string, unknown>): Promise<void>
 }
 
+/** The phone uploads account and category photos to this private bucket. */
+const BUCKET_DE_FOTOS = 'categorias'
+
+/**
+ * Signed links for the account photos, by path. The bucket is private, so
+ * the stored path is useless without a signature; one that cannot be
+ * signed just leaves the initials, as when there is no photo.
+ */
+async function firmarFotos(sb: SupabaseClient, rutas: string[]): Promise<Map<string, string>> {
+  const enlaces = new Map<string, string>()
+  if (rutas.length === 0) return enlaces
+  try {
+    const { data } = await sb.storage.from(BUCKET_DE_FOTOS).createSignedUrls(rutas, 60 * 60 * 12)
+    for (const f of data ?? []) if (f.path && f.signedUrl && !f.error) enlaces.set(f.path, f.signedUrl)
+  } catch {
+    // No photos is not worth an error: the initials stand in.
+  }
+  return enlaces
+}
+
 export function fuenteDeMovimientosDeSupabase(
   sb: SupabaseClient,
   hogar: () => Promise<string>,
@@ -41,7 +61,7 @@ export function fuenteDeMovimientosDeSupabase(
         todas((a, b) =>
           sb
             .from('accounts')
-            .select('id, name, type, archived, deleted_at')
+            .select('id, name, type, archived, deleted_at, image_path')
             .eq('household_id', hogarId)
             .order('name')
             .range(a, b),
@@ -55,6 +75,10 @@ export function fuenteDeMovimientosDeSupabase(
             .range(a, b),
         ),
       ])
+      const fotos = await firmarFotos(
+        sb,
+        cuentas.map((c) => c.image_path).filter((r): r is string => !!r),
+      )
       return {
         hogarId,
         movimientos: movs.map((m) => ({
@@ -73,6 +97,7 @@ export function fuenteDeMovimientosDeSupabase(
           nombre: c.name,
           tipo: c.type,
           viva: c.archived !== true && c.deleted_at == null,
+          foto: c.image_path ? (fotos.get(c.image_path) ?? null) : null,
         })),
         categorias: cats.map((c) => ({
           id: c.id,

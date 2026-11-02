@@ -117,8 +117,14 @@ describe('server errors', () => {
   })
 
   it('anything else shows a plain message without technical details', () => {
-    const e = traducirError({ code: '23505', message: 'duplicate key value violates unique constraint' })
+    const e = traducirError({ code: '42501', message: 'permission denied for table transactions' })
     expect(e.codigo).toBeNull()
+    expect(e.message).toBe('No se pudo guardar. Intenta de nuevo en un momento.')
+  })
+
+  it('a duplicate key keeps the plain message and is marked ya_existe', () => {
+    const e = traducirError({ code: '23505', message: 'duplicate key value violates unique constraint' })
+    expect(e.codigo).toBe('ya_existe')
     expect(e.message).toBe('No se pudo guardar. Intenta de nuevo en un momento.')
   })
 })

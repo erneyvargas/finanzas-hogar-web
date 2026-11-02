@@ -5,7 +5,7 @@ import { ProveedorDeSesion, type ClienteDeAuth } from '../auth/sesion'
 import { Tablero } from '../tablero/Tablero'
 import type { FuenteDelTablero } from '../tablero/fuente'
 import type { FuenteDeMovimientos } from './fuente'
-import { ErrorDelServidor, type DatosDeMovimientos } from './reglas'
+import { ErrorDelServidor, MENSAJE_GENERICO, type DatosDeMovimientos } from './reglas'
 
 const auth: ClienteDeAuth = {
   getSession: async () => ({ data: { session: { user: { email: 'erney@example.com' } } } }),
@@ -24,7 +24,7 @@ const datos: DatosDeMovimientos = {
   cuentas: [
     { id: 'efe', nombre: 'Efectivo', tipo: 'cash', viva: true },
     { id: 'nequi', nombre: 'Nequi', tipo: 'wallet', viva: true },
-    { id: 'tc', nombre: 'Master Card BBVA', tipo: 'credit_card', viva: true },
+    { id: 'tc', nombre: 'Master Card BBVA', tipo: 'credit_card', viva: true, foto: 'https://fotos.test/tc.png' },
     { id: 'aho', nombre: 'Ahorros', tipo: 'savings', viva: true },
   ],
   categorias: [
@@ -89,6 +89,16 @@ describe('the movements of the month', () => {
     expect(filas[2]).toHaveTextContent('−$5.000')
     expect(filas[3]).toHaveTextContent('+$100.000')
   })
+
+  it('shows the account photo when it has one, and its initials when not', async () => {
+    montar(movimientos())
+
+    const lista = await screen.findByRole('region', { name: 'Movimientos de octubre' })
+    const filas = await within(lista).findAllByRole('row')
+    expect(filas[2].querySelector('img.cara')).toHaveAttribute('src', 'https://fotos.test/tc.png')
+    expect(filas[1].querySelector('img.cara')).toBeNull()
+    expect(filas[1].querySelector('.cara')).toHaveTextContent('E')
+  })
 })
 
 describe('registering a movement', () => {
@@ -112,6 +122,7 @@ describe('registering a movement', () => {
       p_note: 'Para la semana',
       p_merchant_name: 'Fruver',
       p_guardar_igual: false,
+      p_id: expect.stringMatching(/^[0-9a-f-]{36}$/),
     })
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     await waitFor(() => expect(m.cargar).toHaveBeenCalledTimes(2))
@@ -173,6 +184,56 @@ describe('registering a movement', () => {
       expect.objectContaining({ p_guardar_igual: true, p_merchant_name: 'Fruver', p_amount: 12000 }),
     )
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+})
+
+describe('saving again after a failure', () => {
+  it('retries with the same id, so a save that did land is not doubled', async () => {
+    const ejecutar = vi
+      .fn<FuenteDeMovimientos['ejecutar']>()
+      .mockRejectedValueOnce(new ErrorDelServidor(MENSAJE_GENERICO, null))
+      .mockResolvedValueOnce(undefined)
+    const m = movimientos(ejecutar)
+    montar(m)
+    const p = await registrarGasto()
+
+    await userEvent.click(within(p).getByRole('button', { name: 'Guardar' }))
+    expect(await within(p).findByRole('alert')).toHaveTextContent(MENSAJE_GENERICO)
+    await userEvent.click(within(p).getByRole('button', { name: 'Guardar' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    const ids = vi.mocked(m.ejecutar).mock.calls.map(([, params]) => params.p_id)
+    expect(ids).toHaveLength(2)
+    expect(ids[0]).toBe(ids[1])
+  })
+
+  it('takes "already exists" on a retry as saved', async () => {
+    const ejecutar = vi
+      .fn<FuenteDeMovimientos['ejecutar']>()
+      .mockRejectedValueOnce(new ErrorDelServidor(MENSAJE_GENERICO, null))
+      .mockRejectedValueOnce(new ErrorDelServidor(MENSAJE_GENERICO, 'ya_existe'))
+    const m = movimientos(ejecutar)
+    montar(m)
+    const p = await registrarGasto()
+
+    await userEvent.click(within(p).getByRole('button', { name: 'Guardar' }))
+    await within(p).findByRole('alert')
+    await userEvent.click(within(p).getByRole('button', { name: 'Guardar' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(m.cargar).toHaveBeenCalledTimes(2))
+  })
+})
+
+describe('closing the panel', () => {
+  it('closes with Escape', async () => {
+    montar(movimientos())
+    await userEvent.click(await screen.findByRole('button', { name: '+ Registrar' }))
+    expect(panel()).toBeInTheDocument()
+
+    await userEvent.keyboard('{Escape}')
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })
 
