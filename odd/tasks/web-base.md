@@ -27,7 +27,7 @@ Objective: a React web version of finanzas-hogar, only for the owner, published 
 | T4 | S3 | inline | done (not checked with real data) | user picked option A; calculo.ts mirrors the app rules (splits, voided, adjustment rubro, Bogotá months); 14 tests |
 | T5 | S4 | - | done | rules decided: server functions (migration 0041, in production) |
 | T6 | S6, S7 | delegated (context backstop) | done (uncommitted; not checked against real data) | src/movimientos/{reglas,fuente,ListaDeMovimientos,Panel}; RED observed (modules missing), GREEN: 37 tests (19 new: 11 rules, 8 list/panel), build ok, lint 0 errors (2 old warnings in sesion.tsx); writes only via rpc |
-| T7 | S2 | inline | done (not pushed: Supabase lacks the Google OAuth secret) | d88d019: "Entrar con Google", PKCE |
+| T7 | S2 | inline | done (published c4a9bb7; user signed in with Google on the live site) | d88d019: "Entrar con Google", PKCE |
 | T8 | S6 | inline | done | d333a04, then Escape fix: account photos (signed, bucket `categorias`), register retries reuse one `p_id` (duplicate key on a retry = saved), Escape closes the panel except while saving; 45 tests; review approved |
 
 ## Log
@@ -42,3 +42,4 @@ Objective: a React web version of finanzas-hogar, only for the owner, published 
 - L8: register/correct mockups: user answer "A".
 - L9 (2026-11-01, user): "Para el login quiero poder ingresar con Google".
 - L10 (2026-11-01, user): "Continua pulido la app web".
+- L11 (2026-11-01, user): "Ya entré, funciona" (Google sign-in on the live site).
