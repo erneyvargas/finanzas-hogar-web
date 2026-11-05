@@ -307,6 +307,10 @@ button.chip {
 }
 button.chip[aria-pressed='true'] { background: var(--tinta); color: var(--papel); border-color: var(--tinta); }
 .resumen { margin-bottom: 4px; }
+/* Totals stay neutral: red and green belong to each movement, so a sum
+   never reads as one more movement. */
+.resumen .gasto, .resumen .ingreso { color: var(--tinta); }
+.dia h3 .gasto, .dia h3 .ingreso { color: var(--grafito); }
 .vacio { padding: 24px 0; text-align: center; }
 .dia h3 {
   display: flex; justify-content: space-between; gap: 12px; margin: 14px 0 4px;
