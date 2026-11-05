@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { colorDe, dinero, MESES, nombreDelMes } from '../core/formato'
 import { diaDe } from '../tablero/calculo'
+import { alternar, arbolDeGastos, dentroDelRango, pasaLaSeleccion, textoDelRango, tocarDia, type Rango } from './filtros'
+import { FiltrosDelMes } from './FiltrosDelMes'
 import { rutaDeCategoria, type DatosDeMovimientos, type FilaDeMovimiento } from './reglas'
 
 /**
@@ -68,7 +70,8 @@ interface Linea {
  * The month's movements by day, newest first (option A of the list
  * proposals), with a search, a kind filter and the sums of what shows.
  * Transfers are not loaded, same as the phone's Inicio. Clicking one
- * opens it to correct.
+ * opens it to correct. On the left, [FiltrosDelMes] narrows it by days and
+ * by rubro or category.
  */
 export function ListaDeMovimientos({
   mes,
@@ -81,6 +84,9 @@ export function ListaDeMovimientos({
 }) {
   const [busqueda, setBusqueda] = useState('')
   const [filtro, setFiltro] = useState<Filtro>('todos')
+  const [seleccion, setSeleccion] = useState<Set<string>>(new Set())
+  const [rango, setRango] = useState<Rango | null>(null)
+  const arbol = arbolDeGastos(datos.categorias)
   const cuentas = new Map(datos.cuentas.map((c) => [c.id, c]))
 
   const lineas: Linea[] = [...datos.movimientos]
@@ -110,9 +116,30 @@ export function ListaDeMovimientos({
     })
 
   const buscado = plano(busqueda.trim())
-  const visibles = lineas.filter(
+  const porTipoYBusqueda = lineas.filter(
     (l) => (filtro === 'todos' || l.fila.tipo === filtro) && (!buscado || l.buscable.includes(buscado)),
   )
+  // Each part of the panel counts with the other filters, never its own:
+  // the calendar shades by the checked rubros, the totals by the chosen days.
+  const porCategoria = porTipoYBusqueda.filter((l) => pasaLaSeleccion(seleccion, l.fila.categoriaId, datos.categorias))
+  const visibles = porCategoria.filter((l) => dentroDelRango(rango, diaDe(l.fila.fecha)))
+
+  const gastoPorDia = new Map<string, number>()
+  for (const l of porCategoria) {
+    if (l.fila.tipo !== 'expense') continue
+    const dia = diaDe(l.fila.fecha)
+    gastoPorDia.set(dia, (gastoPorDia.get(dia) ?? 0) + l.fila.monto)
+  }
+  const porId = new Map(datos.categorias.map((c) => [c.id, c]))
+  const totales = new Map<string, number>()
+  for (const l of porTipoYBusqueda) {
+    if (l.fila.tipo !== 'expense' || !dentroDelRango(rango, diaDe(l.fila.fecha))) continue
+    for (let c = l.fila.categoriaId ? porId.get(l.fila.categoriaId) : undefined, n = 0; c && n < 5; c = c.padreId ? porId.get(c.padreId) : undefined, n++) {
+      totales.set(c.id, (totales.get(c.id) ?? 0) + l.fila.monto)
+    }
+  }
+  const nombres = [...seleccion].map((id) => porId.get(id)?.nombre).filter(Boolean)
+  const filtrado = [nombres.join(', '), rango ? textoDelRango(rango) : ''].filter(Boolean).join(' · ')
   const total = (xs: Linea[], tipo: FilaDeMovimiento['tipo']) =>
     xs.filter((l) => l.fila.tipo === tipo).reduce((a, l) => a + l.fila.monto, 0)
 
@@ -129,7 +156,18 @@ export function ListaDeMovimientos({
       {lineas.length === 0 ? (
         <p className="nota">Sin movimientos este mes.</p>
       ) : (
-        <>
+        <div className="lista-con-filtros">
+          <FiltrosDelMes
+            mes={mes}
+            gastoPorDia={gastoPorDia}
+            rango={rango}
+            alTocarDia={(dia) => setRango(tocarDia(rango, dia))}
+            arbol={arbol}
+            seleccion={seleccion}
+            totales={totales}
+            alAlternar={(id) => setSeleccion(alternar(seleccion, id, arbol))}
+          />
+          <div className="lista-filtrada">
           <div className="filtros">
             <input
               type="search"
@@ -158,6 +196,21 @@ export function ListaDeMovimientos({
             {visibles.length > 0 && ' · '}
             {sumas(total(visibles, 'expense'), total(visibles, 'income'))}
           </p>
+          {filtrado && (
+            <p className="nota filtrado">
+              <span>{filtrado}</span>
+              <button
+                type="button"
+                className="enlace"
+                onClick={() => {
+                  setSeleccion(new Set())
+                  setRango(null)
+                }}
+              >
+                Quitar filtros
+              </button>
+            </p>
+          )}
           {visibles.length === 0 && <p className="nota vacio">Ningún movimiento coincide.</p>}
           {dias.map((d) => (
             <div key={d.dia} className="dia">
@@ -187,7 +240,8 @@ export function ListaDeMovimientos({
               </ul>
             </div>
           ))}
-        </>
+          </div>
+        </div>
       )}
     </section>
   )
