@@ -134,7 +134,6 @@ svg text { fill: var(--grafito); font-family: inherit; font-size: 12px; }
   .barra .secundario { order: 2; }
   .selector-mes { order: 3; }
   .selector-mes span { min-width: 120px; }
-  .barra .registrar { order: 4; margin-left: auto; }
   .contenido { padding: 16px; }
 }
 
@@ -404,3 +403,40 @@ img.cara-de-rubro { object-fit: cover; border: 1px solid var(--regla); }
 button.dia-del-mes[data-previa='true'] {
   background: color-mix(in srgb, var(--marca) 30%, var(--papel)); color: var(--tinta); border: 1px dashed var(--marca);
 }
+
+/* The date field: a button that opens react-day-picker, in the app's colors. */
+.campo-de-fecha { position: relative; }
+.panel button.fecha-elegida {
+  width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  padding: 9px 12px; border-radius: 10px; border: 1px solid var(--borde);
+  background: var(--papel); color: var(--tinta); font: inherit; font-weight: 400; text-align: left;
+}
+.panel button.fecha-elegida[aria-expanded='true'] { border-color: var(--marca); }
+.calendario-flotante {
+  position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; padding: 10px;
+  background: var(--papel); border: 1px solid var(--regla); border-radius: 14px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.16);
+}
+.calendario-flotante .rdp-root {
+  --rdp-accent-color: var(--marca);
+  --rdp-accent-background-color: color-mix(in srgb, var(--marca) 14%, var(--papel));
+  --rdp-day-width: 38px; --rdp-day-height: 38px; --rdp-day_button-width: 36px; --rdp-day_button-height: 36px;
+  --rdp-today-color: var(--marca);
+  font-family: inherit; color: var(--tinta);
+}
+.calendario-flotante .rdp-caption_label { text-transform: capitalize; font-weight: 700; }
+.calendario-flotante .rdp-weekday { color: var(--grafito); font-size: 12px; font-weight: 700; text-transform: uppercase; }
+.calendario-flotante .rdp-day_button { font: inherit; font-weight: 600; padding: 0; background: transparent; color: inherit; border-radius: 10px; }
+.calendario-flotante .rdp-selected .rdp-day_button { background: var(--marca); color: #fff; border-color: var(--marca); }
+.calendario-flotante .rdp-button_previous, .calendario-flotante .rdp-button_next { background: transparent; padding: 0; border-radius: 8px; }
+.calendario-flotante .rdp-chevron { fill: var(--marca); }
+
+/* Registrar floats at the bottom right, as on the phone. */
+button.registrar.flotante {
+  position: fixed; right: 24px; bottom: 24px; z-index: 20; padding: 16px 24px; border-radius: 18px;
+  font-size: 17px; box-shadow: 0 10px 28px rgb(0 0 0 / 0.22);
+}
+@media (max-width: 900px) { button.registrar.flotante { right: 16px; bottom: 16px; } }
+.con-panel button.registrar.flotante { display: none; }
+/* The summary's table rules (padding, lines, right alignment) must not reach the calendar. */
+.calendario-flotante th, .calendario-flotante td { padding: 0; border: 0; text-align: center; white-space: normal; }

@@ -365,6 +365,36 @@ describe('the filter panel', () => {
     expect(dia(16).dataset.previa).toBeUndefined()
   })
 
+  it('keeps the filters after saving a movement', async () => {
+    const m = movimientos(undefined, conRubros)
+    // The reload after saving takes a while, as over the network.
+    let soltar: () => void = () => {}
+    const t = tablero()
+    const rapida = t.cargar
+    t.cargar = vi.fn<FuenteDelTablero['cargar']>(async (mes) => {
+      if (vi.mocked(t.cargar).mock.calls.length > 1) await new Promise<void>((ok) => (soltar = ok))
+      return rapida(mes)
+    })
+    montar(m, t)
+    const lista = await screen.findByRole('region', { name: 'Movimientos de octubre' })
+    await userEvent.click(within(lista).getByRole('checkbox', { name: 'Erney' }))
+    await userEvent.click(within(lista).getByRole('button', { name: '14 de octubre' }))
+    await userEvent.click(within(lista).getByRole('button', { name: '20 de octubre' }))
+
+    const p = await registrarGasto()
+    await userEvent.click(guardar(p))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    // The month loaded again after the save; while it loads, the list stays.
+    await waitFor(() => expect(m.cargar).toHaveBeenCalledTimes(2))
+    expect(screen.getByRole('region', { name: 'Movimientos de octubre' })).toBeInTheDocument()
+    soltar()
+
+    const despues = await screen.findByRole('region', { name: 'Movimientos de octubre' })
+    expect(within(despues).getByRole('checkbox', { name: 'Erney' })).toBeChecked()
+    expect(within(despues).getByText('Erney · 14 al 20 oct')).toBeInTheDocument()
+    expect(comercios(despues)).toEqual(['Frisby'])
+  })
+
   it('says what is filtered and clears it all at once', async () => {
     const lista = await abrir()
 
@@ -385,8 +415,11 @@ describe('registering a movement', () => {
     const m = movimientos()
     const t = montar(m)
     const p = await registrarGasto()
-    await userEvent.clear(within(p).getByLabelText('Fecha'))
-    await userEvent.type(within(p).getByLabelText('Fecha'), '2026-10-25')
+    // The date opens a calendar; picking a day closes it.
+    await userEvent.click(within(p).getByLabelText('Fecha'))
+    await userEvent.click(within(p).getByRole('button', { name: /25 de octubre de 2026/ }))
+    expect(within(p).queryByRole('grid')).toBeNull()
+    expect(within(p).getByLabelText('Fecha')).toHaveTextContent('25 oct 2026')
     await userEvent.type(within(p).getByLabelText('Observaciones'), 'Para la semana')
 
     await userEvent.click(guardar(p))
@@ -563,6 +596,21 @@ describe('correcting a movement', () => {
     return panel()
   }
 
+  it('the date says Hoy for today, and Escape closes its calendar without changing it', async () => {
+    montar(movimientos())
+    const p = await registrarGasto()
+    const fecha = within(p).getByLabelText('Fecha')
+    expect(fecha).toHaveTextContent('Hoy, 28 oct 2026')
+
+    await userEvent.click(fecha)
+    expect(within(p).getByRole('grid')).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+
+    expect(within(p).queryByRole('grid')).toBeNull()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(fecha).toHaveTextContent('Hoy, 28 oct 2026')
+  })
+
   it('opens the panel filled, titled Corregir movimiento', async () => {
     const p = await abrirAguacate(movimientos())
 
@@ -570,7 +618,7 @@ describe('correcting a movement', () => {
     expect(within(p).getByLabelText('Valor')).toHaveValue('5.000')
     expect(within(p).getByRole('button', { name: /Frutas y verduras.*Hogar › Mercado/ })).toBeInTheDocument()
     expect(within(p).getByRole('group', { name: 'Sale de' })).toHaveTextContent('Master Card BBVA')
-    expect(within(p).getByLabelText('Fecha')).toHaveValue('2026-10-24')
+    expect(within(p).getByLabelText('Fecha')).toHaveTextContent('24 oct 2026')
     expect(within(p).getByLabelText('Comercio')).toHaveValue('Aguacate')
   })
 

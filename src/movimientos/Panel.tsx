@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { colorDe, dinero, miles } from '../core/formato'
 import { diaDe } from '../tablero/calculo'
+import { CampoDeFecha } from './CampoDeFecha'
 import type { FuenteDeMovimientos } from './fuente'
 import { Cara } from './ListaDeMovimientos'
 import {
@@ -412,7 +413,7 @@ export function Panel({
         <div className="dos-columnas">
           <div className="campo">
             <label htmlFor="p-fecha">Fecha</label>
-            <input id="p-fecha" type="date" value={dia} onChange={(e) => setDia(e.target.value)} />
+            <CampoDeFecha id="p-fecha" dia={dia} hoy={diaDe(ahora())} alCambiar={setDia} />
           </div>
           <div className="campo">
             <label htmlFor="p-comercio">Comercio</label>
