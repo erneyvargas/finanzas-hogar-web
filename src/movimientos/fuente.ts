@@ -20,7 +20,7 @@ export interface FuenteDeMovimientos {
 const BUCKET_DE_FOTOS = 'categorias'
 
 /**
- * Signed links for the account photos, by path. The bucket is private, so
+ * Signed links for the account and category photos, by path. The bucket is private, so
  * the stored path is useless without a signature; one that cannot be
  * signed just leaves the initials, as when there is no photo.
  */
@@ -69,7 +69,7 @@ export function fuenteDeMovimientosDeSupabase(
         todas((a, b) =>
           sb
             .from('categories')
-            .select('id, name, kind, level, parent_id, color, archived, deleted_at')
+            .select('id, name, kind, level, parent_id, color, archived, deleted_at, image_path')
             .eq('household_id', hogarId)
             .order('name')
             .range(a, b),
@@ -77,7 +77,7 @@ export function fuenteDeMovimientosDeSupabase(
       ])
       const fotos = await firmarFotos(
         sb,
-        cuentas.map((c) => c.image_path).filter((r): r is string => !!r),
+        [...cuentas, ...cats].map((c) => c.image_path).filter((r): r is string => !!r),
       )
       return {
         hogarId,
@@ -107,6 +107,7 @@ export function fuenteDeMovimientosDeSupabase(
           padreId: c.parent_id,
           color: c.color,
           viva: c.archived !== true && c.deleted_at == null,
+          foto: c.image_path ? (fotos.get(c.image_path) ?? null) : null,
         })),
       }
     },

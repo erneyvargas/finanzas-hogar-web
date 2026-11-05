@@ -9,10 +9,10 @@ import { rutaDeCategoria, type DatosDeMovimientos, type FilaDeMovimiento } from 
  * The account's face: its photo when it has one, else its initials on a
  * tile, as the phone shows it without a logo.
  */
-export function Cara({ nombre, foto }: { nombre: string; foto?: string | null }) {
+export function Cara({ nombre, foto, clase = 'cara' }: { nombre: string; foto?: string | null; clase?: string }) {
   const [rota, setRota] = useState(false)
   if (foto && !rota) {
-    return <img className="cara" src={foto} alt="" aria-hidden="true" onError={() => setRota(true)} />
+    return <img className={clase} src={foto} alt="" aria-hidden="true" onError={() => setRota(true)} />
   }
   const iniciales = nombre
     .split(/\s+/)
@@ -21,7 +21,7 @@ export function Cara({ nombre, foto }: { nombre: string; foto?: string | null })
     .map((p) => p[0].toUpperCase())
     .join('')
   return (
-    <span className="cara" aria-hidden="true">
+    <span className={clase} aria-hidden="true">
       {iniciales || '·'}
     </span>
   )
@@ -63,6 +63,8 @@ interface Linea {
   color: string | null
   cuenta: string
   foto?: string | null
+  /** The rubro the movement hangs from, for the face at the start of the row. */
+  rubro: { nombre: string; foto?: string | null } | null
   buscable: string
 }
 
@@ -89,6 +91,12 @@ export function ListaDeMovimientos({
   const [recientesPrimero, setRecientesPrimero] = useState(true)
   const arbol = arbolDeGastos(datos.categorias)
   const cuentas = new Map(datos.cuentas.map((c) => [c.id, c]))
+  const categoriaPorId = new Map(datos.categorias.map((c) => [c.id, c]))
+  const rubroDe = (id: string | null) => {
+    let c = id ? categoriaPorId.get(id) : undefined
+    for (let n = 0; c?.padreId && n < 5; n++) c = categoriaPorId.get(c.padreId)
+    return c ? { nombre: c.nombre, foto: c.foto } : null
+  }
 
   const lineas: Linea[] = [...datos.movimientos]
     .sort((a, b) => (recientesPrimero ? b.fecha.localeCompare(a.fecha) : a.fecha.localeCompare(b.fecha)))
@@ -116,6 +124,7 @@ export function ListaDeMovimientos({
         color: ruta.color,
         cuenta: nombreCuenta,
         foto: cuenta?.foto,
+        rubro: rubroDe(m.categoriaId),
         buscable: plano([m.comercio, ruta.texto, nombreCuenta, m.nota].filter(Boolean).join(' ')),
       }
     })
@@ -233,17 +242,20 @@ export function ListaDeMovimientos({
                 {d.lineas.map((l) => (
                   <li key={l.fila.id}>
                     <button className="fila" onClick={() => alElegir(l.fila)}>
-                      <span className="fila-arriba">
-                        <b className="fila-titulo">{l.titulo}</b>
-                        <b className={`num ${l.fila.tipo === 'expense' ? 'gasto' : 'ingreso'}`}>
-                          {l.fila.tipo === 'expense' ? '−' : '+'}
-                          {dinero(l.fila.monto)}
-                        </b>
-                      </span>
-                      <span className="fila-abajo">
-                        <span className="punto" style={{ background: colorDe(l.color) }} />
-                        <Cara nombre={l.cuenta} foto={l.foto} />
-                        <span className="fila-detalle">{l.detalle}</span>
+                      <Cara nombre={l.rubro?.nombre ?? ''} foto={l.rubro?.foto} clase="cara-de-rubro" />
+                      <span className="fila-texto">
+                        <span className="fila-arriba">
+                          <b className="fila-titulo">{l.titulo}</b>
+                          <b className={`num ${l.fila.tipo === 'expense' ? 'gasto' : 'ingreso'}`}>
+                            {l.fila.tipo === 'expense' ? '−' : '+'}
+                            {dinero(l.fila.monto)}
+                          </b>
+                        </span>
+                        <span className="fila-abajo">
+                          <span className="punto" style={{ background: colorDe(l.color) }} />
+                          <Cara nombre={l.cuenta} foto={l.foto} />
+                          <span className="fila-detalle">{l.detalle}</span>
+                        </span>
                       </span>
                     </button>
                   </li>
