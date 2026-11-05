@@ -324,3 +324,47 @@ button.fila:hover, button.fila:focus-visible { background: color-mix(in srgb, va
 .fila-abajo { display: flex; align-items: center; font-size: 13px; color: var(--grafito); min-width: 0; }
 .fila-abajo .cara { width: 18px; height: 18px; font-size: 9px; vertical-align: 0; }
 .fila-detalle { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Filters of the month (option B of the filter proposals). */
+.lista-con-filtros { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 20px; align-items: start; }
+.lista-filtrada { min-width: 0; }
+.filtros-del-mes { position: sticky; top: 16px; padding-right: 20px; border-right: 1px solid var(--regla); }
+.titulo-filtro {
+  margin: 0 0 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--grafito);
+}
+.calendario { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; margin-bottom: 20px; }
+.dia-semana { text-align: center; font-size: 11px; font-weight: 700; color: var(--grafito); padding-bottom: 2px; }
+button.dia-del-mes {
+  aspect-ratio: 1; padding: 0; border-radius: 8px; font-size: 12px; font-weight: 600;
+  color: var(--tinta); background: transparent; border: 1px solid transparent;
+}
+button.dia-del-mes.tono-1 { background: color-mix(in srgb, var(--marca) 12%, transparent); }
+button.dia-del-mes.tono-2 { background: color-mix(in srgb, var(--marca) 24%, transparent); }
+button.dia-del-mes.tono-3 { background: color-mix(in srgb, var(--marca) 40%, transparent); }
+button.dia-del-mes.tono-4 { background: color-mix(in srgb, var(--marca) 58%, transparent); }
+button.dia-del-mes:hover { border-color: var(--marca); }
+button.dia-del-mes[aria-pressed='true'] { background: var(--marca); color: #fff; }
+.rubros { display: grid; gap: 2px; }
+.rubro + .rubro { margin-top: 6px; }
+button.casilla {
+  width: 100%; display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 4px 6px;
+  background: transparent; color: var(--tinta); font-size: 15px; font-weight: 600; border-radius: 8px; text-align: left;
+}
+button.casilla:hover { background: color-mix(in srgb, var(--marca) 8%, transparent); }
+button.casilla.de-categoria { padding-left: 30px; font-size: 14px; font-weight: 400; color: var(--grafito); }
+button.casilla .punto { margin-right: 0; }
+.caja {
+  width: 16px; height: 16px; flex: none; display: inline-grid; place-items: center; font-size: 11px; line-height: 1;
+  border: 1.5px solid var(--borde); border-radius: 4px; color: #fff;
+}
+button.casilla[aria-checked='true'] .caja, button.casilla[aria-checked='mixed'] .caja { background: var(--marca); border-color: var(--marca); }
+.casilla-nombre { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.casilla-total { margin-left: auto; font-size: 13px; }
+.filtrado { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 4px; color: var(--tinta); font-weight: 600; }
+button.enlace { padding: 0; background: transparent; color: var(--marca); font-size: 14px; text-decoration: underline; }
+@media (max-width: 900px) {
+  .lista-con-filtros { grid-template-columns: 1fr; }
+  .filtros-del-mes { position: static; padding: 0 0 16px; border-right: 0; border-bottom: 1px solid var(--regla); }
+  .calendario { max-width: 340px; }
+}

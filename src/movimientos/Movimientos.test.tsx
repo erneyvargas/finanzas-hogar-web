@@ -42,9 +42,12 @@ const datos: DatosDeMovimientos = {
   ],
 }
 
-function movimientos(ejecutar: FuenteDeMovimientos['ejecutar'] = vi.fn(async () => {})): FuenteDeMovimientos {
+function movimientos(
+  ejecutar: FuenteDeMovimientos['ejecutar'] = vi.fn(async () => {}),
+  cargados: DatosDeMovimientos = datos,
+): FuenteDeMovimientos {
   return {
-    cargar: vi.fn(async () => datos),
+    cargar: vi.fn(async () => cargados),
     saldo: vi.fn(async (id: string) => ({ efe: 80000, tc: -150000, nequi: 30000, aho: 900000 })[id] ?? null),
     ejecutar: vi.fn(ejecutar),
   }
@@ -177,6 +180,93 @@ describe('the movements of the month', () => {
     expect(filas[1].querySelector('img.cara')).toHaveAttribute('src', 'https://fotos.test/tc.png')
     expect(filas[0].querySelector('img.cara')).toBeNull()
     expect(filas[0].querySelector('.cara')).toHaveTextContent('E')
+  })
+})
+
+describe('the filter panel', () => {
+  // Two rubros, two categories under Hogar, and four days of October.
+  const conRubros: DatosDeMovimientos = {
+    ...datos,
+    categorias: [
+      ...datos.categorias,
+      { id: 'servicios', nombre: 'Servicios', tipo: 'expense', nivel: 'category', padreId: 'hogar', color: null, viva: true },
+      { id: 'luz', nombre: 'Luz', tipo: 'expense', nivel: 'subcategory', padreId: 'servicios', color: null, viva: true },
+      { id: 'erney', nombre: 'Erney', tipo: 'expense', nivel: 'rubro', padreId: null, color: 'cielo', viva: true },
+      { id: 'comida', nombre: 'Comida', tipo: 'expense', nivel: 'category', padreId: 'erney', color: null, viva: true },
+      { id: 'almuerzo', nombre: 'Almuerzo', tipo: 'expense', nivel: 'subcategory', padreId: 'comida', color: null, viva: true },
+    ],
+    movimientos: [
+      ...datos.movimientos,
+      { id: 'm4', tipo: 'expense', monto: 142300, fecha: '2026-10-14T15:00:00Z', cuentaId: 'efe', categoriaId: 'luz', rubroId: 'hogar', comercio: 'Factura de luz', nota: null },
+      { id: 'm5', tipo: 'expense', monto: 87400, fecha: '2026-10-17T18:00:00Z', cuentaId: 'tc', categoriaId: 'almuerzo', rubroId: 'erney', comercio: 'Frisby', nota: null },
+    ],
+  }
+  const abrir = async () => {
+    montar(movimientos(undefined, conRubros))
+    return screen.findByRole('region', { name: 'Movimientos de octubre' })
+  }
+  const comercios = (lista: HTMLElement) =>
+    within(lista)
+      .getAllByRole('listitem')
+      .map((f) => f.querySelector('.fila-titulo')?.textContent)
+
+  it('lists each expense rubro with its categories and what each one spent', async () => {
+    const lista = await abrir()
+
+    const panel = within(lista).getByRole('group', { name: 'Rubros y categorías' })
+    expect(within(panel).getByRole('checkbox', { name: 'Hogar' })).not.toBeChecked()
+    expect(within(panel).getByText('$149.900')).toBeInTheDocument()
+    expect(within(panel).getByRole('checkbox', { name: 'Servicios' })).toBeInTheDocument()
+    expect(within(panel).getByRole('checkbox', { name: 'Erney' })).toBeInTheDocument()
+    expect(within(panel).queryByRole('checkbox', { name: 'Ingresos' })).toBeNull()
+  })
+
+  it('a rubro shows only its movements; a category, only the ones under it', async () => {
+    const lista = await abrir()
+
+    await userEvent.click(within(lista).getByRole('checkbox', { name: 'Erney' }))
+    expect(comercios(lista)).toEqual(['Frisby'])
+
+    await userEvent.click(within(lista).getByRole('checkbox', { name: 'Erney' }))
+    await userEvent.click(within(lista).getByRole('checkbox', { name: 'Servicios' }))
+    expect(comercios(lista)).toEqual(['Factura de luz'])
+    expect(within(lista).getByText('1 movimiento')).toBeInTheDocument()
+  })
+
+  it('unchecking one category of a checked rubro keeps the rest of the rubro', async () => {
+    const lista = await abrir()
+
+    await userEvent.click(within(lista).getByRole('checkbox', { name: 'Hogar' }))
+    expect(within(lista).getByRole('checkbox', { name: 'Servicios' })).toBeChecked()
+    await userEvent.click(within(lista).getByRole('checkbox', { name: 'Servicios' }))
+
+    expect(comercios(lista)).toEqual(['Aseo', 'Aguacate'])
+    expect(within(lista).getByRole('checkbox', { name: 'Hogar' })).toHaveAttribute('aria-checked', 'mixed')
+  })
+
+  it('two taps on the calendar choose the days between them', async () => {
+    const lista = await abrir()
+
+    await userEvent.click(within(lista).getByRole('button', { name: '24 de octubre' }))
+    expect(comercios(lista)).toEqual(['Aguacate'])
+
+    await userEvent.click(within(lista).getByRole('button', { name: '14 de octubre' }))
+    expect(comercios(lista)).toEqual(['Aguacate', 'Frisby', 'Factura de luz'])
+    expect(within(lista).getByRole('button', { name: '17 de octubre' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('says what is filtered and clears it all at once', async () => {
+    const lista = await abrir()
+
+    await userEvent.click(within(lista).getByRole('checkbox', { name: 'Hogar' }))
+    await userEvent.click(within(lista).getByRole('button', { name: '14 de octubre' }))
+    await userEvent.click(within(lista).getByRole('button', { name: '27 de octubre' }))
+    expect(within(lista).getByText('Hogar · 14 al 27 oct')).toBeInTheDocument()
+
+    await userEvent.click(within(lista).getByRole('button', { name: 'Quitar filtros' }))
+
+    expect(within(lista).getAllByRole('listitem')).toHaveLength(5)
+    expect(within(lista).queryByRole('button', { name: 'Quitar filtros' })).toBeNull()
   })
 })
 
