@@ -86,11 +86,12 @@ export function ListaDeMovimientos({
   const [filtro, setFiltro] = useState<Filtro>('todos')
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set())
   const [rango, setRango] = useState<Rango | null>(null)
+  const [recientesPrimero, setRecientesPrimero] = useState(true)
   const arbol = arbolDeGastos(datos.categorias)
   const cuentas = new Map(datos.cuentas.map((c) => [c.id, c]))
 
   const lineas: Linea[] = [...datos.movimientos]
-    .sort((a, b) => b.fecha.localeCompare(a.fecha))
+    .sort((a, b) => (recientesPrimero ? b.fecha.localeCompare(a.fecha) : a.fecha.localeCompare(b.fecha)))
     .map((m) => {
       const ruta = rutaDeCategoria(m.categoriaId, datos.categorias)
       const partes = ruta.texto.split(' › ')
@@ -193,13 +194,19 @@ export function ListaDeMovimientos({
               ))}
             </div>
           </div>
-          <p className="nota resumen" aria-live="polite">
-            <span>
-              {visibles.length} {visibles.length === 1 ? 'movimiento' : 'movimientos'}
-            </span>
-            {visibles.length > 0 && ' · '}
-            {sumas(total(visibles, 'expense'), total(visibles, 'income'))}
-          </p>
+          <div className="resumen-y-orden">
+            <p className="nota resumen" aria-live="polite">
+              <span>
+                {visibles.length} {visibles.length === 1 ? 'movimiento' : 'movimientos'}
+              </span>
+              {visibles.length > 0 && ' · '}
+              {sumas(total(visibles, 'expense'), total(visibles, 'income'))}
+            </p>
+            {/* The button says the order in use; clicking flips it. */}
+            <button type="button" className="enlace orden" onClick={() => setRecientesPrimero(!recientesPrimero)}>
+              {recientesPrimero ? 'Más recientes primero' : 'Más antiguos primero'} <span aria-hidden="true">⇅</span>
+            </button>
+          </div>
           {filtrado && (
             <p className="nota filtrado">
               <span>{filtrado}</span>

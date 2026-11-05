@@ -388,3 +388,5 @@ button.plegar {
   background: transparent; color: var(--grafito); font-size: 14px;
 }
 button.plegar:hover { background: color-mix(in srgb, var(--marca) 8%, transparent); color: var(--tinta); }
+.resumen-y-orden { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; }
+button.enlace.orden { text-decoration: none; font-weight: 600; }
