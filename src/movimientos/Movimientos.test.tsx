@@ -152,6 +152,31 @@ describe('the movements of the month', () => {
     expect(within(lista).getByText('Ningún movimiento coincide.')).toBeInTheDocument()
   })
 
+  it('shows the note as the title and the merchant below, as the phone does', async () => {
+    const m = movimientos()
+    m.cargar = vi.fn(async (): Promise<DatosDeMovimientos> => ({
+      ...datos,
+      categorias: [
+        ...datos.categorias,
+        { id: 'alm', nombre: 'Almuerzos', tipo: 'expense', nivel: 'category', padreId: 'hogar', color: null, viva: true },
+        { id: 'alm-g', nombre: 'General', tipo: 'expense', nivel: 'subcategory', padreId: 'alm', color: null, viva: true },
+      ],
+      movimientos: [
+        { id: 'n1', tipo: 'expense', monto: 12580, fecha: '2026-10-20T15:00:00Z', cuentaId: 'efe', categoriaId: 'aseo', rubroId: 'hogar', comercio: 'Uber', nota: 'Charquito - Apartamento' },
+        { id: 'n2', tipo: 'expense', monto: 23000, fecha: '2026-10-19T15:00:00Z', cuentaId: 'efe', categoriaId: 'alm-g', rubroId: 'hogar', comercio: null, nota: null },
+      ],
+    }))
+    montar(m)
+
+    const lista = await screen.findByRole('region', { name: 'Movimientos de octubre' })
+    const [conNota, sinNada] = await within(lista).findAllByRole('listitem')
+    expect(conNota.querySelector('.fila-titulo')).toHaveTextContent(/^Charquito - Apartamento$/)
+    expect(conNota.querySelector('.fila-detalle')).toHaveTextContent(/^Uber · Mercado › Aseo · Hogar · Efectivo$/)
+    // Without merchant or note the title is the category, never the «General» filler.
+    expect(sinNada.querySelector('.fila-titulo')).toHaveTextContent(/^Almuerzos$/)
+    expect(sinNada.querySelector('.fila-detalle')).toHaveTextContent(/^Hogar · Efectivo$/)
+  })
+
   it('does not repeat the merchant or a repeated level in the path', async () => {
     const m = movimientos()
     m.cargar = vi.fn(async (): Promise<DatosDeMovimientos> => ({
