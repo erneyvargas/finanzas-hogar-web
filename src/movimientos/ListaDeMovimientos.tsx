@@ -96,14 +96,18 @@ export function ListaDeMovimientos({
       const partes = ruta.texto.split(' › ')
       const persona = partes.length > 1 ? partes[0] : ''
       const sinPersona = partes.slice(persona ? 1 : 0)
-      const titulo = m.comercio || partes[partes.length - 1]
+      // «General» is the schema's filler leaf, never a name to show.
+      const hoja = [...partes].reverse().find((p) => p !== 'General') ?? partes[partes.length - 1]
+      // As the phone: the note is the title and the merchant goes below.
+      const nota = m.nota?.trim() || null
+      const titulo = nota || m.comercio || hoja
       // Without "General", a level that repeats the one above, or the title itself.
       const camino = sinPersona
         .filter((p, i) => p !== 'General' && p !== sinPersona[i - 1] && p !== titulo)
         .join(' › ')
       const cuenta = cuentas.get(m.cuentaId)
       const nombreCuenta = cuenta?.nombre ?? 'Cuenta'
-      const detalle = [camino, persona, nombreCuenta].filter(Boolean).join(' · ')
+      const detalle = [nota ? m.comercio : null, camino, persona, nombreCuenta].filter(Boolean).join(' · ')
       return {
         fila: m,
         titulo,
