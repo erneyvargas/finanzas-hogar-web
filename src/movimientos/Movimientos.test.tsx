@@ -112,6 +112,20 @@ describe('the movements of the month', () => {
     expect(filas[2]).toHaveTextContent('+$100.000')
   })
 
+  it('orders by date, newest first or oldest first', async () => {
+    const lista = await abrirLista()
+    const orden = within(lista).getByRole('button', { name: 'Más recientes primero' })
+
+    await userEvent.click(orden)
+
+    const dias = within(lista).getAllByRole('heading', { level: 3 })
+    expect(dias.map((d) => d.textContent?.split(/[−+]/)[0])).toEqual(['Jueves 1 oct', 'Sábado 24 oct', 'Martes 27 oct'])
+    expect(within(lista).getByRole('button', { name: 'Más antiguos primero' })).toBeInTheDocument()
+
+    await userEvent.click(within(lista).getByRole('button', { name: 'Más antiguos primero' }))
+    expect(within(lista).getAllByRole('heading', { level: 3 })[0]).toHaveTextContent('Martes 27 oct')
+  })
+
   it('sums what it shows', async () => {
     const lista = await abrirLista()
 
