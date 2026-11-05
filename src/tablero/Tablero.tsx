@@ -41,7 +41,8 @@ export function Tablero({
   /** Today in Bogotá; a string, so the effect below reruns only when the day changes. */
   const diaDeHoy = diaDe(ahora())
   const [mes, setMes] = useState(mesInicial)
-  const [resumen, setResumen] = useState<ResumenDelMes | null>(null)
+  /** With its month: a reload of the same month keeps showing the old one. */
+  const [cargado, setCargado] = useState<{ mes: string; r: ResumenDelMes } | null>(null)
   const [error, setError] = useState<string | null>(null)
   /** Bumped after a save so the dashboard and the list load again. */
   const [recarga, setRecarga] = useState(0)
@@ -53,12 +54,11 @@ export function Tablero({
 
   useEffect(() => {
     let vivo = true
-    setResumen(null)
     setError(null)
     fuente
       .cargar(mes)
       .then(({ hogarId, datos }) => {
-        if (vivo) setResumen(resumenDelMes({ ...datos, mes, hogarId, hoy: diaDeHoy }))
+        if (vivo) setCargado({ mes, r: resumenDelMes({ ...datos, mes, hogarId, hoy: diaDeHoy }) })
       })
       .catch((e: Error) => {
         if (vivo) setError(`No se pudo cargar el mes. ${e.message}`)
@@ -107,6 +107,9 @@ export function Tablero({
     setErrorDeLista(null)
     setRecarga((n) => n + 1)
   }
+  // Only a new month shows the skeleton. A reload after saving keeps the
+  // page (and the list's filters) until the new numbers arrive.
+  const resumen = cargado?.mes === mes ? cargado.r : null
   const esqueleto = useCargaVisible(!error && !resumen)
   const listaDelMes = lista?.mes === mes ? lista.datos : null
   const [pestana, setPestana] = useState<Pestana>(pestanaGuardada)
@@ -136,11 +139,6 @@ export function Tablero({
             ›
           </button>
         </nav>
-        {movimientos && (
-          <button className="registrar" disabled={!lista} onClick={() => abrir(null)}>
-            + Registrar
-          </button>
-        )}
         <span className="apagado correo">{usuario?.email}</span>
         <button className="secundario" onClick={() => void salir()}>
           Salir
@@ -171,6 +169,14 @@ export function Tablero({
           <ListaDeMovimientos mes={mes} datos={listaDelMes} alElegir={abrir} />
         )}
       </main>
+
+      {/* Bottom right, as on the phone. It stays mounted while the panel is
+          open (CSS hides it) so the focus can come back to it on close. */}
+      {movimientos && (
+        <button className="registrar flotante" disabled={!lista} onClick={() => abrir(null)}>
+          + Registrar
+        </button>
+      )}
 
       {movimientos && lista && enPanel !== undefined && (
         <Panel
