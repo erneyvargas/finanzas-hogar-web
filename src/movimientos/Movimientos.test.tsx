@@ -215,6 +215,20 @@ describe('the movements of the month', () => {
     expect(fila.querySelector('.fila-detalle')).toHaveTextContent(/^Ajuste de saldo · Efectivo$/)
   })
 
+  it("shows the rubro's photo at the start of each row, and its initials when it has none", async () => {
+    const m = movimientos()
+    m.cargar = vi.fn(async (): Promise<DatosDeMovimientos> => ({
+      ...datos,
+      categorias: datos.categorias.map((c) => (c.id === 'hogar' ? { ...c, foto: 'https://fotos.test/hogar.png' } : c)),
+    }))
+    montar(m)
+
+    const lista = await screen.findByRole('region', { name: 'Movimientos de octubre' })
+    const [aseo, , sueldo] = await within(lista).findAllByRole('listitem')
+    expect(aseo.querySelector('.cara-de-rubro')).toHaveAttribute('src', 'https://fotos.test/hogar.png')
+    expect(sueldo.querySelector('.cara-de-rubro')).toHaveTextContent(/^I$/)
+  })
+
   it('shows the account photo when it has one, and its initials when not', async () => {
     const lista = await abrirLista()
 
@@ -334,6 +348,21 @@ describe('the filter panel', () => {
     await userEvent.click(within(lista).getByRole('button', { name: '14 de octubre' }))
     expect(comercios(lista)).toEqual(['Aguacate', 'Frisby', 'Factura de luz'])
     expect(within(lista).getByRole('button', { name: '17 de octubre' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('after the first day, hovering another one previews the range', async () => {
+    const lista = await abrir()
+    const dia = (n: number) => within(lista).getByRole('button', { name: `${n} de octubre` })
+
+    await userEvent.click(dia(14))
+    await userEvent.hover(dia(17))
+
+    expect([13, 14, 15, 16, 17, 18].map((n) => dia(n).dataset.previa === 'true')).toEqual([
+      false, false, true, true, true, false,
+    ])
+
+    await userEvent.unhover(within(lista).getByRole('group', { name: 'Días del mes' }))
+    expect(dia(16).dataset.previa).toBeUndefined()
   })
 
   it('says what is filtered and clears it all at once', async () => {

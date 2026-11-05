@@ -28,6 +28,8 @@ export interface CategoriaDeMovimiento {
   padreId: string | null
   color: string | null
   viva: boolean
+  /** Signed link to its photo; only rubros usually have one. */
+  foto?: string | null
 }
 
 /** A movement of the month list; transfers never get here. */

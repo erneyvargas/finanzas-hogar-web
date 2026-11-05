@@ -33,6 +33,16 @@ export function FiltrosDelMes({
   // Monday first, as calendars are read in Colombia.
   const hueco = (new Date(Date.UTC(a, m - 1, 1)).getUTCDay() + 6) % 7
   const mayor = Math.max(0, ...gastoPorDia.values())
+  // With one day chosen, the day under the pointer previews the range a
+  // second tap would make.
+  const [sobre, setSobre] = useState<string | null>(null)
+  const unSoloDia = rango !== null && rango.desde === rango.hasta ? rango.desde : null
+  const previa: Rango | null =
+    unSoloDia && sobre && sobre !== unSoloDia
+      ? sobre < unSoloDia
+        ? { desde: sobre, hasta: unSoloDia }
+        : { desde: unSoloDia, hasta: sobre }
+      : null
   // Rubros start folded, so the panel is short; the arrow opens one.
   const [abiertos, setAbiertos] = useState<Set<string>>(new Set())
   const plegar = (id: string) => {
@@ -45,7 +55,7 @@ export function FiltrosDelMes({
   return (
     <aside className="filtros-del-mes">
       <p className="titulo-filtro" aria-hidden="true">Días</p>
-      <div className="calendario" role="group" aria-label="Días del mes">
+      <div className="calendario" role="group" aria-label="Días del mes" onMouseLeave={() => setSobre(null)}>
         {DIAS_CORTOS.map((d, i) => (
           <span key={i} className="dia-semana" aria-hidden="true">
             {d}
@@ -58,6 +68,7 @@ export function FiltrosDelMes({
           const dia = `${mes}-${String(i + 1).padStart(2, '0')}`
           const gasto = gastoPorDia.get(dia) ?? 0
           const elegido = rango !== null && dentroDelRango(rango, dia)
+          const enPrevia = !elegido && previa !== null && dentroDelRango(previa, dia)
           // Five shades, so a quiet day and a heavy one read apart.
           const tono = gasto > 0 && mayor > 0 ? Math.max(1, Math.round((gasto / mayor) * 4)) : 0
           return (
@@ -67,6 +78,8 @@ export function FiltrosDelMes({
               className={`dia-del-mes tono-${tono}`}
               aria-label={`${i + 1} de ${MESES[m - 1]}`}
               aria-pressed={elegido}
+              data-previa={enPrevia || undefined}
+              onMouseEnter={() => setSobre(dia)}
               title={gasto > 0 ? dinero(gasto) : undefined}
               onClick={() => alTocarDia(dia)}
             >

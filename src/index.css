@@ -175,6 +175,8 @@ fieldset.campo { border: 0; margin: 0; padding: 0; }
   font: inherit; color: inherit; border: 0; padding: 0; min-width: 1.2ch; max-width: 100%; text-align: left; background: transparent; outline: none;
 }
 .panel .monto input:focus-visible { border-bottom: 2px solid currentColor; }
+/* Other panel fields are rounded; here the underline must stay straight. */
+.panel .monto input { border-radius: 0; box-shadow: none; }
 .alternar { display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--fondo); }
 .alternar button { flex: 1; background: transparent; color: var(--grafito); border: 0; border-radius: 999px; padding: 8px; font-weight: 600; }
 .alternar button[aria-pressed='true'] { color: #fff; font-weight: 700; }
@@ -319,7 +321,7 @@ button.chip[aria-pressed='true'] { background: var(--tinta); color: var(--papel)
 .dia ul { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--regla); }
 .dia li { border-bottom: 1px solid var(--regla); }
 button.fila {
-  width: 100%; display: flex; flex-direction: column; gap: 4px; padding: 10px 8px; min-height: 56px;
+  width: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 8px; min-height: 56px;
   background: transparent; color: var(--tinta); border-radius: 8px; text-align: left; font-weight: 400;
 }
 button.fila:hover, button.fila:focus-visible { background: color-mix(in srgb, var(--marca) 10%, transparent); }
@@ -390,3 +392,15 @@ button.plegar {
 button.plegar:hover { background: color-mix(in srgb, var(--marca) 8%, transparent); color: var(--tinta); }
 .resumen-y-orden { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; }
 button.enlace.orden { text-decoration: none; font-weight: 600; }
+
+/* The rubro's face at the start of each movement, as the phone shows it. */
+.fila-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.cara-de-rubro {
+  width: 36px; height: 36px; flex: none; border-radius: 50%; display: inline-grid; place-items: center;
+  background: var(--regla); color: var(--tinta); font-size: 13px; font-weight: 700;
+}
+img.cara-de-rubro { object-fit: cover; border: 1px solid var(--regla); }
+/* The range a second tap would choose, while the pointer is over a day. */
+button.dia-del-mes[data-previa='true'] {
+  background: color-mix(in srgb, var(--marca) 30%, var(--papel)); color: var(--tinta); border: 1px dashed var(--marca);
+}
