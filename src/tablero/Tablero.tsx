@@ -109,6 +109,14 @@ export function Tablero({
   }
   const esqueleto = useCargaVisible(!error && !resumen)
   const listaDelMes = lista?.mes === mes ? lista.datos : null
+  const [pestana, setPestana] = useState<Pestana>(pestanaGuardada)
+  const elegirPestana = (p: Pestana) => {
+    setPestana(p)
+    guardarPestana(p)
+  }
+  // Without the movements there is only the summary, and no tabs.
+  const verResumen = !movimientos || pestana === 'resumen'
+  const verLista = !!movimientos && pestana === 'movimientos'
 
   return (
     <div className={`marco ${enPanel !== undefined ? 'con-panel' : ''}`}>
@@ -140,11 +148,26 @@ export function Tablero({
       </header>
 
       <main className="contenido">
+        {movimientos && (
+          <div className="pestanas" role="tablist" aria-label="Vista">
+            {PESTANAS.map((p) => (
+              <button
+                key={p.id}
+                role="tab"
+                className="pestana"
+                aria-selected={pestana === p.id}
+                onClick={() => elegirPestana(p.id)}
+              >
+                {p.nombre}
+              </button>
+            ))}
+          </div>
+        )}
         {error && <Fallo texto={error} alReintentar={reintentar} />}
-        {!error && esqueleto && <Esqueleto mes={mes} conLista={!!movimientos} />}
-        {resumen && !esqueleto && <Contenido mes={mes} r={resumen} />}
-        {movimientos && errorDeLista && <Fallo texto={errorDeLista} alReintentar={reintentar} />}
-        {movimientos && !errorDeLista && listaDelMes && !esqueleto && (
+        {!error && esqueleto && <Esqueleto mes={mes} conResumen={verResumen} conLista={verLista} />}
+        {verResumen && resumen && !esqueleto && <Contenido mes={mes} r={resumen} />}
+        {verLista && errorDeLista && <Fallo texto={errorDeLista} alReintentar={reintentar} />}
+        {verLista && !errorDeLista && listaDelMes && !esqueleto && (
           <ListaDeMovimientos mes={mes} datos={listaDelMes} alElegir={abrir} />
         )}
       </main>
@@ -179,7 +202,7 @@ function Fallo({ texto, alReintentar }: { texto: string; alReintentar: () => voi
  * page at 1920px: top cards 128px, matrix and chart cards 287px, list search
  * 44px and rows 62px. Below 900px the grid is one column, as the real one.
  */
-function Esqueleto({ mes, conLista }: { mes: string; conLista: boolean }) {
+function Esqueleto({ mes, conResumen, conLista }: { mes: string; conResumen: boolean; conLista: boolean }) {
   const pequena = (
     <div className="tarjeta" aria-hidden="true">
       <span className="skeleton skeleton--text sk-w40" style={{ ['--sk-line' as string]: '19px', marginBottom: 15 }} />
@@ -192,21 +215,23 @@ function Esqueleto({ mes, conLista }: { mes: string; conLista: boolean }) {
       <p role="status" className="sk-sr">
         Cargando {nombreDelMes(mes)}…
       </p>
-      <div className="rejilla">
-        {pequena}
-        {pequena}
-        {pequena}
-        <div className="tarjeta ancha esqueleto-alto" aria-hidden="true">
-          <span className="skeleton skeleton--text sk-w30" style={{ ['--sk-line' as string]: '19px', marginBottom: 15 }} />
-          {[100, 80, 65].map((w) => (
-            <span key={w} className={`skeleton skeleton--text sk-w${w}`} style={{ ['--sk-line' as string]: '37px' }} />
-          ))}
+      {conResumen && (
+        <div className="rejilla">
+          {pequena}
+          {pequena}
+          {pequena}
+          <div className="tarjeta ancha esqueleto-alto" aria-hidden="true">
+            <span className="skeleton skeleton--text sk-w30" style={{ ['--sk-line' as string]: '19px', marginBottom: 15 }} />
+            {[100, 80, 65].map((w) => (
+              <span key={w} className={`skeleton skeleton--text sk-w${w}`} style={{ ['--sk-line' as string]: '37px' }} />
+            ))}
+          </div>
+          <div className="tarjeta esqueleto-alto" aria-hidden="true">
+            <span className="skeleton skeleton--text sk-w40" style={{ ['--sk-line' as string]: '19px', marginBottom: 15 }} />
+            <span className="skeleton" style={{ height: 200 }} />
+          </div>
         </div>
-        <div className="tarjeta esqueleto-alto" aria-hidden="true">
-          <span className="skeleton skeleton--text sk-w40" style={{ ['--sk-line' as string]: '19px', marginBottom: 15 }} />
-          <span className="skeleton" style={{ height: 200 }} />
-        </div>
-      </div>
+      )}
       {conLista && (
         <div className="tarjeta movimientos" aria-hidden="true">
           <span className="skeleton skeleton--text sk-w30" style={{ ['--sk-line' as string]: '19px', marginBottom: 15 }} />
@@ -218,6 +243,30 @@ function Esqueleto({ mes, conLista }: { mes: string; conLista: boolean }) {
       )}
     </div>
   )
+}
+
+type Pestana = 'resumen' | 'movimientos'
+const PESTANAS: { id: Pestana; nombre: string }[] = [
+  { id: 'resumen', nombre: 'Resumen' },
+  { id: 'movimientos', nombre: 'Movimientos' },
+]
+const CLAVE_DE_PESTANA = 'pestana-del-tablero'
+
+/** The tab left open last time, in this browser; Resumen the first time. */
+function pestanaGuardada(): Pestana {
+  try {
+    return localStorage.getItem(CLAVE_DE_PESTANA) === 'movimientos' ? 'movimientos' : 'resumen'
+  } catch {
+    return 'resumen'
+  }
+}
+
+function guardarPestana(p: Pestana) {
+  try {
+    localStorage.setItem(CLAVE_DE_PESTANA, p)
+  } catch {
+    // Blocked storage (private window): the tab just is not remembered.
+  }
 }
 
 /** Days before this one in a running month read as "Día N de M", not as a percentage. */

@@ -56,7 +56,10 @@ function movimientos(
 // 20:30 UTC on Oct 28 is 15:30 in Bogotá.
 const ahora = () => new Date('2026-10-28T20:30:00Z')
 
-function montar(m: FuenteDeMovimientos, t: FuenteDelTablero = tablero()) {
+function montar(m: FuenteDeMovimientos, t: FuenteDelTablero = tablero(), pestana: string | null = 'movimientos') {
+  // The web remembers the last tab; these tests start on the movements.
+  if (pestana) window.localStorage.setItem('pestana-del-tablero', pestana)
+  else window.localStorage.removeItem('pestana-del-tablero')
   render(
     <ProveedorDeSesion cliente={auth}>
       <Tablero fuente={t} movimientos={m} mesInicial="2026-10" ahora={ahora} />
@@ -208,6 +211,30 @@ describe('the movements of the month', () => {
   })
 })
 
+describe('the Resumen and Movimientos tabs', () => {
+  it('opens on Resumen the first time; Movimientos shows the list instead', async () => {
+    montar(movimientos(), tablero(), null)
+
+    const resumen = await screen.findByRole('tab', { name: 'Resumen' })
+    expect(resumen).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByRole('region', { name: 'Gastado en octubre' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Movimientos de octubre' })).toBeNull()
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Movimientos' }))
+
+    expect(await screen.findByRole('region', { name: 'Movimientos de octubre' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Gastado en octubre' })).toBeNull()
+    expect(screen.getByRole('tab', { name: 'Movimientos' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('remembers the last tab for the next visit', async () => {
+    montar(movimientos(), tablero(), null)
+    await userEvent.click(await screen.findByRole('tab', { name: 'Movimientos' }))
+
+    expect(window.localStorage.getItem('pestana-del-tablero')).toBe('movimientos')
+  })
+})
+
 describe('the filter panel', () => {
   // Two rubros, two categories under Hogar, and four days of October.
   const conRubros: DatosDeMovimientos = {
@@ -230,6 +257,9 @@ describe('the filter panel', () => {
     montar(movimientos(undefined, conRubros))
     return screen.findByRole('region', { name: 'Movimientos de octubre' })
   }
+  /** Rubros start folded: their categories show after the arrow. */
+  const desplegar = (lista: HTMLElement, rubro: string) =>
+    userEvent.click(within(lista).getByRole('button', { name: `Ver categorías de ${rubro}` }))
   const comercios = (lista: HTMLElement) =>
     within(lista)
       .getAllByRole('listitem')
@@ -241,7 +271,17 @@ describe('the filter panel', () => {
     const panel = within(lista).getByRole('group', { name: 'Rubros y categorías' })
     expect(within(panel).getByRole('checkbox', { name: 'Hogar' })).not.toBeChecked()
     expect(within(panel).getByText('$149.900')).toBeInTheDocument()
+    // Folded until asked, so the panel stays short.
+    expect(within(panel).queryByRole('checkbox', { name: 'Servicios' })).toBeNull()
+    const flecha = within(panel).getByRole('button', { name: 'Ver categorías de Hogar' })
+    expect(flecha).toHaveAttribute('aria-expanded', 'false')
+
+    await desplegar(lista, 'Hogar')
+
+    expect(flecha).toHaveAttribute('aria-expanded', 'true')
     expect(within(panel).getByRole('checkbox', { name: 'Servicios' })).toBeInTheDocument()
+    await desplegar(lista, 'Hogar')
+    expect(within(panel).queryByRole('checkbox', { name: 'Servicios' })).toBeNull()
     expect(within(panel).getByRole('checkbox', { name: 'Erney' })).toBeInTheDocument()
     expect(within(panel).queryByRole('checkbox', { name: 'Ingresos' })).toBeNull()
   })
@@ -253,6 +293,7 @@ describe('the filter panel', () => {
     expect(comercios(lista)).toEqual(['Frisby'])
 
     await userEvent.click(within(lista).getByRole('checkbox', { name: 'Erney' }))
+    await desplegar(lista, 'Hogar')
     await userEvent.click(within(lista).getByRole('checkbox', { name: 'Servicios' }))
     expect(comercios(lista)).toEqual(['Factura de luz'])
     expect(within(lista).getByText('1 movimiento')).toBeInTheDocument()
@@ -262,6 +303,7 @@ describe('the filter panel', () => {
     const lista = await abrir()
 
     await userEvent.click(within(lista).getByRole('checkbox', { name: 'Hogar' }))
+    await desplegar(lista, 'Hogar')
     expect(within(lista).getByRole('checkbox', { name: 'Servicios' })).toBeChecked()
     await userEvent.click(within(lista).getByRole('checkbox', { name: 'Servicios' }))
 

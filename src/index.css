@@ -372,3 +372,19 @@ button.enlace { padding: 0; background: transparent; color: var(--marca); font-s
   .filtros-del-mes { position: static; padding: 0 0 16px; border-right: 0; border-bottom: 1px solid var(--regla); }
   .calendario { max-width: 340px; }
 }
+
+/* Resumen and Movimientos as tabs, so the list is not below the summary. */
+.pestanas { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--regla); }
+button.pestana {
+  padding: 10px 16px; border-radius: 0; background: transparent; color: var(--grafito);
+  font-size: 16px; font-weight: 700; border-bottom: 3px solid transparent; margin-bottom: -1px;
+}
+button.pestana[aria-selected='true'] { color: var(--marca); border-bottom-color: var(--marca); }
+button.pestana:hover { color: var(--tinta); }
+.rubro-cabeza { display: flex; align-items: center; gap: 2px; }
+.rubro-cabeza button.casilla { flex: 1; min-width: 0; }
+button.plegar {
+  width: 32px; height: 32px; padding: 0; flex: none; border-radius: 8px;
+  background: transparent; color: var(--grafito); font-size: 14px;
+}
+button.plegar:hover { background: color-mix(in srgb, var(--marca) 8%, transparent); color: var(--tinta); }

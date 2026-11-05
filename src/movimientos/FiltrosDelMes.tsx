@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { colorDe, dinero, MESES } from '../core/formato'
 import { dentroDelRango, type Rango, type RubroDelArbol } from './filtros'
 
@@ -32,6 +33,14 @@ export function FiltrosDelMes({
   // Monday first, as calendars are read in Colombia.
   const hueco = (new Date(Date.UTC(a, m - 1, 1)).getUTCDay() + 6) % 7
   const mayor = Math.max(0, ...gastoPorDia.values())
+  // Rubros start folded, so the panel is short; the arrow opens one.
+  const [abiertos, setAbiertos] = useState<Set<string>>(new Set())
+  const plegar = (id: string) => {
+    const nuevos = new Set(abiertos)
+    if (nuevos.has(id)) nuevos.delete(id)
+    else nuevos.add(id)
+    setAbiertos(nuevos)
+  }
 
   return (
     <aside className="filtros-del-mes">
@@ -72,16 +81,30 @@ export function FiltrosDelMes({
         {arbol.map((r) => {
           const marcadas = r.categorias.filter((c) => seleccion.has(c.id)).length
           const estado = seleccion.has(r.id) ? 'true' : marcadas > 0 ? 'mixed' : 'false'
+          const abierto = abiertos.has(r.id)
           return (
             <div key={r.id} className="rubro">
-              <Casilla
-                nombre={r.nombre}
-                estado={estado}
-                total={totales.get(r.id) ?? 0}
-                color={colorDe(r.color)}
-                alAlternar={() => alAlternar(r.id)}
-              />
-              {r.categorias.map((c) => (
+              <div className="rubro-cabeza">
+                <Casilla
+                  nombre={r.nombre}
+                  estado={estado}
+                  total={totales.get(r.id) ?? 0}
+                  color={colorDe(r.color)}
+                  alAlternar={() => alAlternar(r.id)}
+                />
+                {r.categorias.length > 0 && (
+                  <button
+                    type="button"
+                    className="plegar"
+                    aria-label={`Ver categorías de ${r.nombre}`}
+                    aria-expanded={abierto}
+                    onClick={() => plegar(r.id)}
+                  >
+                    <span aria-hidden="true">{abierto ? '▾' : '▸'}</span>
+                  </button>
+                )}
+              </div>
+              {abierto && r.categorias.map((c) => (
                 <Casilla
                   key={c.id}
                   nombre={c.nombre}
