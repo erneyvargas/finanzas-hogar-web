@@ -5,9 +5,10 @@ import { afterEach } from 'vitest'
 // Vitest runs without globals, so Testing Library cannot unmount on its own.
 afterEach(cleanup)
 
-// Node 26 has its own `localStorage`, undefined without --localstorage-file,
-// and it hides jsdom's. Tests get an in-memory one instead.
-if (typeof globalThis.localStorage?.setItem !== 'function') {
+// Node 26 has its own `localStorage`/`sessionStorage`, undefined without
+// --localstorage-file, and they hide jsdom's. Tests get in-memory ones.
+function enMemoria(nombre: 'localStorage' | 'sessionStorage') {
+  if (typeof globalThis[nombre]?.setItem === 'function') return
   const datos = new Map<string, string>()
   const memoria: Storage = {
     get length() {
@@ -19,5 +20,10 @@ if (typeof globalThis.localStorage?.setItem !== 'function') {
     removeItem: (k) => void datos.delete(k),
     setItem: (k, v) => void datos.set(k, String(v)),
   }
-  Object.defineProperty(globalThis, 'localStorage', { value: memoria, configurable: true })
+  Object.defineProperty(globalThis, nombre, { value: memoria, configurable: true })
 }
+enMemoria('localStorage')
+enMemoria('sessionStorage')
+
+// What a page remembers for the tab must not leak from one test to the next.
+afterEach(() => sessionStorage.clear())

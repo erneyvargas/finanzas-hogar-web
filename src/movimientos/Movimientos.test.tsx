@@ -737,6 +737,49 @@ describe('days off in the list', () => {
   })
 })
 
+describe('after reloading the page', () => {
+  it('keeps the search, type, order, checked rubros and chosen days', async () => {
+    const primera = montarYDevolver()
+    let lista = await screen.findByRole('region', { name: 'Movimientos de octubre' })
+    await userEvent.type(within(lista).getByRole('searchbox', { name: 'Buscar movimientos' }), 'agua')
+    await userEvent.click(within(lista).getByRole('button', { name: 'Gastos' }))
+    await userEvent.click(within(lista).getByRole('button', { name: 'Más recientes primero' }))
+    await userEvent.click(within(lista).getByRole('checkbox', { name: 'Hogar' }))
+    await userEvent.click(within(lista).getByRole('button', { name: '24 de octubre' }))
+    primera.unmount()
+
+    montarYDevolver()
+    lista = await screen.findByRole('region', { name: 'Movimientos de octubre' })
+
+    expect(within(lista).getByRole('searchbox', { name: 'Buscar movimientos' })).toHaveValue('agua')
+    expect(within(lista).getByRole('button', { name: 'Gastos' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(lista).getByRole('button', { name: /Más antiguos primero/ })).toBeInTheDocument()
+    expect(within(lista).getByRole('checkbox', { name: 'Hogar' })).toBeChecked()
+    expect(within(lista).getByRole('button', { name: '24 de octubre' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('reopens the month that was open', async () => {
+    const primera = montarYDevolver()
+    await screen.findByRole('region', { name: 'Movimientos de octubre' })
+    await userEvent.click(screen.getByRole('button', { name: 'Mes anterior' }))
+    await screen.findByRole('region', { name: 'Movimientos de septiembre' })
+    primera.unmount()
+
+    montarYDevolver(null)
+
+    expect(await screen.findByRole('region', { name: 'Movimientos de septiembre' })).toBeInTheDocument()
+  })
+})
+
+function montarYDevolver(mesInicial: string | null = '2026-10') {
+  window.localStorage.setItem('pestana-del-tablero', 'movimientos')
+  return render(
+    <ProveedorDeSesion cliente={auth}>
+      <Tablero fuente={tablero()} movimientos={movimientos()} mesInicial={mesInicial ?? undefined} ahora={ahora} />
+    </ProveedorDeSesion>,
+  )
+}
+
 describe('the row menu', () => {
   const menuDe = async (comercio: RegExp) => {
     const lista = await screen.findByRole('region', { name: 'Movimientos de octubre' })
