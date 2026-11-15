@@ -72,6 +72,11 @@ describe('the due date of a rule in the shown month', () => {
     expect(fechaDeRegla(regla({ diaDelMes: null, proximaFecha: '2026-10-07' }), '2026-11')).toBe('2026-11-07')
   })
 
+  it('is that weekday of the month for «the first Monday» or «the last Friday»', () => {
+    expect(fechaDeRegla(regla({ diaDelMes: null, dias: [1], semanaDelMes: 1, proximaFecha: '2026-11-02' }), '2026-12')).toBe('2026-12-07')
+    expect(fechaDeRegla(regla({ diaDelMes: null, dias: [5], semanaDelMes: -1, proximaFecha: '2026-10-30' }), '2026-11')).toBe('2026-11-27')
+  })
+
   it('is unknown (null) for a non-monthly rule whose date already passed, and absent when it is due later', () => {
     expect(fechaDeRegla(regla({ frecuencia: 'yearly', proximaFecha: '2026-09-01' }), '2026-11')).toBeNull()
     expect(fechaDeRegla(regla({ frecuencia: 'yearly', proximaFecha: '2027-03-01' }), '2026-11')).toBeUndefined()
@@ -294,3 +299,9 @@ describe('a debt installment rule and a card are paid with a transfer', () => {
   })
 })
 
+describe('income rules', () => {
+  it('are nothing to pay: Por vencer leaves them out', () => {
+    const vs = vencimientos(datos({ reglas: [regla({}), regla({ id: 'sueldo', nombre: 'Sueldo', tipo: 'income' })] }), '2026-11-15')
+    expect(vs.map((x) => x.id)).toEqual(['r1'])
+  })
+})

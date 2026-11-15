@@ -1,5 +1,6 @@
 import { MESES } from '../core/formato'
 import { diasDelMes, semanaDelDia, semanasDelMes } from '../core/ui/rejillaDelMes'
+import { primeraFecha } from '../recurrentes/fechas'
 import { moverMes } from '../tablero/calculo'
 
 /**
@@ -8,7 +9,7 @@ import { moverMes } from '../tablero/calculo'
  * Dates are Bogotá days as `YYYY-MM-DD`.
  */
 
-/** An active, live `recurring_rules` row of kind expense. */
+/** An active, live `recurring_rules` row (an income one is only listed to edit). */
 export interface Regla {
   id: string
   nombre: string
@@ -26,6 +27,22 @@ export interface Regla {
   deudaId?: string | null
   /** That debt's loan account: «Pagar» transfers into it. */
   destinoId?: string | null
+  /** `recurring_rules.kind`; absent means `expense`. */
+  tipo?: 'expense' | 'income' | 'debt_payment'
+  /** ISO weekdays (Monday = 1): several with `weekly`, one with `week_of_month`. */
+  dias?: number[] | null
+  /** `week_of_month`: 1..4, or −1 for the last. */
+  semanaDelMes?: number | null
+  /** `reminder_time`, `HH:mm[:ss]`. */
+  horaAviso?: string | null
+  /** `end_date`. */
+  fin?: string | null
+}
+
+/** A debt a debt rule can pay. */
+export interface DeudaDeRegla {
+  id: string
+  nombre: string
 }
 
 /**
@@ -66,6 +83,8 @@ export interface DatosDePorVencer {
   pagosATarjetas: { haciaCuentaId: string; dia: string; monto: number }[]
   /** Live debt payments of the same window, by debt and day: they pay a debt rule. */
   abonos?: { deudaId: string; dia: string }[]
+  /** The household's debts, for a debt rule's panel. */
+  deudas?: DeudaDeRegla[]
 }
 
 export interface Vencimiento {
@@ -120,6 +139,10 @@ export const limite30 = (hoy: string) => aDia(comoUtc(hoy) + 30 * DIA_MS)
  */
 export function fechaDeRegla(r: Regla, mes: string): string | null | undefined {
   if (r.proximaFecha.startsWith(mes)) return r.proximaFecha
+  // «The first Monday»: that weekday of [mes], not a fixed day.
+  if (r.frecuencia === 'monthly' && r.semanaDelMes != null && r.dias?.length) {
+    return primeraFecha({ frecuencia: 'monthly', dia: null, dias: r.dias, semana: r.semanaDelMes }, `${mes}-01`)
+  }
   if (r.frecuencia === 'monthly') return conDia(mes, r.diaDelMes ?? Number(r.proximaFecha.slice(8)))
   return r.proximaFecha < mes ? null : undefined
 }
@@ -152,6 +175,8 @@ export function vencimientos(d: DatosDePorVencer, hoy: string): Vencimiento[] {
   for (const m of [mes, siguiente]) {
     const esteMes = m === mes
     for (const r of d.reglas) {
+      // An income rule is nothing to pay.
+      if (r.tipo === 'income') continue
       const fecha = fechaDeRegla(r, m)
       if (fecha === undefined || (!esteMes && (fecha === null || fecha > tope))) continue
       fuera.push({

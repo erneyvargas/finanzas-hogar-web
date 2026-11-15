@@ -6,7 +6,7 @@ import { Tablero } from './Tablero'
 import type { FuenteDelTablero } from './fuente'
 import type { FuenteDeFacturas } from '../facturas/fuente'
 import type { FuenteDeMovimientos } from '../movimientos/fuente'
-import type { DatosDeMovimientos } from '../movimientos/reglas'
+import { ErrorDelServidor, type DatosDeMovimientos } from '../movimientos/reglas'
 import type { FuenteDeCuentas } from '../cuentas/fuente'
 import type { CuentaConSaldo, DatosDeCuentas } from '../cuentas/reglas'
 import type { FuenteDePorVencer } from '../porvencer/fuente'
@@ -648,6 +648,240 @@ describe('the Por vencer tab', () => {
       await waitFor(() => expect(pagar).toBeEnabled())
       await userEvent.click(pagar)
       expect(screen.getByRole('dialog', { name: 'Registrar movimiento' })).toBeInTheDocument()
+    })
+  })
+
+  describe('recurring payments (Moxen «Recurrencia»)', () => {
+    const conReglas: DatosDePorVencer = {
+      ...datosPv,
+      reglas: [
+        ...datosPv.reglas.map((r) => (r.id === 'internet' ? { ...r, horaAviso: '08:30:00' } : r)),
+        { ...regla, id: 'aseo', nombre: 'Aseo', monto: 120000, frecuencia: 'biweekly', diaDelMes: null, proximaFecha: '2026-11-20', avisoDias: 1, categoriaId: 'c-internet' },
+        { ...regla, id: 'sueldo', nombre: 'Sueldo', monto: 5000000, diaDelMes: 30, proximaFecha: '2026-11-30', avisoDias: 0, categoriaId: null, tipo: 'income' as const },
+      ],
+      deudas: [{ id: 'd-pertuz', nombre: 'Pertuz' }],
+    }
+    const conEscribir = (d: DatosDePorVencer = conReglas) => ({
+      cargar: vi.fn(async () => d),
+      ejecutar: vi.fn(async (): Promise<unknown> => null),
+    })
+    const montarReglas = async (pv = conEscribir(), m = movimientos()) => {
+      window.localStorage.setItem('pestana-del-tablero', 'porvencer')
+      render(
+        <ProveedorDeSesion cliente={auth}>
+          <Tablero fuente={fuente()} movimientos={m} porVencer={pv} mesInicial="2026-10" ahora={ahora} />
+        </ProveedorDeSesion>,
+      )
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Nuevo pago recurrente' })).toBeEnabled())
+      return { pv, m }
+    }
+
+    it('lists every rule, income too, each one editable', async () => {
+      await montarReglas()
+      const lista = screen.getByRole('list', { name: 'Pagos recurrentes' })
+      expect(within(lista).getByRole('button', { name: 'Editar Sueldo' })).toHaveTextContent('Se repite el día 30 de cada mes')
+      expect(within(lista).getByRole('button', { name: 'Editar Aseo' })).toHaveTextContent('Se repite cada dos semanas')
+      // Income is nothing to pay.
+      expect(within(screen.getByRole('list', { name: 'Por pagar' })).queryByText('Sueldo')).not.toBeInTheDocument()
+    })
+
+    it('creates one: the panel sends crear_regla_recurrente with the pattern and reloads', async () => {
+      const { pv } = await montarReglas()
+      await userEvent.click(screen.getByRole('button', { name: 'Nuevo pago recurrente' }))
+      const panel = screen.getByRole('dialog', { name: 'Nuevo pago recurrente' })
+      await userEvent.type(within(panel).getByLabelText('Nombre'), 'Gimnasio')
+      await userEvent.type(within(panel).getByLabelText('Valor'), '90000')
+      await userEvent.click(within(panel).getByRole('button', { name: 'Internet, de Hogar' }))
+      // A new rule starts monthly on today's day.
+      expect(within(panel).getByRole('radio', { name: 'Mensual' })).toHaveAttribute('aria-checked', 'true')
+      await userEvent.click(within(panel).getByRole('button', { name: 'Un día después' }))
+      expect(within(panel).getByLabelText(/^Expresión de repetición/)).toHaveAttribute('aria-label', 'Expresión de repetición: 0 9 16 * *')
+      expect(within(within(panel).getByRole('list', { name: 'Próximas cinco' })).getAllByRole('listitem')[0]).toHaveTextContent('16')
+
+      await userEvent.click(within(panel).getByRole('button', { name: 'Guardar' }))
+
+      expect(pv.ejecutar).toHaveBeenCalledWith('crear_regla_recurrente', {
+        p_household_id: 'h1',
+        p_nombre: 'Gimnasio',
+        p_tipo: 'expense',
+        p_cuenta: 'efe',
+        p_categoria: 'c-internet',
+        p_deuda: null,
+        p_monto: 90000,
+        p_frecuencia: 'monthly',
+        p_dia: 16,
+        p_dias: null,
+        p_semana: null,
+        p_mes: null,
+        p_inicio: '2026-11-15',
+        p_fin: null,
+        p_aviso_dias: 1,
+        p_hora: '09:00',
+        p_id: expect.any(String),
+      })
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Nuevo pago recurrente' })).not.toBeInTheDocument())
+      await waitFor(() => expect(pv.cargar).toHaveBeenCalledTimes(2))
+    })
+
+    it('a debt installment picks the debt instead of a category', async () => {
+      const { pv } = await montarReglas()
+      await userEvent.click(screen.getByRole('button', { name: 'Nuevo pago recurrente' }))
+      const panel = screen.getByRole('dialog', { name: 'Nuevo pago recurrente' })
+      await userEvent.click(within(panel).getByRole('button', { name: 'Cuota de deuda' }))
+      await userEvent.type(within(panel).getByLabelText('Nombre'), 'Cuota Pertuz')
+      await userEvent.type(within(panel).getByLabelText('Valor'), '606000')
+      await userEvent.selectOptions(within(panel).getByLabelText('Deuda'), 'd-pertuz')
+      await userEvent.click(within(panel).getByRole('radio', { name: 'Semanal' }))
+      await userEvent.click(within(panel).getByRole('button', { name: 'Entre semana' }))
+      await userEvent.click(within(panel).getByRole('button', { name: 'Guardar' }))
+      expect(pv.ejecutar).toHaveBeenCalledWith(
+        'crear_regla_recurrente',
+        expect.objectContaining({ p_tipo: 'debt_payment', p_categoria: null, p_deuda: 'd-pertuz', p_frecuencia: 'weekly', p_dias: [1, 2, 3, 4, 5] }),
+      )
+    })
+
+    it('edits one: the panel opens filled and sends editar_regla_recurrente from its next date', async () => {
+      const { pv } = await montarReglas()
+      await userEvent.click(screen.getByRole('button', { name: 'Editar Internet' }))
+      const panel = screen.getByRole('dialog', { name: 'Editar pago recurrente' })
+      expect(within(panel).getByLabelText('Nombre')).toHaveValue('Internet')
+      expect(within(panel).getByLabelText('Valor')).toHaveValue('101.000')
+      expect(within(panel).getByRole('button', { name: 'Gasto' })).toBeDisabled()
+      expect(within(panel).getByLabelText(/^Expresión de repetición/)).toHaveAttribute('aria-label', 'Expresión de repetición: 30 8 18 * *')
+
+      await userEvent.click(within(panel).getByRole('radio', { name: 'El' }))
+      await userEvent.click(within(panel).getByRole('button', { name: 'Guardar' }))
+
+      expect(pv.ejecutar).toHaveBeenCalledWith('editar_regla_recurrente', {
+        p_household_id: 'h1',
+        p_id: 'internet',
+        p_nombre: 'Internet',
+        p_cuenta: 'nomina',
+        p_categoria: 'c-internet',
+        p_deuda: null,
+        p_monto: 101000,
+        p_frecuencia: 'monthly',
+        p_dia: null,
+        p_dias: [1],
+        p_semana: 1,
+        p_mes: null,
+        p_inicio: '2026-11-18',
+        p_fin: null,
+        p_aviso_dias: 3,
+        p_hora: '08:30',
+      })
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Editar pago recurrente' })).not.toBeInTheDocument())
+    })
+
+    it('every two weeks has no control here: it is kept and shown with a note', async () => {
+      const { pv } = await montarReglas()
+      await userEvent.click(screen.getByRole('button', { name: 'Editar Aseo' }))
+      const panel = screen.getByRole('dialog', { name: 'Editar pago recurrente' })
+      expect(within(panel).getByText(/Se repite cada dos semanas/)).toBeInTheDocument()
+      expect(within(panel).queryByRole('radiogroup', { name: 'Frecuencia' })).not.toBeInTheDocument()
+      await userEvent.click(within(panel).getByRole('button', { name: 'Guardar' }))
+      expect(pv.ejecutar).toHaveBeenCalledWith(
+        'editar_regla_recurrente',
+        expect.objectContaining({ p_frecuencia: 'biweekly', p_dia: null, p_dias: null, p_semana: null, p_mes: null, p_hora: '09:00' }),
+      )
+    })
+
+    it('shows the server’s message and stays open', async () => {
+      const pv = conEscribir()
+      pv.ejecutar.mockRejectedValueOnce(new ErrorDelServidor('La fecha de fin no puede ser antes de la primera', 'fin_antes_de_inicio'))
+      await montarReglas(pv)
+      await userEvent.click(screen.getByRole('button', { name: 'Editar Internet' }))
+      const panel = screen.getByRole('dialog', { name: 'Editar pago recurrente' })
+      await userEvent.click(within(panel).getByRole('button', { name: 'Guardar' }))
+      expect(await within(panel).findByRole('alert')).toHaveTextContent('La fecha de fin no puede ser antes de la primera')
+      expect(within(panel).getByRole('button', { name: 'Guardar' })).toBeEnabled()
+    })
+
+    it('deletes one after confirming in the panel', async () => {
+      const { pv } = await montarReglas()
+      await userEvent.click(screen.getByRole('button', { name: 'Editar Luz' }))
+      const panel = screen.getByRole('dialog', { name: 'Editar pago recurrente' })
+      await userEvent.click(within(panel).getByRole('button', { name: 'Borrar' }))
+      expect(within(panel).getByText('¿Borrar este pago recurrente?')).toBeInTheDocument()
+      await userEvent.click(within(panel).getByRole('button', { name: 'Sí, borrar' }))
+      expect(pv.ejecutar).toHaveBeenCalledWith('borrar_regla_recurrente', { p_household_id: 'h1', p_id: 'luz' })
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Editar pago recurrente' })).not.toBeInTheDocument())
+    })
+
+    it('Escape closes the panel and gives the focus back', async () => {
+      await montarReglas()
+      const abrir = screen.getByRole('button', { name: 'Nuevo pago recurrente' })
+      await userEvent.click(abrir)
+      await userEvent.keyboard('{Escape}')
+      expect(screen.queryByRole('dialog', { name: 'Nuevo pago recurrente' })).not.toBeInTheDocument()
+      expect(abrir).toHaveFocus()
+    })
+
+    it('Pagar an expense rule advances the rule once the expense is saved', async () => {
+      const { pv, m } = await montarReglas()
+      await userEvent.click(screen.getByRole('button', { name: 'Pagar Internet' }))
+      await userEvent.click(within(screen.getByRole('dialog', { name: 'Registrar movimiento' })).getByRole('button', { name: /Guardar gasto/ }))
+      expect(m.ejecutar).toHaveBeenCalledWith('registrar_movimiento', expect.objectContaining({ p_amount: 101000 }))
+      await waitFor(() => expect(pv.ejecutar).toHaveBeenCalledWith('cumplir_regla_recurrente', { p_household_id: 'h1', p_id: 'internet' }))
+    })
+
+    it('closing the register panel without saving advances nothing', async () => {
+      const { pv } = await montarReglas()
+      await userEvent.click(screen.getByRole('button', { name: 'Pagar Internet' }))
+      await userEvent.keyboard('{Escape}')
+      await userEvent.click(screen.getByRole('button', { name: 'Nuevo pago recurrente' }))
+      await userEvent.keyboard('{Escape}')
+      expect(pv.ejecutar).not.toHaveBeenCalled()
+    })
+
+    it('if advancing fails, the payment stays and a short notice says so', async () => {
+      const pv = conEscribir()
+      pv.ejecutar.mockRejectedValueOnce(new ErrorDelServidor('Ese pago recurrente ya no existe.', 'regla_no_disponible'))
+      const { m } = await montarReglas(pv)
+      await userEvent.click(screen.getByRole('button', { name: 'Pagar Internet' }))
+      await userEvent.click(within(screen.getByRole('dialog', { name: 'Registrar movimiento' })).getByRole('button', { name: /Guardar gasto/ }))
+      expect(await screen.findByRole('status', { name: 'Pago recurrente' })).toHaveTextContent(
+        'El pago quedó guardado, pero Internet no pasó a su próxima fecha. Ese pago recurrente ya no existe.',
+      )
+      expect(m.ejecutar).not.toHaveBeenCalledWith('borrar_movimiento', expect.anything())
+    })
+
+    it('Pagar a debt installment advances the rule once the installment is saved', async () => {
+      const pv = conEscribir({
+        ...conReglas,
+        reglas: [
+          ...conReglas.reglas,
+          { ...regla, id: 'escrituras', nombre: 'Deuda escrituras', monto: 606000, diaDelMes: 16, proximaFecha: '2026-11-16', avisoDias: 1, categoriaId: null, deudaId: 'd-pertuz', destinoId: 'pertuz', tipo: 'debt_payment' as const },
+        ],
+      })
+      const datosCuentas: DatosDeCuentas = {
+        hogarId: 'h1',
+        cuentas: [
+          { id: 'nomina', nombre: 'Nómina', tipo: 'debit', saldo: 3_458_092, principal: true, archivada: false, foto: null, rutaDeFoto: null, cupo: null, diaDeCorte: null, diaDePago: null, cobraGmf: false, categoriaGmf: null, estilo: null },
+          { id: 'pertuz', nombre: 'Pertuz', tipo: 'liability', saldo: -10_268_859, principal: false, archivada: false, foto: null, rutaDeFoto: null, cupo: null, diaDeCorte: null, diaDePago: null, cobraGmf: false, categoriaGmf: null, estilo: null },
+        ],
+        deudas: [],
+        categoriasDeGasto: [],
+      }
+      const cuentas: FuenteDeCuentas = {
+        cargar: vi.fn(async () => datosCuentas),
+        movimientos: vi.fn(async () => []),
+        ejecutar: vi.fn(async () => null),
+        subirFoto: vi.fn(async () => ''),
+        borrarFoto: vi.fn(async () => {}),
+      }
+      window.localStorage.setItem('pestana-del-tablero', 'porvencer')
+      render(
+        <ProveedorDeSesion cliente={auth}>
+          <Tablero fuente={fuente()} movimientos={movimientos()} cuentas={cuentas} porVencer={pv} mesInicial="2026-10" ahora={ahora} />
+        </ProveedorDeSesion>,
+      )
+      const pagar = await screen.findByRole('button', { name: 'Pagar Deuda escrituras' })
+      await waitFor(() => expect(pagar).toBeEnabled())
+      await userEvent.click(pagar)
+      await userEvent.click(within(screen.getByRole('dialog', { name: 'Transferir' })).getByRole('button', { name: /Pagar cuota/ }))
+      expect(cuentas.ejecutar).toHaveBeenCalledWith('pagar_cuota_de_prestamo', expect.objectContaining({ p_destino_id: 'pertuz' }))
+      await waitFor(() => expect(pv.ejecutar).toHaveBeenCalledWith('cumplir_regla_recurrente', { p_household_id: 'h1', p_id: 'escrituras' }))
     })
   })
 
