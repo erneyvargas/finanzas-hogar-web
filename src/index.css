@@ -440,13 +440,14 @@ button.dia-del-mes[data-previa='true'] {
 .calendario-flotante .rdp-button_previous, .calendario-flotante .rdp-button_next { background: transparent; padding: 0; border-radius: 8px; }
 .calendario-flotante .rdp-chevron { fill: var(--marca); }
 
-/* Registrar floats at the bottom right, as on the phone. */
-button.registrar.flotante {
-  position: fixed; right: 24px; bottom: 24px; z-index: 20; padding: 16px 24px; border-radius: 18px;
-  font-size: 17px; box-shadow: 0 10px 28px rgb(0 0 0 / 0.22);
+/* Registrar (and Desde factura beside it) float at the bottom right, as on the phone. */
+.flotantes { position: fixed; right: 24px; bottom: 24px; z-index: 20; display: flex; gap: 10px; align-items: center; }
+button.flotante {
+  padding: 16px 24px; border-radius: 18px; font-size: 17px; box-shadow: 0 10px 28px rgb(0 0 0 / 0.22);
 }
-@media (max-width: 900px) { button.registrar.flotante { right: 16px; bottom: 16px; } }
-.con-panel button.registrar.flotante { display: none; }
+button.desde-factura.flotante { background: var(--papel); }
+@media (max-width: 900px) { .flotantes { right: 16px; bottom: 16px; } }
+.con-panel .flotantes { display: none; }
 /* The summary's table rules (padding, lines, right alignment) must not reach the calendar. */
 .calendario-flotante th, .calendario-flotante td { padding: 0; border: 0; text-align: center; white-space: normal; }
 
@@ -542,4 +543,99 @@ button.pc-cat[aria-pressed='true'] { border-color: var(--c); transform: translat
 @keyframes mes-desde-der { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
   .mes-visible > span { animation: none; }
+}
+
+/* «Registrar desde factura» (proposal 2): a wide dialog, the receipt beside the form. */
+.velo {
+  position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 24px;
+  background: rgb(21 24 28 / 0.42);
+}
+@media (prefers-color-scheme: dark) { .velo { background: rgb(0 0 0 / 0.55); } }
+.factura {
+  width: min(1040px, 100%); height: min(760px, 100%); display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+  background: var(--papel); color: var(--tinta); border-radius: var(--radio); overflow: hidden;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.16); outline: none;
+}
+.factura-cabeza { display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 20px; border-bottom: 1px solid var(--regla); }
+.factura-cabeza h2 { margin: 0; font-size: 20px; }
+.factura-cabeza .flecha { margin-left: auto; }
+.nombre-archivo { font-size: 14px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.factura-pie { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-top: 1px solid var(--regla); font-size: 14px; }
+.factura-pie .empujar { margin-left: auto; }
+.guardar-factura { min-height: 46px; padding: 0 22px; font-size: 17px; font-weight: 700; border-radius: 14px; }
+.factura-elegir { padding: 28px; display: grid; min-height: 0; }
+.soltar {
+  border: 2px dashed var(--borde); border-radius: var(--radio); display: grid; place-content: center; justify-items: center;
+  text-align: center; gap: 16px; padding: 24px; color: var(--grafito);
+}
+.soltar b { display: block; color: var(--tinta); font-size: 24px; margin-top: 14px; }
+.soltar.activo { border-color: var(--marca); background: color-mix(in srgb, var(--marca) 8%, var(--papel)); }
+.soltar .aviso { margin: 0; }
+.icono-hoja { display: block; width: 44px; height: 54px; margin: 0 auto; border: 2px solid currentColor; border-radius: 6px; position: relative; color: var(--marca); }
+.icono-hoja::before {
+  content: ''; position: absolute; left: 8px; right: 8px; top: 16px; height: 2px; background: currentColor;
+  box-shadow: 0 8px 0 currentColor, 0 16px 0 currentColor;
+}
+.factura-cuerpo { display: grid; grid-template-columns: 360px minmax(0, 1fr); min-height: 0; }
+.factura-lado { padding: 16px 20px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; min-height: 0; }
+.factura-lado .skeleton { flex: none; }
+.factura input, .factura select {
+  font: inherit; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--borde);
+  background: var(--papel); color: var(--tinta); width: 100%;
+}
+.factura .monto input {
+  font: inherit; color: inherit; border: 0; border-radius: 0; padding: 0; min-width: 1.2ch; max-width: 100%;
+  background: transparent; outline: none;
+}
+.factura .monto input:focus-visible { border-bottom: 2px solid currentColor; }
+.monto.izq { justify-content: flex-start; }
+.factura-arriba { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 20px; align-items: start; }
+.factura button.fecha-elegida {
+  display: flex; justify-content: space-between; width: 100%; padding: 9px 12px; border-radius: 10px;
+  border: 1px solid var(--borde); background: var(--papel); color: var(--tinta); font-weight: 400;
+}
+.requerido { color: var(--alerta); }
+.factura button.chip { height: auto; padding: 4px 12px 4px 4px; }
+.factura button.chip[aria-pressed='true'] {
+  background: var(--papel); color: var(--tinta); border-color: var(--marca); box-shadow: inset 0 0 0 1px var(--marca); font-weight: 700;
+}
+.factura .chips.pide .chip { border-color: var(--borde); border-style: dashed; }
+.fila-etiqueta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.segmento { display: inline-flex; border: 1px solid var(--borde); border-radius: 12px; overflow: hidden; }
+.segmento button { background: transparent; color: var(--grafito); border-radius: 0; padding: 7px 12px; font-size: 13px; font-weight: 700; }
+.segmento button[aria-pressed='true'] { background: var(--tinta); color: var(--papel); }
+.tabla-items th, .tabla-items td { padding: 6px; vertical-align: middle; }
+.tabla-items th:nth-child(3), .tabla-items th:nth-child(4), .tabla-items td:nth-child(3), .tabla-items td:nth-child(4) { text-align: right; }
+.tabla-items th:nth-child(2), .tabla-items th:nth-child(5), .tabla-items td:nth-child(2), .tabla-items td:nth-child(5) { text-align: left; }
+.tabla-items td.descripcion { white-space: normal; min-width: 120px; }
+.tabla-items td:nth-child(5) { width: 230px; }
+.tabla-items select { padding: 5px 8px; font-size: 13px; }
+.nro {
+  width: 20px; height: 20px; border-radius: 50%; display: inline-grid; place-items: center;
+  background: var(--marca); color: #fff; font-size: 11px; font-weight: 700;
+}
+.cuadra { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: var(--marca); }
+.cuadra::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.factura .aviso b { color: var(--alerta); }
+/* The receipt as photographed paper, on a dark desk in both themes. */
+.mesa { position: relative; display: grid; place-items: center; overflow: hidden; background: #3a3631; padding: 16px; min-height: 0; }
+.mesa img { max-width: 100%; max-height: 100%; object-fit: contain; box-shadow: 0 6px 18px rgb(0 0 0 / 0.3); }
+.mesa object { width: 100%; height: 100%; border: 0; background: #fbfaf5; }
+.teja-pdf { display: grid; justify-items: center; gap: 6px; padding: 28px 20px; border-radius: 10px; background: #fbfaf5; color: #262626; text-align: center; max-width: 100%; }
+.teja-pdf .icono-hoja { color: #262626; }
+.teja-pdf span { font-size: 13px; overflow-wrap: anywhere; }
+.barrido {
+  position: absolute; left: 0; right: 0; top: 6%; height: 46px; pointer-events: none;
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--marca) 45%, transparent), transparent);
+  animation: barrer 2.2s ease-in-out infinite alternate;
+}
+@keyframes barrer { from { top: 6%; } to { top: 82%; } }
+/* Without motion the band rests over the middle of the receipt: still says "reading". */
+@media (prefers-reduced-motion: reduce) { .barrido { animation: none; top: 45%; } }
+@media (max-width: 900px) {
+  .velo { padding: 0; }
+  .factura { width: 100%; height: 100%; border-radius: 0; }
+  .factura-cuerpo { grid-template-columns: 1fr; grid-template-rows: 220px minmax(0, 1fr); }
+  .factura-arriba { grid-template-columns: 1fr; }
+  .factura-elegir { padding: 16px; }
 }

@@ -1,9 +1,12 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { ProveedorDeSesion, type ClienteDeAuth } from '../auth/sesion'
 import { Tablero } from './Tablero'
 import type { FuenteDelTablero } from './fuente'
+import type { FuenteDeFacturas } from '../facturas/fuente'
+import type { FuenteDeMovimientos } from '../movimientos/fuente'
+import type { DatosDeMovimientos } from '../movimientos/reglas'
 
 const auth: ClienteDeAuth = {
   getSession: async () => ({ data: { session: { user: { email: 'erney@example.com' } } } }),
@@ -182,5 +185,80 @@ describe('the month dashboard', () => {
     expect(within(gastado).getByText(/Día 2 de 31/)).toBeInTheDocument()
     expect(within(gastado).getByText(/septiembre hasta el día 2: \$20\.000/)).toBeInTheDocument()
     expect(within(gastado).queryByText(/%/)).toBeNull()
+  })
+})
+
+describe('registering from a receipt on the dashboard', () => {
+  const datos: DatosDeMovimientos = {
+    hogarId: 'h1',
+    cuentas: [{ id: 'efe', nombre: 'Efectivo', tipo: 'cash', viva: true }],
+    categorias: [
+      { id: 'hogar', nombre: 'Hogar', tipo: 'expense', nivel: 'rubro', padreId: null, color: null, viva: true },
+      { id: 'aseo', nombre: 'Aseo', tipo: 'expense', nivel: 'subcategory', padreId: 'hogar', color: null, viva: true },
+    ],
+    movimientos: [],
+  }
+  const movimientos = (): FuenteDeMovimientos => ({
+    cargar: vi.fn(async () => datos),
+    saldo: vi.fn(async () => null),
+    ejecutar: vi.fn(async () => {}),
+  })
+  const facturas = (): FuenteDeFacturas => ({
+    subir: vi.fn(async () => {}),
+    leer: vi.fn(async () => {}),
+    consultar: vi.fn(async () => ({
+      estado: 'parsed',
+      error: null,
+      ocr: { merchant_name: 'D1', total: 5000, date: '2026-10-20', account_id: 'efe' },
+      qr: null,
+      items: [],
+    })),
+  })
+  const montarCon = (m?: FuenteDeMovimientos, fa?: FuenteDeFacturas) => {
+    const t = fuente()
+    render(
+      <ProveedorDeSesion cliente={auth}>
+        <Tablero fuente={t} movimientos={m} facturas={fa} mesInicial="2026-10" />
+      </ProveedorDeSesion>,
+    )
+    return t
+  }
+
+  it('offers Desde factura only with a receipts source', async () => {
+    montarCon(movimientos())
+    expect(await screen.findByRole('button', { name: '+ Registrar' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Desde factura' })).not.toBeInTheDocument()
+  })
+
+  it('saves from a receipt, reloads and gives the focus back', async () => {
+    const m = movimientos()
+    const t = montarCon(m, facturas())
+    const boton = await screen.findByRole('button', { name: 'Desde factura' })
+    await waitFor(() => expect(boton).toBeEnabled())
+
+    await userEvent.click(boton)
+    const dialogo = screen.getByRole('dialog', { name: 'Registrar desde factura' })
+    await userEvent.upload(within(dialogo).getByLabelText('Archivo de la factura'), new File(['x'], 'f.jpg', { type: 'image/jpeg' }))
+    await within(dialogo).findByLabelText('Total')
+    await userEvent.type(within(dialogo).getByLabelText('Categoría'), 'ase')
+    await userEvent.click(within(dialogo).getByRole('option', { name: 'Hogar › Aseo' }))
+    const cargas = (t.cargar as ReturnType<typeof vi.fn>).mock.calls.length
+    await userEvent.click(within(dialogo).getByRole('button', { name: 'Guardar gasto · $5.000' }))
+
+    expect(m.ejecutar).toHaveBeenCalledWith('registrar_movimiento_de_factura', expect.objectContaining({ p_amount: 5000 }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect((t.cargar as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(cargas)
+    expect(boton).toHaveFocus()
+  })
+
+  it('leaves the month keys alone while the dialog is open', async () => {
+    const t = montarCon(movimientos(), facturas())
+    const boton = await screen.findByRole('button', { name: 'Desde factura' })
+    await waitFor(() => expect(boton).toBeEnabled())
+    await userEvent.click(boton)
+
+    await userEvent.keyboard('{ArrowLeft}')
+
+    expect(t.cargar).not.toHaveBeenCalledWith('2026-09')
   })
 })

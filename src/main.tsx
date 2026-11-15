@@ -5,6 +5,7 @@ import { App } from './App'
 import { supabase } from './core/supabase'
 import { fuenteDeSupabase, hogarEnCache } from './tablero/fuente'
 import { fuenteDeMovimientosDeSupabase } from './movimientos/fuente'
+import { fuenteDeFacturasDeSupabase } from './facturas/fuente'
 
 const raiz = createRoot(document.getElementById('root')!)
 const hogar = supabase ? hogarEnCache(supabase) : null
@@ -16,6 +17,7 @@ raiz.render(
         cliente={supabase.auth}
         fuente={fuenteDeSupabase(supabase, hogar!)}
         movimientos={fuenteDeMovimientosDeSupabase(supabase, hogar!)}
+        facturas={fuenteDeFacturasDeSupabase(supabase, hogar!)}
       />
     ) : (
       <p className="cargando">
