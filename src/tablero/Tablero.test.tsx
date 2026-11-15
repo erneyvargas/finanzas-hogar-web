@@ -8,6 +8,7 @@ import type { FuenteDeFacturas } from '../facturas/fuente'
 import type { FuenteDeMovimientos } from '../movimientos/fuente'
 import type { DatosDeMovimientos } from '../movimientos/reglas'
 import type { FuenteDeCuentas } from '../cuentas/fuente'
+import type { CuentaConSaldo, DatosDeCuentas } from '../cuentas/reglas'
 import type { FuenteDePorVencer } from '../porvencer/fuente'
 import type { DatosDePorVencer } from '../porvencer/reglas'
 
@@ -496,11 +497,111 @@ describe('the Por vencer tab', () => {
     expect(within(panel).getByRole('group', { name: 'Sale de' })).toHaveTextContent('Nómina')
   })
 
-  it('offers no expense Pagar for a card: paying it is a transfer', async () => {
+  it('without the accounts, a card offers no Pagar: paying it is a transfer, never an expense', async () => {
     await montarPv(movimientos())
     await waitFor(() => expect(screen.getByRole('button', { name: 'Pagar Internet' })).toBeEnabled())
     expect(screen.queryByRole('button', { name: 'Pagar Tarjeta BBVA' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Pagar Nubank' })).not.toBeInTheDocument()
+  })
+
+  describe('Pagar on a card or a debt installment opens Transferir', () => {
+    const cuentaDe = (c: Partial<CuentaConSaldo> & Pick<CuentaConSaldo, 'id' | 'nombre' | 'tipo' | 'saldo'>): CuentaConSaldo => ({
+      archivada: false, principal: false, foto: null, rutaDeFoto: null, cupo: null, diaDeCorte: null, diaDePago: null,
+      cobraGmf: false, categoriaGmf: null, estilo: null, ...c,
+    })
+    const datosCuentas: DatosDeCuentas = {
+      hogarId: 'h1',
+      cuentas: [
+        cuentaDe({ id: 'nomina', nombre: 'Nómina', tipo: 'debit', saldo: 3_458_092, principal: true }),
+        cuentaDe({ id: 'efe', nombre: 'Efectivo', tipo: 'cash', saldo: 10_000 }),
+        cuentaDe({ id: 'bbva', nombre: 'Tarjeta BBVA', tipo: 'credit_card', saldo: -6_709_182 }),
+        cuentaDe({ id: 'pertuz', nombre: 'Pertuz', tipo: 'liability', saldo: -10_268_859 }),
+      ],
+      deudas: [],
+      categoriasDeGasto: [],
+    }
+    const cuentas = (): FuenteDeCuentas => ({
+      cargar: vi.fn(async () => datosCuentas),
+      movimientos: vi.fn(async () => []),
+      ejecutar: vi.fn(async () => null),
+      subirFoto: vi.fn(async () => ''),
+      borrarFoto: vi.fn(async () => {}),
+    })
+    const conDeuda: DatosDePorVencer = {
+      ...datosPv,
+      reglas: [
+        ...datosPv.reglas,
+        { ...regla, id: 'escrituras', nombre: 'Deuda escrituras', monto: 606000, diaDelMes: 16, proximaFecha: '2026-11-16', avisoDias: 1, categoriaId: null, deudaId: 'd-pertuz', destinoId: 'pertuz' },
+      ],
+    }
+    const montarConCuentas = async (d: DatosDePorVencer = conDeuda) => {
+      window.localStorage.setItem('pestana-del-tablero', 'porvencer')
+      render(
+        <ProveedorDeSesion cliente={auth}>
+          <Tablero
+            fuente={fuente()}
+            movimientos={movimientos()}
+            cuentas={cuentas()}
+            porVencer={{ cargar: vi.fn(async () => d) }}
+            mesInicial="2026-10"
+            ahora={ahora}
+          />
+        </ProveedorDeSesion>,
+      )
+      await screen.findByRole('button', { name: 'Pagar Tarjeta BBVA' })
+    }
+
+    it('a card: from the principal account to the card, with the statement amount', async () => {
+      await montarConCuentas()
+      const pagar = screen.getByRole('button', { name: 'Pagar Tarjeta BBVA' })
+      await waitFor(() => expect(pagar).toBeEnabled())
+      await userEvent.click(pagar)
+
+      const panel = screen.getByRole('dialog', { name: 'Transferir' })
+      expect(within(panel).getByRole('button', { name: /^De / })).toHaveTextContent('Nómina')
+      expect(within(panel).getByRole('button', { name: /^A / })).toHaveTextContent('Tarjeta BBVA')
+      expect(within(panel).getByLabelText('Monto')).toHaveValue('1.238.273')
+      expect(screen.queryByRole('dialog', { name: 'Registrar movimiento' })).not.toBeInTheDocument()
+    })
+
+    it('when the principal cannot cover the card, starts from the account with the most money', async () => {
+      const pobre = { ...datosCuentas, cuentas: datosCuentas.cuentas.map((c) => (c.id === 'nomina' ? { ...c, saldo: 1_000 } : c)) }
+      window.localStorage.setItem('pestana-del-tablero', 'porvencer')
+      render(
+        <ProveedorDeSesion cliente={auth}>
+          <Tablero
+            fuente={fuente()}
+            movimientos={movimientos()}
+            cuentas={{ ...cuentas(), cargar: vi.fn(async () => pobre) }}
+            porVencer={{ cargar: vi.fn(async () => conDeuda) }}
+            mesInicial="2026-10"
+            ahora={ahora}
+          />
+        </ProveedorDeSesion>,
+      )
+      const pagar = await screen.findByRole('button', { name: 'Pagar Tarjeta BBVA' })
+      await waitFor(() => expect(pagar).toBeEnabled())
+      await userEvent.click(pagar)
+      expect(within(screen.getByRole('dialog', { name: 'Transferir' })).getByRole('button', { name: /^De / })).toHaveTextContent('Efectivo')
+    })
+
+    it('a debt installment rule: from its account to the loan, as an installment', async () => {
+      await montarConCuentas()
+      await userEvent.click(screen.getByRole('button', { name: 'Pagar Deuda escrituras' }))
+
+      const panel = screen.getByRole('dialog', { name: 'Transferir' })
+      expect(within(panel).getByRole('button', { name: /^De / })).toHaveTextContent('Nómina')
+      expect(within(panel).getByRole('button', { name: /^A / })).toHaveTextContent('Pertuz')
+      expect(within(panel).getByLabelText('Cuota del préstamo')).toHaveValue('606.000')
+    })
+
+    it('an expense rule still opens the register panel', async () => {
+      await montarConCuentas()
+      const pagar = screen.getByRole('button', { name: 'Pagar Internet' })
+      await waitFor(() => expect(pagar).toBeEnabled())
+      await userEvent.click(pagar)
+      expect(screen.getByRole('dialog', { name: 'Registrar movimiento' })).toBeInTheDocument()
+    })
   })
 
   it('keeps the other tabs working', async () => {

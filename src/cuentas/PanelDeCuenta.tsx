@@ -31,7 +31,7 @@ import {
 export type VistaDeCuenta =
   | { v: 'detalle'; id: string }
   | { v: 'nueva' }
-  | { v: 'transferir'; origen?: string; desde?: string }
+  | { v: 'transferir'; origen?: string; desde?: string; destino?: string; monto?: number }
   | { v: 'editar' | 'ajustar' | 'tipo' | 'gmf' | 'estilo' | 'foto'; id: string }
 
 const TITULOS: Record<Exclude<VistaDeCuenta['v'], 'detalle'>, string> = {
@@ -729,7 +729,7 @@ function Transferir({
   fuente,
 }: Comun & {
   datos: DatosDeCuentas
-  vista: { origen?: string; desde?: string }
+  vista: { origen?: string; desde?: string; destino?: string; monto?: number }
   base: Record<string, unknown>
   fuente: FuenteDeCuentas
 }) {
@@ -738,7 +738,11 @@ function Transferir({
   const [origenId, setOrigenId] = useState(() => origenInicial(origenes, vista.origen)?.id ?? '')
   const origen = origenes.find((o) => o.id === origenId)
   const destinos = origen ? destinosPara(origen, datos.cuentas) : []
-  const [destinoElegido, setDestinoId] = useState(() => primero(origen))
+  const [destinoElegido, setDestinoId] = useState(() =>
+    origen && vista.destino && destinosPara(origen, datos.cuentas).some((d) => d.cuenta.id === vista.destino && !d.motivo)
+      ? vista.destino
+      : primero(origen),
+  )
   // A destination the new source cannot reach is cleared: the user picks again.
   const destinoId = destinos.some((d) => d.cuenta.id === destinoElegido && !d.motivo) ? destinoElegido : ''
   const destino = datos.cuentas.find((c) => c.id === destinoId)
@@ -747,7 +751,7 @@ function Transferir({
     const nuevo = origenes.find((o) => o.id === id)
     if (nuevo && !destinosPara(nuevo, datos.cuentas).some((d) => d.cuenta.id === destinoElegido && !d.motivo)) setDestinoId('')
   }
-  const [montoTexto, setMontoTexto] = useState('')
+  const [montoTexto, setMontoTexto] = useState(() => (vista.monto && vista.monto > 0 ? miles(vista.monto) : ''))
   const [id] = useState(() => crypto.randomUUID())
   const monto = leerMonto(montoTexto)
   const hayMonto = Number.isFinite(monto) && monto > 0

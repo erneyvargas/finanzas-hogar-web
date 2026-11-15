@@ -32,17 +32,21 @@ const porFecha = (a: Vencimiento, b: Vencimiento) =>
  * The «Por vencer» tab (proposal 1, «El mes en círculos»): this month as
  * a calendar with one circle per bill, what is left to pay this month or
  * in the next 30 days, and the list to pay from. Read-only: [alPagar]
- * opens the register panel, and without it there is no «Pagar».
+ * opens the register panel (an expense rule) or Transferir (a card or a
+ * debt rule), and without it there is no «Pagar».
  */
 export function PorVencer({
   datos,
   hoy,
   alPagar,
+  puedeTransferir = false,
 }: {
   datos: DatosDePorVencer
   /** Today in Bogotá, `YYYY-MM-DD`. */
   hoy: string
   alPagar?: (v: Vencimiento) => void
+  /** Whether «Pagar» can open a transfer (cards and debt rules); without it they offer none. */
+  puedeTransferir?: boolean
 }) {
   const mes = hoy.slice(0, 7)
   const [modo, setModo] = useState<'mes' | '30'>('mes')
@@ -110,8 +114,8 @@ export function PorVencer({
           )}
           {cuenta(v.cuentaId) && <> · {cuenta(v.cuentaId)}</>}
         </span>
-        {/* A card is paid with a transfer, never an expense. */}
-        {!v.pagado && v.tipo === 'regla' && alPagar && (
+        {/* A card or a debt rule is paid with a transfer, never an expense. */}
+        {!v.pagado && !v.sinExtracto && alPagar && (!v.destinoId || puedeTransferir) && (
           <button type="button" className="pagar" aria-label={`Pagar ${v.nombre}`} onClick={() => alPagar(v)}>
             Pagar
           </button>

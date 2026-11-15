@@ -20,12 +20,12 @@ export function fuenteDePorVencerDeSupabase(sb: SupabaseClient, hogar: () => Pro
           sb
             .from('recurring_rules')
             .select(
-              'id, name, estimated_amount, frequency, day_of_month, next_due_date, reminder_days_before, account_id, category_id, end_date',
+              'id, name, kind, estimated_amount, frequency, day_of_month, next_due_date, reminder_days_before, account_id, category_id, debt_id, end_date',
             )
             .eq('household_id', hogarId)
             .is('deleted_at', null)
             .eq('active', true)
-            .eq('kind', 'expense')
+            .in('kind', ['expense', 'debt_payment'])
             .order('next_due_date')
             .range(a, b),
         ),
@@ -56,6 +56,31 @@ export function fuenteDePorVencerDeSupabase(sb: SupabaseClient, hogar: () => Pro
             .range(a, b),
         ),
       ])
+      // A debt rule pays its debt's loan account; a debt payment near its date pays it.
+      const deudasDeReglas = [...new Set(reglas.map((r) => r.debt_id as string | null).filter((x): x is string => !!x))]
+      const [deudas, abonos] =
+        deudasDeReglas.length === 0
+          ? [[], []]
+          : await Promise.all([
+              todas((a, b) =>
+                sb.from('debts').select('id, account_id').in('id', deudasDeReglas).order('id').range(a, b),
+              ),
+              todas((a, b) =>
+                sb
+                  .from('transactions')
+                  .select('debt_id, occurred_at')
+                  .eq('household_id', hogarId)
+                  .is('deleted_at', null)
+                  .not('voided', 'is', true)
+                  .eq('kind', 'debt_payment')
+                  .in('debt_id', deudasDeReglas)
+                  .gte('occurred_at', desdeConHolgura)
+                  .lt('occurred_at', hasta)
+                  .order('id')
+                  .range(a, b),
+              ),
+            ])
+      const prestamoDe = new Map<string, string | null>(deudas.map((x) => [x.id as string, (x.account_id as string) ?? null]))
       const tarjetas = cuentas.filter((c) => c.type === 'credit_card' && c.due_day != null)
       const principal = cuentas.find((c) => c.is_principal === true)
       // The last billed statement of each card (the phone's observarExtractosPorPagar):
@@ -145,6 +170,8 @@ export function fuenteDePorVencerDeSupabase(sb: SupabaseClient, hogar: () => Pro
             cuentaId: r.account_id,
             categoriaId: r.category_id ?? null,
             color: colorDe(r.category_id ?? null),
+            deudaId: r.kind === 'debt_payment' ? (r.debt_id ?? null) : null,
+            destinoId: r.kind === 'debt_payment' && r.debt_id ? (prestamoDe.get(r.debt_id) ?? null) : null,
           })),
         tarjetas: tarjetas.map((t) => ({
           id: t.id,
@@ -156,6 +183,7 @@ export function fuenteDePorVencerDeSupabase(sb: SupabaseClient, hogar: () => Pro
         cuentas: cuentas.map((c) => ({ id: c.id, nombre: c.name, principal: c.is_principal === true })),
         saldos,
         gastos: gastos.map((g) => ({ categoriaId: g.category_id ?? null, dia: diaDe(g.occurred_at) })),
+        abonos: abonos.map((x) => ({ deudaId: x.debt_id as string, dia: diaDe(x.occurred_at) })),
         pagosATarjetas: pagos.map((p) => ({ haciaCuentaId: p.counter_account_id, dia: diaDe(p.occurred_at), monto: Number(p.amount) })),
       }
     },

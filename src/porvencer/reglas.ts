@@ -22,6 +22,10 @@ export interface Regla {
   categoriaId: string | null
   /** Palette key of its category (or the nearest parent with one). */
   color: string | null
+  /** A `debt_payment` rule's debt: it is paid with a payment to that debt. */
+  deudaId?: string | null
+  /** That debt's loan account: «Pagar» transfers into it. */
+  destinoId?: string | null
 }
 
 /**
@@ -60,6 +64,8 @@ export interface DatosDePorVencer {
   gastos: { categoriaId: string | null; dia: string }[]
   /** Live transfers and debt payments into a card, by day. */
   pagosATarjetas: { haciaCuentaId: string; dia: string; monto: number }[]
+  /** Live debt payments of the same window, by debt and day: they pay a debt rule. */
+  abonos?: { deudaId: string; dia: string }[]
 }
 
 export interface Vencimiento {
@@ -83,6 +89,11 @@ export interface Vencimiento {
   sinExtracto: boolean
   /** What a card without a statement owes. */
   deuda: number
+  /**
+   * Where «Pagar» transfers to: the loan of a debt rule or the card
+   * itself; `null` for an expense rule, which is paid with an expense.
+   */
+  destinoId: string | null
 }
 
 /** How many days around the due date an expense in the category pays it. */
@@ -128,6 +139,12 @@ export function vencimientos(d: DatosDePorVencer, hoy: string): Vencimiento[] {
         g.categoriaId === categoriaId &&
         (fecha === null ? g.dia.startsWith(mes) : Math.abs(diasEntre(fecha, g.dia)) <= DIAS_DE_HOLGURA),
     )
+  const abonadaEl = (deudaId: string, fecha: string | null) =>
+    (d.abonos ?? []).some(
+      (a) =>
+        a.deudaId === deudaId &&
+        (fecha === null ? a.dia.startsWith(mes) : Math.abs(diasEntre(fecha, a.dia)) <= DIAS_DE_HOLGURA),
+    )
   const base = { detalle: null, sinExtracto: false, deuda: 0 }
 
   for (const m of [mes, siguiente]) {
@@ -147,7 +164,8 @@ export function vencimientos(d: DatosDePorVencer, hoy: string): Vencimiento[] {
         cuentaId: r.cuentaId,
         categoriaId: r.categoriaId,
         color: r.color,
-        pagado: esteMes && pagadaEl(r.categoriaId, fecha),
+        pagado: esteMes && (r.deudaId ? abonadaEl(r.deudaId, fecha) : pagadaEl(r.categoriaId, fecha)),
+        destinoId: r.deudaId ? (r.destinoId ?? null) : null,
       })
     }
     for (const t of d.tarjetas) {
@@ -161,6 +179,7 @@ export function vencimientos(d: DatosDePorVencer, hoy: string): Vencimiento[] {
         cuentaId: principal,
         categoriaId: null,
         color: null,
+        destinoId: t.id,
       }
       const e = t.extracto
       if (e && e.vence.startsWith(m) && (esteMes || e.vence <= tope)) {

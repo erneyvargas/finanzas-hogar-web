@@ -56,6 +56,7 @@ const v = (x: Partial<Vencimiento>): Vencimiento => ({
   detalle: null,
   sinExtracto: false,
   deuda: 0,
+  destinoId: null,
   ...x,
 })
 
@@ -251,3 +252,44 @@ describe('urgency', () => {
     expect(esUrgente(v({ fecha: null }), '2026-11-15')).toBe(false)
   })
 })
+
+describe('a debt installment rule and a card are paid with a transfer', () => {
+  const deuda = regla({
+    id: 'escrituras',
+    nombre: 'Deuda escrituras',
+    monto: 606000,
+    diaDelMes: 15,
+    proximaFecha: '2026-12-15',
+    categoriaId: null,
+    deudaId: 'd-pertuz',
+    destinoId: 'pertuz',
+  })
+
+  it('a debt rule is paid by a payment to its debt within the slack, and points at the loan', () => {
+    const [v] = vencimientos(datos({ reglas: [deuda], abonos: [{ deudaId: 'd-pertuz', dia: '2026-11-15' }] }), '2026-11-15')
+    expect(v).toMatchObject({ fecha: '2026-11-15', pagado: true, destinoId: 'pertuz' })
+    const [sinPagar] = vencimientos(datos({ reglas: [deuda], abonos: [{ deudaId: 'otra', dia: '2026-11-15' }] }), '2026-11-15')
+    expect(sinPagar.pagado).toBe(false)
+  })
+
+  it('an expense rule has no destination, and a card points at itself', () => {
+    const vs = vencimientos(
+      datos({
+        reglas: [regla({})],
+        tarjetas: [
+          {
+            id: 'bbva',
+            nombre: 'BBVA',
+            diaDePago: 15,
+            deuda: 100,
+            extracto: { corte: '2026-10-28', vence: '2026-11-15', saldo: 100, minimo: 10, pagado: false },
+          },
+        ],
+      }),
+      '2026-11-10',
+    )
+    expect(vs.find((x) => x.id === 'r1')?.destinoId).toBeNull()
+    expect(vs.find((x) => x.id === 'bbva')?.destinoId).toBe('bbva')
+  })
+})
+
