@@ -414,6 +414,80 @@ describe('transfers', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
+  describe('with a loan as the destination, as the phone does', () => {
+    const reparto = (sobre: Record<string, unknown> = {}) => ({
+      saldo: 4_967_500,
+      interes_del_mes: 10_000,
+      interes: 10_000,
+      capital: 20_000,
+      saldo_despues: 4_947_500,
+      insuficiente: false,
+      ...sobre,
+    })
+
+    it('labels the amount as the installment, previews capital and interest, and pays it with pagar_cuota_de_prestamo', async () => {
+      const f = await montar(fuente(async (funcion) => (funcion === 'reparto_de_cuota' ? reparto() : 'pago-1')))
+
+      const p = await abrirTransferir()
+      await elegir(p, 'De', 'Nequi Karen')
+      await elegir(p, 'A', 'Libranza Davivienda')
+      expect(within(p).getByLabelText('Cuota del préstamo')).toBeInTheDocument()
+      expect(within(p).getByText('La cuota se parte en capital, que baja la deuda, e intereses, que son gasto.')).toBeInTheDocument()
+
+      await userEvent.type(within(p).getByLabelText('Cuota del préstamo'), '30000')
+
+      const desglose = await within(p).findByRole('group', { name: 'Cómo se parte la cuota' })
+      expect(within(desglose).getByText('Capital')).toBeInTheDocument()
+      expect(within(desglose).getByText('$20.000')).toBeInTheDocument()
+      expect(within(desglose).getByText('Intereses')).toBeInTheDocument()
+      expect(within(desglose).getByText('$10.000')).toBeInTheDocument()
+      expect(f.ejecutar).toHaveBeenCalledWith('reparto_de_cuota', { p_household_id: 'h1', p_destino_id: 'lib', p_amount: 30_000 })
+      // The loan drops by the capital only.
+      expect(within(p).getByText('Libranza Davivienda queda')).toBeInTheDocument()
+      expect(within(p).getByText('−$4.947.500')).toBeInTheDocument()
+
+      await userEvent.click(within(p).getByRole('button', { name: 'Pagar cuota $30.000' }))
+
+      await waitFor(() =>
+        expect(f.ejecutar).toHaveBeenCalledWith('pagar_cuota_de_prestamo', {
+          p_household_id: 'h1',
+          p_origen_id: 'nequi',
+          p_destino_id: 'lib',
+          p_amount: 30_000,
+          p_id: expect.any(String),
+        }),
+      )
+      expect(f.ejecutar).not.toHaveBeenCalledWith('registrar_transferencia', expect.anything())
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    })
+
+    it('warns before paying when the installment does not cover the month interest', async () => {
+      await montar(
+        fuente(async (funcion) =>
+          funcion === 'reparto_de_cuota' ? reparto({ insuficiente: true, interes_del_mes: 86_405, interes: 30_000, capital: 0 }) : null,
+        ),
+      )
+
+      const p = await abrirTransferir()
+      await elegir(p, 'De', 'Nequi Karen')
+      await elegir(p, 'A', 'Libranza Davivienda')
+      await userEvent.type(within(p).getByLabelText('Cuota del préstamo'), '30000')
+
+      expect(await within(p).findByRole('alert')).toHaveTextContent(
+        'Este abono no cubre los intereses del mes. La deuda subiría $56.405.',
+      )
+    })
+
+    it('a plain destination keeps the transfer wording', async () => {
+      await montar()
+      const p = await abrirTransferir()
+      await elegir(p, 'De', 'Nequi Karen')
+      await elegir(p, 'A', 'Efectivo')
+      expect(within(p).getByLabelText('Monto')).toBeInTheDocument()
+      expect(within(p).queryByText(/La cuota se parte/)).toBeNull()
+    })
+  })
+
   it('offers as sources only accounts with money: no negatives, no zero, no voucher, loan or archived', async () => {
     await montar(fuente(undefined, conMas))
 
@@ -473,18 +547,14 @@ describe('transfers', () => {
     expect(selector(p, 'De')).toHaveTextContent('Nequi Karen')
   })
 
-  it('offers only the destinations the server takes, a loan disabled, and clears one the new source cannot reach', async () => {
+  it('offers only the destinations the server takes, a loan included, and clears one the new source cannot reach', async () => {
     await montar()
 
     const p = await abrirTransferir()
     await elegir(p, 'De', 'Efectivo')
     await userEvent.click(selector(p, 'A'))
     expect(opciones(p)).toEqual(['Nequi Karen', 'Bono alimentación', 'Master Card BBVA', 'Visa Falabella', 'Libranza Davivienda', 'Ahorros'])
-    const prestamo = within(p).getByRole('option', { name: /^Libranza Davivienda/ })
-    expect(prestamo).toHaveAttribute('aria-disabled', 'true')
-    expect(prestamo).toHaveTextContent('Un préstamo se paga desde Deudas')
-    await userEvent.click(prestamo)
-    expect(within(p).getByRole('listbox')).toBeInTheDocument()
+    expect(within(p).getByRole('option', { name: /^Libranza Davivienda/ })).not.toHaveAttribute('aria-disabled', 'true')
     await userEvent.click(within(p).getByRole('option', { name: /^Master Card BBVA/ }))
     expect(selector(p, 'A')).toHaveTextContent('Master Card BBVA')
 

@@ -5,7 +5,7 @@ import { BUCKET_DE_FOTOS, firmarFotos } from '../movimientos/fuente'
 import { categoriasPara, rutaDeCategoria, traducirError, type CategoriaDeMovimiento } from '../movimientos/reglas'
 import type { DatosDeCuentas, MovimientoDeCuenta, TipoDeCuenta } from './reglas'
 
-/** The account functions of migration 0048. */
+/** The account functions of migration 0048, and the loan installment of 0049. */
 export type FuncionDeCuentas =
   | 'crear_cuenta'
   | 'marcar_cuenta_principal'
@@ -19,6 +19,8 @@ export type FuncionDeCuentas =
   | 'editar_tarjeta'
   | 'archivar_cuenta'
   | 'desarchivar_cuenta'
+  | 'reparto_de_cuota'
+  | 'pagar_cuota_de_prestamo'
 
 /**
  * Where the «Cuentas» tab reads and writes; tests pass a fake. Writes go
