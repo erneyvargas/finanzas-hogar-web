@@ -8,6 +8,8 @@ import type { FuenteDeFacturas } from '../facturas/fuente'
 import type { FuenteDeMovimientos } from '../movimientos/fuente'
 import type { DatosDeMovimientos } from '../movimientos/reglas'
 import type { FuenteDeCuentas } from '../cuentas/fuente'
+import type { FuenteDePorVencer } from '../porvencer/fuente'
+import type { DatosDePorVencer } from '../porvencer/reglas'
 
 const auth: ClienteDeAuth = {
   getSession: async () => ({ data: { session: { user: { email: 'erney@example.com' } } } }),
@@ -291,5 +293,180 @@ describe('the tabs', () => {
     montar(fuente())
     await screen.findByRole('region', { name: 'Gastado en octubre' })
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+  })
+})
+
+describe('the actions bar', () => {
+  const datos: DatosDeMovimientos = { hogarId: 'h1', cuentas: [], categorias: [], movimientos: [] }
+  const movimientos = (): FuenteDeMovimientos => ({
+    cargar: vi.fn(async () => datos),
+    saldo: vi.fn(async () => null),
+    ejecutar: vi.fn(async () => {}),
+  })
+  const cuentas = (): FuenteDeCuentas => ({
+    cargar: vi.fn(async () => ({ hogarId: 'h1', cuentas: [], deudas: [], categoriasDeGasto: [] })),
+    movimientos: vi.fn(async () => []),
+    ejecutar: vi.fn(async () => null),
+    subirFoto: vi.fn(async () => ''),
+    borrarFoto: vi.fn(async () => {}),
+  })
+
+  it('sits beside the tabs, not floating over the content, with the account buttons only on Cuentas', async () => {
+    window.localStorage.setItem('pestana-del-tablero', 'resumen')
+    render(
+      <ProveedorDeSesion cliente={auth}>
+        <Tablero fuente={fuente()} movimientos={movimientos()} cuentas={cuentas()} mesInicial="2026-10" />
+      </ProveedorDeSesion>,
+    )
+
+    const registrar = await screen.findByRole('button', { name: '+ Registrar' })
+    const barra = screen.getByRole('toolbar', { name: 'Acciones' })
+    expect(barra).toContainElement(registrar)
+    expect(barra.closest('.flotantes')).toBeNull()
+    expect(barra.parentElement).toContainElement(screen.getByRole('tablist'))
+    expect(screen.queryByRole('button', { name: 'Nueva cuenta' })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Cuentas' }))
+
+    expect(within(barra).getByRole('button', { name: 'Nueva cuenta' })).toBeInTheDocument()
+    expect(within(barra).getByRole('button', { name: 'Transferir' })).toBeInTheDocument()
+    expect(within(barra).getByRole('button', { name: '+ Registrar' })).toBeInTheDocument()
+  })
+})
+
+describe('the Por vencer tab', () => {
+  const ahora = () => new Date('2026-11-15T15:00:00Z')
+  const regla = {
+    frecuencia: 'monthly',
+    cuentaId: 'nomina',
+    color: null,
+  }
+  const datosPv: DatosDePorVencer = {
+    hogarId: 'h1',
+    reglas: [
+      { ...regla, id: 'internet', nombre: 'Internet', monto: 101000, diaDelMes: 18, proximaFecha: '2026-11-18', avisoDias: 3, categoriaId: 'c-internet' },
+      { ...regla, id: 'luz', nombre: 'Luz', monto: 211670, diaDelMes: 20, proximaFecha: '2026-11-20', avisoDias: 2, categoriaId: 'c-luz' },
+      { ...regla, id: 'admin', nombre: 'Administración', monto: 307656, diaDelMes: 2, proximaFecha: '2026-11-02', avisoDias: 1, categoriaId: 'c-admin' },
+      { ...regla, id: 'agua', nombre: 'Agua', monto: 90000, frecuencia: 'yearly', diaDelMes: null, proximaFecha: '2026-09-01', avisoDias: 1, categoriaId: 'c-agua' },
+    ],
+    tarjetas: [{ id: 'bbva', nombre: 'Tarjeta BBVA', diaDePago: 17, deuda: 1238273 }],
+    cuentas: [
+      { id: 'nomina', nombre: 'Nómina', principal: true },
+      { id: 'bbva', nombre: 'Tarjeta BBVA', principal: false },
+    ],
+    saldoPrincipal: 3458092,
+    gastosDelMes: [{ categoriaId: 'c-admin' }],
+    transferenciasDelMes: [],
+  }
+  const porVencer = (): FuenteDePorVencer => ({ cargar: vi.fn(async () => datosPv) })
+  const datosMov: DatosDeMovimientos = {
+    hogarId: 'h1',
+    cuentas: [
+      { id: 'efe', nombre: 'Efectivo', tipo: 'cash', viva: true },
+      { id: 'nomina', nombre: 'Nómina', tipo: 'savings', viva: true },
+    ],
+    categorias: [
+      { id: 'hogar', nombre: 'Hogar', tipo: 'expense', nivel: 'rubro', padreId: null, color: null, viva: true },
+      { id: 'c-internet', nombre: 'Internet', tipo: 'expense', nivel: 'subcategory', padreId: 'hogar', color: null, viva: true },
+    ],
+    movimientos: [],
+  }
+  const movimientos = (): FuenteDeMovimientos => ({
+    cargar: vi.fn(async () => datosMov),
+    saldo: vi.fn(async () => null),
+    ejecutar: vi.fn(async () => {}),
+  })
+  const montarPv = async (m?: FuenteDeMovimientos) => {
+    window.localStorage.setItem('pestana-del-tablero', 'resumen')
+    render(
+      <ProveedorDeSesion cliente={auth}>
+        <Tablero fuente={fuente()} movimientos={m} porVencer={porVencer()} mesInicial="2026-10" ahora={ahora} />
+      </ProveedorDeSesion>,
+    )
+    const tab = await screen.findByRole('tab', { name: /Por vencer/ })
+    await waitFor(() => expect(within(tab).getByText('4')).toBeInTheDocument())
+    await userEvent.click(tab)
+    return tab
+  }
+
+  it('is a fourth tab whose badge counts the unpaid items due in the next 30 days', async () => {
+    const tab = await montarPv(movimientos())
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Resumen', 'Movimientos', 'Por vencer4'])
+    expect(tab).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('puts one circle per item on its day, the paid one outlined and the unknown date dashed', async () => {
+    await montarPv()
+    const cal = screen.getByRole('group', { name: 'Calendario de noviembre' })
+    const internet = within(cal).getByRole('button', { name: /^Internet/ })
+    expect(internet.closest('[data-dia]')).toHaveAttribute('data-dia', '18')
+    expect(internet).toHaveClass('bola-lleno')
+    const admin = within(cal).getByRole('button', { name: /^Administración/ })
+    expect(admin.closest('[data-dia]')).toHaveAttribute('data-dia', '2')
+    expect(admin).toHaveClass('bola-hueco')
+    expect(within(cal).getByRole('button', { name: /^Tarjeta BBVA/ }).closest('[data-dia]')).toHaveAttribute('data-dia', '17')
+    const agua = screen.getByRole('button', { name: /^Agua/ })
+    expect(agua).toHaveClass('bola-rayado')
+    expect(agua.closest('[data-sin-fecha]')).not.toBeNull()
+    expect(cal.querySelector('[data-dia="15"]')).toHaveClass('hoy')
+  })
+
+  it('lights the row of a hovered circle', async () => {
+    await montarPv()
+    await userEvent.hover(screen.getByRole('button', { name: /^Luz/ }))
+    const fila = within(screen.getByRole('list', { name: 'Por pagar' })).getByText('Luz').closest('li')
+    expect(fila).toHaveClass('encendida')
+  })
+
+  it('shows what is left this month and switches to the next 30 days', async () => {
+    await montarPv()
+    const resumen = screen.getByRole('region', { name: 'Falta pagar en noviembre' })
+    expect(within(resumen).getAllByText('$1.550.943').length).toBeGreaterThan(0)
+    expect(within(resumen).getByText(/quedarían/)).toHaveTextContent('+ agua por confirmar · quedarían $1.907.149 en Nómina')
+
+    await userEvent.click(within(resumen).getByRole('button', { name: '30 días' }))
+
+    expect(within(resumen).getByRole('button', { name: '30 días' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('heading', { name: 'Falta pagar hasta el 15 dic' })).toBeInTheDocument()
+    expect(within(resumen).getAllByText('$1.858.599').length).toBeGreaterThan(0)
+  })
+
+  it('marks the heaviest week', async () => {
+    await montarPv()
+    expect(screen.getByText('16–22 nov: $1.550.943, la más cargada')).toBeInTheDocument()
+  })
+
+  it('lists the bills by due date, the close ones in red, and the paid ones apart', async () => {
+    await montarPv()
+    const filas = within(screen.getByRole('list', { name: 'Por pagar' })).getAllByRole('listitem')
+    expect(filas.map((f) => f.querySelector('.n')?.textContent)).toEqual(['Tarjeta BBVA', 'Internet', 'Luz', 'Agua'])
+    expect(filas[0]).toHaveTextContent('17 nov · faltan 2 días · Nómina')
+    expect(within(filas[1]).getByText('18 nov · faltan 3 días')).toHaveClass('urgente')
+    expect(within(filas[2]).getByText('20 nov · faltan 5 días')).not.toHaveClass('urgente')
+    expect(filas[3]).toHaveTextContent('fecha por confirmar')
+    const pagados = screen.getByRole('list', { name: 'Ya pagados' })
+    expect(within(pagados).getByText('Administración')).toBeInTheDocument()
+    expect(within(pagados).queryByRole('button', { name: /Pagar/ })).not.toBeInTheDocument()
+  })
+
+  it('Pagar opens the register panel with the amount, category, account and merchant filled', async () => {
+    await montarPv(movimientos())
+    const pagar = screen.getByRole('button', { name: 'Pagar Internet' })
+    await waitFor(() => expect(pagar).toBeEnabled())
+
+    await userEvent.click(pagar)
+
+    const panel = screen.getByRole('dialog', { name: 'Registrar movimiento' })
+    expect(within(panel).getByLabelText('Valor')).toHaveValue('101.000')
+    expect(within(panel).getByLabelText('Comercio')).toHaveValue('Internet')
+    expect(within(panel).getByText('Hogar')).toBeInTheDocument()
+    expect(within(panel).getByRole('group', { name: 'Sale de' })).toHaveTextContent('Nómina')
+  })
+
+  it('keeps the other tabs working', async () => {
+    await montarPv(movimientos())
+    await userEvent.click(screen.getByRole('tab', { name: 'Resumen' }))
+    expect(await screen.findByRole('region', { name: 'Gastado en octubre' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Calendario de noviembre' })).not.toBeInTheDocument()
   })
 })

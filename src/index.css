@@ -79,8 +79,6 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--marca); out
 }
 .marca-texto { font-weight: 700; font-size: 20px; color: var(--marca); margin-right: auto; }
 .contenido { max-width: 1200px; margin: 0 auto; padding: 24px; }
-/* Room under the last row so the floating buttons never cover it. */
-.contenido { padding-bottom: 112px; }
 
 /* Rubro fill colors of the phone app (PaletaDeCategorias.rellenos*). */
 :root {
@@ -136,7 +134,7 @@ svg text { fill: var(--grafito); font-family: inherit; font-size: 12px; }
   .barra .secundario { order: 2; }
   .selector-mes { order: 3; }
   .selector-mes span { min-width: 120px; }
-  .contenido { padding: 16px 16px 152px; }
+  .contenido { padding: 16px; }
 }
 
 /* Movements list and the side panel (option A of the register proposals). */
@@ -473,14 +471,17 @@ button.dia-del-mes[data-previa='true'] {
 .calendario-flotante .rdp-button_previous, .calendario-flotante .rdp-button_next { background: transparent; padding: 0; border-radius: 8px; }
 .calendario-flotante .rdp-chevron { fill: var(--marca); }
 
-/* Registrar (and Desde factura beside it) float at the bottom right, as on the phone. */
-.flotantes { position: fixed; right: 24px; bottom: 24px; z-index: 20; display: flex; gap: 10px; align-items: center; }
-button.flotante {
-  padding: 16px 24px; border-radius: 18px; font-size: 17px; box-shadow: 0 10px 28px rgb(0 0 0 / 0.22);
+/* The actions sit on the tabs' row, on the right, in the page's flow: they
+   never cover a row. On a narrow screen they wrap under the tabs. */
+.fila-de-pestanas {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 16px;
+  margin-bottom: 16px; border-bottom: 1px solid var(--regla);
 }
-button.desde-factura.flotante { background: var(--papel); }
-@media (max-width: 900px) { .flotantes { right: 16px; bottom: 16px; } }
-.con-panel .flotantes { display: none; }
+.fila-de-pestanas .pestanas { margin-bottom: -1px; border-bottom: 0; }
+.acciones { margin-left: auto; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding-bottom: 8px; }
+.acciones button { padding: 10px 16px; font-size: 15px; }
+button.desde-factura { background: var(--papel); }
+.con-panel .acciones { visibility: hidden; }
 /* The summary's table rules (padding, lines, right alignment) must not reach the calendar. */
 .calendario-flotante th, .calendario-flotante td { padding: 0; border: 0; text-align: center; white-space: normal; }
 
@@ -814,4 +815,64 @@ button.intercambio {
   .ecuacion strong { font-size: 20px; }
   .ecuacion .total { flex-basis: 100%; }
   .ecuacion .op { font-size: 18px; }
+}
+
+/* ── Por vencer (proposal 1, «El mes en círculos»; ported from Moxen Vencimientos) ── */
+.insignia {
+  display: inline-block; min-width: 20px; margin-left: 6px; padding: 2px 6px; border-radius: 10px;
+  background: var(--alerta); color: var(--papel); font-size: 12px; line-height: 16px; text-align: center;
+}
+.por-vencer { display: grid; gap: 16px; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); align-items: start; }
+@media (max-width: 900px) { .por-vencer { grid-template-columns: 1fr; } }
+.pv-cab { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.pv-cab h2.pv-sub { margin: 0; }
+.pv-sub { font-size: 14px; font-weight: 600; color: var(--grafito); margin: 0; }
+.pv-total { font-size: 34px; font-weight: 800; line-height: 1.1; margin: 2px 0; }
+.conmutador { margin-left: auto; display: inline-flex; border: 1px solid var(--borde); border-radius: 10px; overflow: hidden; }
+.conmutador button { border-radius: 0; background: transparent; color: var(--tinta); padding: 8px 12px; font-size: 14px; }
+.conmutador button[aria-pressed='true'] { background: var(--tinta); color: var(--papel); }
+.cal-rejilla { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; margin-top: 14px; }
+.cal-dsem { font-size: 12px; font-weight: 700; color: var(--grafito); text-align: center; padding-bottom: 4px; }
+.cal-dia {
+  position: relative; aspect-ratio: 1 / 1; border-radius: 8px; background: var(--fondo);
+  font-size: 12px; color: var(--grafito); padding: 3px 5px; min-width: 0;
+}
+.cal-dia.vacio { background: transparent; }
+.cal-dia.festivo .cal-num { color: var(--alerta); }
+.cal-dia.hoy { outline: 2px solid var(--tinta); outline-offset: -2px; color: var(--tinta); font-weight: 700; }
+.cal-dia.pasado { opacity: 0.6; }
+.cal-bolas { position: absolute; inset: 14px 2px 2px; display: flex; align-items: center; justify-content: center; gap: 2px; }
+button.bola {
+  width: var(--s); height: var(--s); flex: none; padding: 0; border: 0; border-radius: 50%;
+  background: var(--c); cursor: pointer; transition: scale 0.25s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+button.bola:hover, button.bola:focus-visible, button.bola.encendida { scale: 1.18; }
+button.bola-hueco { background: transparent; border: 2px solid var(--c); }
+button.bola-rayado { background: transparent; border: 2px dashed var(--c); }
+.cal-sin-fecha { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; }
+.cal-semanas { display: flex; gap: 4px; align-items: flex-end; height: 36px; margin-top: 12px; }
+.cal-semanas span { flex: 1; background: var(--regla); border-radius: 4px 4px 0 0; }
+.cal-semanas span.cargada { background: var(--tinta); }
+.cal-semanas-pie { margin: 4px 0 0; font-size: 13px; color: var(--grafito); }
+.lista-v { list-style: none; margin: 0; padding: 0; display: grid; font-variant-numeric: tabular-nums; }
+.lista-v li {
+  display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 4px 10px; align-items: center;
+  padding: 10px 6px; border-top: 1px solid var(--regla); border-radius: 8px; transition: background 0.2s;
+}
+.lista-v li.encendida { background: var(--fondo); }
+.lista-v .punto { width: 12px; height: 12px; margin: 0; background: var(--c); }
+.lista-v .punto.hueco { background: transparent; border: 2px solid var(--c); }
+.lista-v .punto.rayado { background: transparent; border: 2px dashed var(--c); }
+.lista-v .n { font-weight: 700; overflow-wrap: anywhere; }
+.lista-v .m { font-weight: 700; text-align: right; }
+.lista-v .meta {
+  grid-column: 2 / 4; display: flex; gap: 8px; flex-wrap: wrap; justify-content: space-between; align-items: center;
+  font-size: 14px; color: var(--grafito);
+}
+.lista-v button.pagar { padding: 6px 12px; font-size: 14px; }
+.urgente { color: var(--alerta); font-weight: 700; }
+h3.pv-pagados { margin: 16px 0 4px; font-size: 15px; color: var(--baja); }
+@media (prefers-reduced-motion: reduce) {
+  button.bola, .lista-v li { transition: none; }
+  button.bola:hover, button.bola:focus-visible, button.bola.encendida { scale: 1; }
 }
