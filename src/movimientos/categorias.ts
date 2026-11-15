@@ -26,6 +26,10 @@ export interface OpcionDeCategoria {
   /** The rubro's photo, the face of its shortcuts and pill. */
   fotoRubro: string | null
   colorRubro: string | null
+  /** The leaf's glyph name (its category's when the leaf has none), for the corner badge. */
+  icono: string | null
+  /** The rubro's glyph name, its face when it has no photo. */
+  iconoRubro: string | null
 }
 
 export const esGeneral = (o: OpcionDeCategoria) => o.subcategoria === HOJA_GENERAL
@@ -71,6 +75,8 @@ export function opcionesDeCategoria(
     color: sub.color ?? cat.color ?? rub.color,
     fotoRubro: rub.foto ?? null,
     colorRubro: rub.color,
+    icono: sub.icono ?? cat.icono ?? null,
+    iconoRubro: rub.icono ?? null,
   }))
 }
 
@@ -88,6 +94,7 @@ export interface RubroDelSelector {
   nombre: string
   color: string | null
   foto: string | null
+  icono: string | null
   /** Every leaf of the rubro, General included, as the phone counts them. */
   opciones: number
   grupos: GrupoDeCategoria[]
@@ -99,7 +106,7 @@ export function arbolDeCategorias(opciones: OpcionDeCategoria[]): RubroDelSelect
   for (const o of opciones) {
     let r = rubros.get(o.rubroId)
     if (!r) {
-      r = { id: o.rubroId, nombre: o.rubro, color: o.colorRubro, foto: o.fotoRubro, opciones: 0, grupos: [], porCategoria: new Map() }
+      r = { id: o.rubroId, nombre: o.rubro, color: o.colorRubro, foto: o.fotoRubro, icono: o.iconoRubro, opciones: 0, grupos: [], porCategoria: new Map() }
       rubros.set(o.rubroId, r)
     }
     r.opciones += 1

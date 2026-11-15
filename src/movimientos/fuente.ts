@@ -85,7 +85,7 @@ export function fuenteDeMovimientosDeSupabase(
         todas((a, b) =>
           sb
             .from('categories')
-            .select('id, name, kind, level, parent_id, color, archived, deleted_at, image_path, sort_order')
+            .select('id, name, kind, level, parent_id, color, archived, deleted_at, image_path, sort_order, icon')
             .eq('household_id', hogarId)
             .order('name')
             .range(a, b),
@@ -132,6 +132,7 @@ export function fuenteDeMovimientosDeSupabase(
           viva: c.archived !== true && c.deleted_at == null,
           foto: c.image_path ? (fotos.get(c.image_path) ?? null) : null,
           orden: c.sort_order ?? null,
+          icono: c.icon ?? null,
         })),
       }
     },

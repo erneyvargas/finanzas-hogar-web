@@ -5,6 +5,7 @@ import { ProveedorDeSesion, type ClienteDeAuth } from '../auth/sesion'
 import { idDelRubroDeAjuste } from '../tablero/calculo'
 import { Tablero } from '../tablero/Tablero'
 import type { FuenteDelTablero } from '../tablero/fuente'
+import type { FuenteDeFacturas } from '../facturas/fuente'
 import type { FuenteDeMovimientos } from './fuente'
 import { ErrorDelServidor, MENSAJE_GENERICO, type DatosDeMovimientos } from './reglas'
 
@@ -1194,5 +1195,120 @@ describe('choosing the category', () => {
     expect(within(p).getByText('Toca una, o «Más» para ver todas')).toBeInTheDocument()
     const s = await abrirMas(p)
     expect(within(within(s).getByRole('group', { name: 'Rubros' })).getAllByRole('button').map((b) => b.textContent)).toEqual(['Ingresos'])
+  })
+})
+
+describe('a receipt as evidence of a new movement', () => {
+  function facturas(sobre: Partial<FuenteDeFacturas> = {}): FuenteDeFacturas {
+    return {
+      subir: vi.fn(async () => {}),
+      leer: vi.fn(async () => {}),
+      consultar: vi.fn(async () => ({ estado: 'uploaded', error: null, ocr: null, qr: null, items: [] })),
+      vincular: vi.fn(async () => {}),
+      ...sobre,
+    }
+  }
+  function montarConFacturas(m: FuenteDeMovimientos, f: FuenteDeFacturas) {
+    window.localStorage.setItem('pestana-del-tablero', 'movimientos')
+    render(
+      <ProveedorDeSesion cliente={auth}>
+        <Tablero fuente={tablero()} movimientos={m} facturas={f} mesInicial="2026-10" ahora={ahora} />
+      </ProveedorDeSesion>,
+    )
+  }
+  const archivo = () => new File(['x'], 'recibo-luz.pdf', { type: 'application/pdf' })
+
+  it('uploads the chosen file, registers the movement, then links the receipt to it', async () => {
+    const orden: string[] = []
+    const m = movimientos(async (funcion) => void orden.push(funcion))
+    const f = facturas({
+      subir: vi.fn(async () => void orden.push('subir')),
+      vincular: vi.fn(async () => void orden.push('vincular')),
+    })
+    montarConFacturas(m, f)
+    const p = await registrarGasto()
+
+    await userEvent.upload(within(p).getByLabelText('Factura o comprobante'), archivo())
+    expect(within(p).getByText('recibo-luz.pdf')).toBeInTheDocument()
+    await userEvent.click(guardar(p))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(orden).toEqual(['subir', 'registrar_movimiento', 'vincular'])
+    const [reciboId, enviado] = vi.mocked(f.subir).mock.calls[0]
+    expect(enviado.name).toBe('recibo-luz.pdf')
+    const idMovimiento = vi.mocked(m.ejecutar).mock.calls[0][1].p_id
+    expect(f.vincular).toHaveBeenCalledWith(idMovimiento, reciboId)
+  })
+
+  it('Quitar drops the file, and then nothing is uploaded', async () => {
+    const m = movimientos()
+    const f = facturas()
+    montarConFacturas(m, f)
+    const p = await registrarGasto()
+
+    await userEvent.upload(within(p).getByLabelText('Factura o comprobante'), archivo())
+    await userEvent.click(within(p).getByRole('button', { name: 'Quitar la factura' }))
+    expect(within(p).queryByText('recibo-luz.pdf')).toBeNull()
+    await userEvent.click(guardar(p))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(f.subir).not.toHaveBeenCalled()
+    expect(f.vincular).not.toHaveBeenCalled()
+  })
+
+  it('rejects a file it cannot keep before uploading anything', async () => {
+    const f = facturas()
+    montarConFacturas(movimientos(), f)
+    const p = await registrarGasto()
+
+    await userEvent.upload(within(p).getByLabelText('Factura o comprobante'), new File(['x'], 'foto.gif', { type: 'image/gif' }), {
+      applyAccept: false,
+    })
+
+    expect(within(p).getByRole('alert')).toHaveTextContent('Sube una foto JPG o PNG, o un PDF de hasta 10 MB.')
+    expect(within(p).queryByText('foto.gif')).toBeNull()
+  })
+
+  it('a failed upload registers nothing and keeps the panel open', async () => {
+    const m = movimientos()
+    const f = facturas({ subir: vi.fn(async () => Promise.reject(new Error('red'))) })
+    montarConFacturas(m, f)
+    const p = await registrarGasto()
+
+    await userEvent.upload(within(p).getByLabelText('Factura o comprobante'), archivo())
+    await userEvent.click(guardar(p))
+
+    expect(await within(p).findByRole('alert')).toHaveTextContent(
+      'No se pudo subir la factura. Revisa la conexión e intenta de nuevo.',
+    )
+    expect(m.ejecutar).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('when only the link fails, a retry links again without registering twice', async () => {
+    const m = movimientos()
+    const vincular = vi.fn().mockRejectedValueOnce(new Error('red')).mockResolvedValueOnce(undefined)
+    const f = facturas({ vincular })
+    montarConFacturas(m, f)
+    const p = await registrarGasto()
+
+    await userEvent.upload(within(p).getByLabelText('Factura o comprobante'), archivo())
+    await userEvent.click(guardar(p))
+
+    expect(await within(p).findByRole('alert')).toHaveTextContent(
+      'El movimiento quedó guardado, pero la factura no quedó pegada. Intenta de nuevo.',
+    )
+    await userEvent.click(guardar(p))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(m.ejecutar).toHaveBeenCalledTimes(1)
+    expect(f.subir).toHaveBeenCalledTimes(1)
+    expect(vincular).toHaveBeenCalledTimes(2)
+  })
+
+  it('offers no receipt without a receipt source, nor while correcting', async () => {
+    montar(movimientos())
+    const p = await registrarGasto()
+    expect(within(p).queryByLabelText('Factura o comprobante')).toBeNull()
   })
 })

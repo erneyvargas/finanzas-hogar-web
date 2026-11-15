@@ -1,5 +1,6 @@
 import { useId, useMemo, useRef, useState } from 'react'
 import { colorDe } from '../core/formato'
+import { Glifo } from '../core/ui/Glifo'
 import {
   arbolDeCategorias,
   atajosDeCategoria,
@@ -11,11 +12,34 @@ import {
 } from './categorias'
 import type { Tipo } from './reglas'
 
-/** The rubro's face: its photo, or a dot of its color (the phone's glyphs stay out). */
-function Medallon({ foto, color, clase = 'medallon' }: { foto: string | null; color: string | null; clase?: string }) {
+/** The rubro's face, as on the phone: its photo, or its glyph on its color. */
+function Medallon({
+  foto,
+  color,
+  icono,
+  clase = 'medallon',
+}: {
+  foto: string | null
+  color: string | null
+  icono: string | null
+  clase?: string
+}) {
   const [rota, setRota] = useState(false)
   if (foto && !rota) return <img className={clase} src={foto} alt="" aria-hidden="true" onError={() => setRota(true)} />
-  return <span className={clase} aria-hidden="true" style={{ background: colorDe(color) }} />
+  return (
+    <span className={`${clase} con-glifo`} aria-hidden="true" style={{ background: colorDe(color) }}>
+      <Glifo nombre={icono} />
+    </span>
+  )
+}
+
+/** A small glyph on its color: the category's mark in a list row or a shortcut's corner. */
+function Marca({ icono, color, clase = 'punto' }: { icono: string | null; color: string | null; clase?: string }) {
+  return (
+    <span className={`${clase} con-glifo`} aria-hidden="true" style={{ background: colorDe(color) }}>
+      <Glifo nombre={icono} />
+    </span>
+  )
 }
 
 /**
@@ -83,7 +107,10 @@ export function CampoDeCategoria({
               aria-pressed={o.id === categoriaId}
               onClick={() => alElegir(o.id)}
             >
-              <Medallon foto={o.fotoRubro} color={o.colorRubro ?? o.color} />
+              <span className="atajo-cara">
+                <Medallon foto={o.fotoRubro} color={o.colorRubro ?? o.color} icono={o.iconoRubro} />
+                <Marca icono={o.icono} color={o.color} clase="insignia" />
+              </span>
               <span className="atajo-texto">{tituloDe(o)}</span>
             </button>
           ))}
@@ -181,7 +208,7 @@ function SelectorDeCategoria({
         <div className="pildoras" role="group" aria-label="Rubros">
           {arbol.map((r) => (
             <button key={r.id} type="button" className="pildora" aria-pressed={r.id === rubro?.id} onClick={() => elegirRubro(r.id)}>
-              <Medallon foto={r.foto} color={r.color} />
+              <Medallon foto={r.foto} color={r.color} icono={r.icono} />
               {r.nombre}
             </button>
           ))}
@@ -194,7 +221,7 @@ function SelectorDeCategoria({
               {resultados.map((o) => (
                 <li key={o.id}>
                   <button type="button" className="fila-categoria" aria-pressed={o.id === elegidaId} onClick={() => alElegir(o)}>
-                    <span className="punto" style={{ background: colorDe(o.color) }} />
+                    <Marca icono={o.icono} color={o.color} />
                     <span className="fila-categoria-texto">
                       <b>{tituloDe(o)}</b> <span className="apagado">{esGeneral(o) ? o.rubro : `${o.rubro} › ${o.categoria}`}</span>
                     </span>
@@ -225,7 +252,7 @@ function SelectorDeCategoria({
                           aria-expanded={estaAbierta}
                           onClick={() => setAbierta(estaAbierta ? null : g.id)}
                         >
-                          <span className="punto" style={{ background: colorDe(g.cara.color) }} />
+                          <Marca icono={g.cara.icono} color={g.cara.color} />
                           <span className="fila-categoria-texto">
                             <b>{g.nombre}</b>{' '}
                             <span className="apagado">
@@ -243,7 +270,7 @@ function SelectorDeCategoria({
                           aria-pressed={g.cara.id === elegidaId}
                           onClick={() => alElegir(g.cara)}
                         >
-                          <span className="punto" style={{ background: colorDe(g.cara.color) }} />
+                          <Marca icono={g.cara.icono} color={g.cara.color} />
                           <span className="fila-categoria-texto">
                             <b>{g.nombre}</b>
                           </span>

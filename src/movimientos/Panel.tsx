@@ -5,6 +5,8 @@ import { CampoConSugerencias } from './CampoConSugerencias'
 import { opcionesDeCategoria, usosPorCategoria } from './categorias'
 import { CampoDeFecha } from './CampoDeFecha'
 import { historialDeTextos, sugerir } from './historial'
+import type { FuenteDeFacturas } from '../facturas/fuente'
+import { problemaDelArchivo } from '../facturas/reglas'
 import type { FuenteDeMovimientos } from './fuente'
 import { Cara } from './ListaDeMovimientos'
 import { CampoDeCategoria } from './SelectorDeCategoria'
@@ -74,6 +76,7 @@ export function Panel({
   cuentaInicial,
   comercioInicial,
   fuente,
+  facturas,
   ahora,
   alCerrar,
   alDuplicar,
@@ -91,6 +94,8 @@ export function Panel({
   cuentaInicial?: string
   comercioInicial?: string
   fuente: FuenteDeMovimientos
+  /** Where a new movement's receipt goes as evidence; without `vincular`, no receipt is offered. */
+  facturas?: Pick<FuenteDeFacturas, 'subir' | 'vincular'>
   ahora: () => Date
   /** Whether something was saved; a registration also gives the new id. */
   alCerrar: (guardado: boolean, idNuevo?: string) => void
@@ -130,6 +135,23 @@ export function Panel({
    */
   const [nuevoId] = useState(() => crypto.randomUUID())
   const yaIntento = useRef(false)
+  /** The receipt attached as evidence, its fixed id, and how far its save got. */
+  const [archivo, setArchivo] = useState<File | null>(null)
+  const [reciboId] = useState(() => crypto.randomUUID())
+  const subido = useRef<File | null>(null)
+  const registrado = useRef(false)
+  const ofreceFactura = !original && !!facturas?.vincular
+
+  function elegirArchivo(elegido: File | undefined) {
+    if (!elegido) return
+    const problema = problemaDelArchivo(elegido)
+    if (problema) {
+      setError(new ErrorDelServidor('Sube una foto JPG o PNG, o un PDF de hasta 10 MB.', 'local'))
+      return
+    }
+    setError(null)
+    setArchivo(elegido)
+  }
 
   // Escape closes, like the ✕, but not while a save is on its way: its
   // answer (or its error) still belongs to this panel.
@@ -224,32 +246,60 @@ export function Panel({
     if (monto === null) return
     setGuardando(true)
     setError(null)
-    try {
-      await fuente.ejecutar('registrar_movimiento', {
-        p_household_id: datos.hogarId,
-        p_account_id: cuentaId,
-        p_kind: tipo,
-        p_amount: monto,
-        p_category_id: categoriaId,
-        p_occurred_at: fechaParaServidor(dia, ahora()),
-        p_note: nota.trim() || null,
-        p_merchant_name: comercio.trim() || null,
-        p_guardar_igual: guardarIgual,
-        p_id: nuevoId,
-      })
-      alCerrar(true, nuevoId)
-    } catch (e) {
-      const fallo = comoError(e)
-      // Only a retry after an unknown outcome (no answer, no rule) can meet
-      // its own earlier save; a rule rejection stored nothing.
-      if (fallo.codigo === 'ya_existe' && yaIntento.current) {
-        alCerrar(true, nuevoId)
+    // The receipt goes up first: if it cannot, nothing is stored yet.
+    if (archivo && facturas && subido.current !== archivo) {
+      try {
+        await facturas.subir(reciboId, archivo)
+        subido.current = archivo
+      } catch {
+        setError(new ErrorDelServidor('No se pudo subir la factura. Revisa la conexión e intenta de nuevo.', 'local'))
+        setGuardando(false)
         return
       }
-      if (fallo.codigo === null) yaIntento.current = true
-      setError(fallo)
-      setGuardando(false)
     }
+    if (!registrado.current) {
+      try {
+        await fuente.ejecutar('registrar_movimiento', {
+          p_household_id: datos.hogarId,
+          p_account_id: cuentaId,
+          p_kind: tipo,
+          p_amount: monto,
+          p_category_id: categoriaId,
+          p_occurred_at: fechaParaServidor(dia, ahora()),
+          p_note: nota.trim() || null,
+          p_merchant_name: comercio.trim() || null,
+          p_guardar_igual: guardarIgual,
+          p_id: nuevoId,
+        })
+        registrado.current = true
+      } catch (e) {
+        const fallo = comoError(e)
+        // Only a retry after an unknown outcome (no answer, no rule) can meet
+        // its own earlier save; a rule rejection stored nothing.
+        if (fallo.codigo === 'ya_existe' && yaIntento.current) {
+          registrado.current = true
+        } else {
+          if (fallo.codigo === null) yaIntento.current = true
+          setError(fallo)
+          setGuardando(false)
+          return
+        }
+      }
+    }
+    // The movement is stored; a failed link only retries the link.
+    if (archivo && facturas?.vincular) {
+      try {
+        await facturas.vincular(nuevoId, reciboId)
+      } catch {
+        setError(
+          new ErrorDelServidor('El movimiento quedó guardado, pero la factura no quedó pegada. Intenta de nuevo.', 'local'),
+        )
+        setHuboCambios(true)
+        setGuardando(false)
+        return
+      }
+    }
+    alCerrar(true, nuevoId)
   }
 
   async function corregir() {
@@ -429,6 +479,42 @@ export function Panel({
             placeholder="Opcional"
           />
         </div>
+
+        {ofreceFactura && (
+          <div className="campo">
+            <span className="etiqueta-de-campo">Factura o comprobante</span>
+            {archivo ? (
+              <div className="adjunto-elegido">
+                <span className="adjunto-nombre">{archivo.name}</span>
+                <button
+                  type="button"
+                  className="secundario"
+                  aria-label="Quitar la factura"
+                  disabled={guardando || registrado.current}
+                  onClick={() => setArchivo(null)}
+                >
+                  Quitar
+                </button>
+              </div>
+            ) : (
+              <label className="adjuntar">
+                <input
+                  type="file"
+                  className="sk-sr"
+                  aria-label="Factura o comprobante"
+                  accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+                  disabled={guardando}
+                  onChange={(e) => {
+                    elegirArchivo(e.target.files?.[0])
+                    e.target.value = ''
+                  }}
+                />
+                <span>Adjuntar foto o PDF</span>
+                <small>Opcional · queda como soporte del pago</small>
+              </label>
+            )}
+          </div>
+        )}
 
         {error && (
           <div role="alert" className="aviso">
