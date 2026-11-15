@@ -5,6 +5,7 @@ import { BarraDeSemanas, CalendarioDeCirculos, type Circulo } from '../core/ui/C
 import { diasDelMes, semanaDelDia } from '../core/ui/rejillaDelMes'
 import { Cifra } from '../core/ui/Cifra'
 import { conSigno } from '../cuentas/reglas'
+import { fraseDeRegla } from '../recurrentes/patron'
 import {
   diaCorto,
   diasEntre,
@@ -51,6 +52,8 @@ export function PorVencer({
   hoy,
   alPagar,
   puedeTransferir = false,
+  alNuevaRegla,
+  alEditarRegla,
 }: {
   datos: DatosDePorVencer
   /** Today in Bogotá, `YYYY-MM-DD`. */
@@ -58,6 +61,10 @@ export function PorVencer({
   alPagar?: (v: Vencimiento) => void
   /** Whether «Pagar» can open a transfer (cards and debt rules); without it they offer none. */
   puedeTransferir?: boolean
+  /** Opens the panel for a new recurring payment; without it, none is offered. */
+  alNuevaRegla?: () => void
+  /** Opens the panel with that rule; without it, the rules are not listed. */
+  alEditarRegla?: (id: string) => void
 }) {
   const mes = hoy.slice(0, 7)
   const [modo, setModo] = useState<'mes' | '30'>('mes')
@@ -196,6 +203,45 @@ export function PorVencer({
           </>
         )}
       </section>
+
+      {alEditarRegla && (
+        <section className="tarjeta" aria-labelledby="pv-reglas">
+          <div className="pv-reglas-cab">
+            <h2 id="pv-reglas">Pagos recurrentes</h2>
+            {alNuevaRegla && (
+              <button type="button" className="secundario" onClick={alNuevaRegla}>
+                Nuevo pago recurrente
+              </button>
+            )}
+          </div>
+          {datos.reglas.length === 0 ? (
+            <p className="nota">Todavía no hay pagos recurrentes.</p>
+          ) : (
+            <ul className="lista-reglas" aria-label="Pagos recurrentes">
+              {[...datos.reglas]
+                .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+                .map((r) => (
+                  <li key={r.id}>
+                    <button type="button" className="fila-regla" aria-label={`Editar ${r.nombre}`} onClick={() => alEditarRegla(r.id)}>
+                      <b>{r.nombre}</b>
+                      <span className={`num ${r.tipo === 'income' ? 'ingreso' : ''}`}>{dinero(r.monto)}</span>
+                      <small>
+                        {fraseDeRegla({
+                          frecuencia: r.frecuencia,
+                          diaDelMes: r.diaDelMes,
+                          dias: r.dias ?? null,
+                          semanaDelMes: r.semanaDelMes ?? null,
+                          proximaFecha: r.proximaFecha,
+                          horaAviso: r.horaAviso ?? null,
+                        })}
+                      </small>
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          )}
+        </section>
+      )}
     </div>
   )
 }

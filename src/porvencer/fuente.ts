@@ -1,11 +1,25 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { diaDe, limitesDelMes, mesDe } from '../tablero/calculo'
 import { todas } from '../tablero/datos'
+import { traducirError } from '../movimientos/reglas'
 import { DIAS_DE_HOLGURA, type DatosDePorVencer, type Extracto } from './reglas'
 
-/** Where the «Por vencer» tab reads; tests pass a fake. It never writes. */
+/** The recurring rules' functions of migration 0051. */
+export type FuncionDeReglas =
+  | 'crear_regla_recurrente'
+  | 'editar_regla_recurrente'
+  | 'borrar_regla_recurrente'
+  | 'cumplir_regla_recurrente'
+
+/**
+ * Where the «Por vencer» tab reads and writes; tests pass a fake. Writes
+ * go only through the 0051 server functions; without [ejecutar] the tab
+ * is read-only.
+ */
 export interface FuenteDePorVencer {
   cargar(): Promise<DatosDePorVencer>
+  /** Calls a server function; rejects with an `ErrorDelServidor`. */
+  ejecutar?(funcion: FuncionDeReglas, params: Record<string, unknown>): Promise<unknown>
 }
 
 export function fuenteDePorVencerDeSupabase(sb: SupabaseClient, hogar: () => Promise<string>): FuenteDePorVencer {
@@ -20,12 +34,11 @@ export function fuenteDePorVencerDeSupabase(sb: SupabaseClient, hogar: () => Pro
           sb
             .from('recurring_rules')
             .select(
-              'id, name, kind, estimated_amount, frequency, day_of_month, next_due_date, reminder_days_before, account_id, category_id, debt_id, end_date',
+              'id, name, kind, estimated_amount, frequency, day_of_month, weekdays, week_of_month, next_due_date, reminder_days_before, reminder_time, account_id, category_id, debt_id, end_date',
             )
             .eq('household_id', hogarId)
             .is('deleted_at', null)
             .eq('active', true)
-            .in('kind', ['expense', 'debt_payment'])
             .order('next_due_date')
             .range(a, b),
         ),
@@ -57,15 +70,15 @@ export function fuenteDePorVencerDeSupabase(sb: SupabaseClient, hogar: () => Pro
         ),
       ])
       // A debt rule pays its debt's loan account; a debt payment near its date pays it.
+      // Every live debt is read: a new debt rule picks one of them.
       const deudasDeReglas = [...new Set(reglas.map((r) => r.debt_id as string | null).filter((x): x is string => !!x))]
-      const [deudas, abonos] =
+      const [deudas, abonos] = await Promise.all([
+        todas((a, b) =>
+          sb.from('debts').select('id, name, account_id').eq('household_id', hogarId).is('deleted_at', null).order('name').range(a, b),
+        ),
         deudasDeReglas.length === 0
-          ? [[], []]
-          : await Promise.all([
-              todas((a, b) =>
-                sb.from('debts').select('id, account_id').in('id', deudasDeReglas).order('id').range(a, b),
-              ),
-              todas((a, b) =>
+          ? Promise.resolve([])
+          : todas((a, b) =>
                 sb
                   .from('transactions')
                   .select('debt_id, occurred_at')
@@ -79,7 +92,7 @@ export function fuenteDePorVencerDeSupabase(sb: SupabaseClient, hogar: () => Pro
                   .order('id')
                   .range(a, b),
               ),
-            ])
+      ])
       const prestamoDe = new Map<string, string | null>(deudas.map((x) => [x.id as string, (x.account_id as string) ?? null]))
       const tarjetas = cuentas.filter((c) => c.type === 'credit_card' && c.due_day != null)
       const principal = cuentas.find((c) => c.is_principal === true)
@@ -140,7 +153,7 @@ export function fuenteDePorVencerDeSupabase(sb: SupabaseClient, hogar: () => Pro
       }
       // Every account that pays something, and the cards for their debt.
       const pagadoras = [
-        ...new Set([...reglas.map((r) => r.account_id as string), ...(principal ? [principal.id] : []), ...tarjetas.map((t) => t.id)]),
+        ...new Set([...reglas.filter((r) => r.kind !== 'income').map((r) => r.account_id as string), ...(principal ? [principal.id] : []), ...tarjetas.map((t) => t.id)]),
       ]
       const valores = await Promise.all(pagadoras.map(saldo))
       const saldos = Object.fromEntries(pagadoras.map((id, i) => [id, valores[i]]))
@@ -172,7 +185,13 @@ export function fuenteDePorVencerDeSupabase(sb: SupabaseClient, hogar: () => Pro
             color: colorDe(r.category_id ?? null),
             deudaId: r.kind === 'debt_payment' ? (r.debt_id ?? null) : null,
             destinoId: r.kind === 'debt_payment' && r.debt_id ? (prestamoDe.get(r.debt_id) ?? null) : null,
+            tipo: r.kind,
+            dias: r.weekdays ?? null,
+            semanaDelMes: r.week_of_month ?? null,
+            horaAviso: r.reminder_time ?? null,
+            fin: r.end_date ?? null,
           })),
+        deudas: deudas.map((x) => ({ id: x.id as string, nombre: x.name as string })),
         tarjetas: tarjetas.map((t) => ({
           id: t.id,
           nombre: t.name,
@@ -186,6 +205,17 @@ export function fuenteDePorVencerDeSupabase(sb: SupabaseClient, hogar: () => Pro
         abonos: abonos.map((x) => ({ deudaId: x.debt_id as string, dia: diaDe(x.occurred_at) })),
         pagosATarjetas: pagos.map((p) => ({ haciaCuentaId: p.counter_account_id, dia: diaDe(p.occurred_at), monto: Number(p.amount) })),
       }
+    },
+
+    async ejecutar(funcion, params) {
+      let respuesta
+      try {
+        respuesta = await sb.rpc(funcion, params)
+      } catch {
+        throw traducirError({})
+      }
+      if (respuesta.error) throw traducirError(respuesta.error)
+      return respuesta.data
     },
   }
 }

@@ -20,6 +20,8 @@ import { origenesConSaldo, puedeTransferir, type DatosDeCuentas } from '../cuent
 import { PorVencer } from '../porvencer/PorVencer'
 import type { FuenteDePorVencer } from '../porvencer/fuente'
 import { porPagarEn30Dias, vencimientos, type DatosDePorVencer, type Vencimiento } from '../porvencer/reglas'
+import { PanelDeRegla } from '../recurrentes/PanelDeRegla'
+import { ErrorDelServidor } from '../movimientos/reglas'
 
 const mesLargo = (mes: string) => {
   const n = nombreDelMes(mes)
@@ -107,6 +109,12 @@ export function Tablero({
   const [enCuentas, setEnCuentas] = useState<VistaDeCuenta | undefined>(undefined)
   const [datosPorVencer, setDatosPorVencer] = useState<DatosDePorVencer | null>(null)
   const [errorPorVencer, setErrorPorVencer] = useState<string | null>(null)
+  /** The recurring payment panel: `undefined` closed, `null` a new one, else the rule's id. */
+  const [enRegla, setEnRegla] = useState<string | null | undefined>(undefined)
+  /** The rule «Pagar» is paying: once its expense or installment is saved, it moves on. */
+  const [porCumplir, setPorCumplir] = useState<{ id: string; nombre: string } | null>(null)
+  /** Why a paid rule did not move on, while it shows. */
+  const [avisoDeRegla, setAvisoDeRegla] = useState<string | null>(null)
 
   // Coming back to the tab after a while reloads everything: the phone may
   // have registered movements meanwhile, and a stale balance makes the
@@ -202,11 +210,35 @@ export function Tablero({
     setEnCuentas(v)
   }
   const recargar = () => setRecarga((n) => n + 1)
+  /** The accounts panel's own view changes; leaving Transferir forgets the rule being paid. */
+  const cambiarVistaDeCuentas = (v: VistaDeCuenta | undefined) => {
+    setEnCuentas(v)
+    if (!v || v.v !== 'transferir') setPorCumplir(null)
+  }
+  /**
+   * After «Pagar» saved, the rule moves to its next date (cumplir_regla_recurrente),
+   * as the phone does. If that fails the payment stays: a notice says so.
+   */
+  const cumplir = async (r: { id: string; nombre: string }) => {
+    if (!porVencer?.ejecutar || !datosPorVencer) return
+    try {
+      await porVencer.ejecutar('cumplir_regla_recurrente', { p_household_id: datosPorVencer.hogarId, p_id: r.id })
+      recargar()
+    } catch (e) {
+      const motivo = e instanceof ErrorDelServidor ? ` ${e.message}` : ''
+      setAvisoDeRegla(`El pago quedó guardado, pero ${r.nombre} no pasó a su próxima fecha.${motivo}`)
+    }
+  }
+  const abrirRegla = (id: string | null) => {
+    abridor.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setEnRegla(id)
+  }
   const abrir = (m: FilaDeMovimiento | null) => {
     abridor.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     setAperturas((n) => n + 1)
     setCopia(null)
     setInicio(null)
+    setPorCumplir(null)
     setEnPanel(m)
   }
   /**
@@ -222,6 +254,7 @@ export function Tablero({
   }
   /** Pagar in Por vencer: a new expense with the bill's amount, category, account and name. */
   const pagar = (v: Vencimiento) => {
+    const regla = v.tipo === 'regla' ? { id: v.id, nombre: v.nombre } : null
     // A card or a debt rule is paid with a transfer into it, as on the phone.
     if (v.destinoId) {
       if (!cuentas || !datosDeCuentas) return
@@ -237,9 +270,11 @@ export function Tablero({
           ? pedida
           : posibles.reduce<(typeof posibles)[number] | undefined>((max, c) => (!max || c.saldo > max.saldo ? c : max), undefined)
       abrirCuentas({ v: 'transferir', origen: origen?.id ?? v.cuentaId ?? undefined, destino: v.destinoId, monto: v.monto })
+      setPorCumplir(regla)
       return
     }
     abrir(null)
+    setPorCumplir(regla)
     setInicio({
       categoria: v.categoriaId ?? undefined,
       monto: v.monto,
@@ -266,6 +301,8 @@ export function Tablero({
   const cerrar = (guardado: boolean, idNuevo?: string) => {
     setEnPanel(undefined)
     if (guardado) setRecarga((n) => n + 1)
+    if (guardado && idNuevo && porCumplir) void cumplir(porCumplir)
+    setPorCumplir(null)
     if (inicio && idNuevo) setAnadido({ id: idNuevo })
     setInicio(null)
   }
@@ -292,11 +329,16 @@ export function Tablero({
     return () => clearTimeout(t)
   }, [anadido])
   useEffect(() => {
-    if (enPanel === undefined && factura === null && enCuentas === undefined && abridor.current?.isConnected) {
+    if (!avisoDeRegla) return
+    const t = setTimeout(() => setAvisoDeRegla(null), 8000)
+    return () => clearTimeout(t)
+  }, [avisoDeRegla])
+  useEffect(() => {
+    if (enPanel === undefined && factura === null && enCuentas === undefined && enRegla === undefined && abridor.current?.isConnected) {
       abridor.current.focus()
       abridor.current = null
     }
-  }, [enPanel, factura, enCuentas])
+  }, [enPanel, factura, enCuentas, enRegla])
   const reintentar = () => {
     setError(null)
     setErrorDeLista(null)
@@ -309,7 +351,7 @@ export function Tablero({
   teclaDeMes.current = (e) => {
     const t = e.target
     if (t instanceof HTMLElement && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))) return
-    if (enPanel !== undefined || enCuentas !== undefined || factura !== null || viendoFactura !== null || e.ctrlKey || e.metaKey || e.altKey) return
+    if (enPanel !== undefined || enCuentas !== undefined || enRegla !== undefined || factura !== null || viendoFactura !== null || e.ctrlKey || e.metaKey || e.altKey) return
     if (e.key === 'ArrowLeft') setMes(moverMes(mes, -1))
     else if (e.key === 'ArrowRight' && mes < hoy) setMes(moverMes(mes, 1))
   }
@@ -328,7 +370,7 @@ export function Tablero({
   const elegirPestana = (p: Pestana) => {
     setPestana(p)
     guardarPestana(p)
-    setEnCuentas(undefined)
+    cambiarVistaDeCuentas(undefined)
   }
   // A tab whose source is missing is not offered; without either, no tabs.
   const ofrecida = { resumen: true, movimientos: !!movimientos, cuentas: !!cuentas, porvencer: !!porVencer }
@@ -342,7 +384,7 @@ export function Tablero({
   const porPagar = datosPorVencer ? porPagarEn30Dias(vencimientos(datosPorVencer, diaDeHoy), diaDeHoy).length : 0
 
   return (
-    <div className={`marco ${enPanel !== undefined || enCuentas !== undefined ? 'con-panel' : ''}`}>
+    <div className={`marco ${enPanel !== undefined || enCuentas !== undefined || enRegla !== undefined ? 'con-panel' : ''}`}>
       <header className="barra">
         <span className="marca-texto">Finanzas del hogar</span>
         <nav className="selector-mes" aria-label="Mes">
@@ -461,6 +503,8 @@ export function Tablero({
             hoy={diaDeHoy}
             alPagar={movimientos && lista ? pagar : undefined}
             puedeTransferir={!!cuentas && !!datosDeCuentas}
+            alNuevaRegla={porVencer?.ejecutar && lista ? () => abrirRegla(null) : undefined}
+            alEditarRegla={porVencer?.ejecutar && lista ? abrirRegla : undefined}
           />
         )}
         {verCuentas && !errorDeCuentas && datosDeCuentas && (
@@ -519,9 +563,40 @@ export function Tablero({
           vista={enCuentas}
           mes={mes}
           fuente={cuentas}
-          alCambiarVista={setEnCuentas}
-          alGuardar={recargar}
+          alCambiarVista={cambiarVistaDeCuentas}
+          alGuardar={() => {
+            recargar()
+            // A transfer «Pagar» opened for a debt rule: the rule moves on.
+            if (porCumplir && enCuentas.v === 'transferir') {
+              void cumplir(porCumplir)
+              setPorCumplir(null)
+            }
+          }}
         />
+      )}
+
+      {porVencer?.ejecutar && datosPorVencer && lista && enRegla !== undefined && (
+        <PanelDeRegla
+          key={enRegla ?? 'nueva'}
+          datos={lista.datos}
+          deudas={datosPorVencer.deudas ?? []}
+          regla={enRegla === null ? null : (datosPorVencer.reglas.find((r) => r.id === enRegla) ?? null)}
+          hoy={diaDeHoy}
+          ejecutar={(f, p) => porVencer.ejecutar!(f, p)}
+          alCerrar={(guardado) => {
+            setEnRegla(undefined)
+            if (guardado) recargar()
+          }}
+        />
+      )}
+
+      {avisoDeRegla && (
+        <div role="status" aria-label="Pago recurrente" className="aviso-flotante">
+          <span>{avisoDeRegla}</span>
+          <button type="button" className="secundario" onClick={() => setAvisoDeRegla(null)}>
+            Entendido
+          </button>
+        </div>
       )}
 
       {anadido && (
