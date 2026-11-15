@@ -5,6 +5,8 @@ import { diaDe, mesDe, moverMes, resumenDelMes, type ResumenDelMes } from './cal
 import type { FuenteDelTablero } from './fuente'
 import { colorDe, dinero, nombreDelMes } from '../core/formato'
 import type { FuenteDeMovimientos } from '../movimientos/fuente'
+import { DesdeFactura } from '../facturas/DesdeFactura'
+import type { FuenteDeFacturas } from '../facturas/fuente'
 import { ListaDeMovimientos } from '../movimientos/ListaDeMovimientos'
 import { Panel } from '../movimientos/Panel'
 import type { DatosDeMovimientos, FilaDeMovimiento } from '../movimientos/reglas'
@@ -23,16 +25,20 @@ const mesCorto = (mes: string) => {
  * The month at a glance (option A of the proposals): what was spent
  * against the month before, by person, the income left, categories by
  * person, and the last six months. With [movimientos], the month's
- * list below it and the side panel to register and correct.
+ * list below it and the side panel to register and correct. With
+ * [facturas] too, «Desde factura» registers an expense from a receipt.
  */
 export function Tablero({
   fuente,
   movimientos,
+  facturas,
   mesInicial = mesDe(new Date().toISOString()),
   ahora = () => new Date(),
 }: {
   fuente: FuenteDelTablero
   movimientos?: FuenteDeMovimientos
+  /** Where receipts are uploaded and read; without it, no «Desde factura». */
+  facturas?: FuenteDeFacturas
   mesInicial?: string
   /** The clock; tests fix it. */
   ahora?: () => Date
@@ -64,6 +70,8 @@ export function Tablero({
   const [inicio, setInicio] = useState<{ categoria?: string; busqueda?: string } | null>(null)
   /** The expense just added from the card, while its Deshacer shows. */
   const [anadido, setAnadido] = useState<{ id: string; error?: string } | null>(null)
+  /** The receipt dialog's opening count while it is open; `null` when closed. */
+  const [factura, setFactura] = useState<number | null>(null)
 
   useEffect(() => {
     let vivo = true
@@ -125,6 +133,15 @@ export function Tablero({
     setCopia(m)
     setEnPanel(null)
   }
+  const abrirFactura = () => {
+    abridor.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    setAperturas((n) => n + 1)
+    setFactura(aperturas + 1)
+  }
+  const cerrarFactura = (guardado: boolean) => {
+    setFactura(null)
+    if (guardado) setRecarga((n) => n + 1)
+  }
   const cerrar = (guardado: boolean, idNuevo?: string) => {
     setEnPanel(undefined)
     if (guardado) setRecarga((n) => n + 1)
@@ -148,11 +165,11 @@ export function Tablero({
     return () => clearTimeout(t)
   }, [anadido])
   useEffect(() => {
-    if (enPanel === undefined && abridor.current?.isConnected) {
+    if (enPanel === undefined && factura === null && abridor.current?.isConnected) {
       abridor.current.focus()
       abridor.current = null
     }
-  }, [enPanel])
+  }, [enPanel, factura])
   const reintentar = () => {
     setError(null)
     setErrorDeLista(null)
@@ -163,7 +180,7 @@ export function Tablero({
   teclaDeMes.current = (e) => {
     const t = e.target
     if (t instanceof HTMLElement && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))) return
-    if (enPanel !== undefined || e.ctrlKey || e.metaKey || e.altKey) return
+    if (enPanel !== undefined || factura !== null || e.ctrlKey || e.metaKey || e.altKey) return
     if (e.key === 'ArrowLeft') setMes(moverMes(mes, -1))
     else if (e.key === 'ArrowRight' && mes < hoy) setMes(moverMes(mes, 1))
   }
@@ -251,9 +268,27 @@ export function Tablero({
       {/* Bottom right, as on the phone. It stays mounted while the panel is
           open (CSS hides it) so the focus can come back to it on close. */}
       {movimientos && (
-        <button className="registrar flotante" disabled={!lista} onClick={() => abrir(null)}>
-          + Registrar
-        </button>
+        <div className="flotantes">
+          {facturas && (
+            <button className="secundario desde-factura flotante" disabled={!lista} onClick={abrirFactura}>
+              Desde factura
+            </button>
+          )}
+          <button className="registrar flotante" disabled={!lista} onClick={() => abrir(null)}>
+            + Registrar
+          </button>
+        </div>
+      )}
+
+      {movimientos && facturas && lista && factura !== null && (
+        <DesdeFactura
+          key={factura}
+          datos={lista.datos}
+          fuente={facturas}
+          movimientos={movimientos}
+          ahora={ahora}
+          alCerrar={cerrarFactura}
+        />
       )}
 
       {movimientos && lista && enPanel !== undefined && (

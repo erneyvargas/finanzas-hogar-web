@@ -3,6 +3,9 @@ import { limitesDelMes } from '../tablero/calculo'
 import { todas } from '../tablero/datos'
 import { traducirError, type DatosDeMovimientos, type FuncionDelServidor, type Tipo } from './reglas'
 
+/** What `ejecutar` can call: the movements' functions, plus the receipt one (migration 0046). */
+export type FuncionQueSeEjecuta = FuncionDelServidor | 'registrar_movimiento_de_factura'
+
 /**
  * Where the movements list and panel read and write; tests pass a fake.
  * Writes go only through the server functions (migration 0041), never
@@ -13,7 +16,7 @@ export interface FuenteDeMovimientos {
   /** `saldo_de_cuenta`; `null` when the account cannot be seen. */
   saldo(cuentaId: string): Promise<number | null>
   /** Calls a server function; rejects with an `ErrorDelServidor`. */
-  ejecutar(funcion: FuncionDelServidor, params: Record<string, unknown>): Promise<void>
+  ejecutar(funcion: FuncionQueSeEjecuta, params: Record<string, unknown>): Promise<void>
 }
 
 /** The phone uploads account and category photos to this private bucket. */
