@@ -3,6 +3,7 @@ import { colorDe, dinero, MESES, nombreDelMes } from '../core/formato'
 import { diaDe } from '../tablero/calculo'
 import { alternar, arbolDeGastos, dentroDelRango, pasaLaSeleccion, plano, textoDelRango, tocarDia, type Rango } from './filtros'
 import { FiltrosDelMes } from './FiltrosDelMes'
+import { MenuDeFila } from './MenuDeFila'
 import { rutaDeCategoria, type DatosDeMovimientos, type FilaDeMovimiento } from './reglas'
 
 /**
@@ -76,10 +77,15 @@ export function ListaDeMovimientos({
   mes,
   datos,
   alElegir,
+  alDuplicar,
+  alBorrar,
 }: {
   mes: string
   datos: DatosDeMovimientos
   alElegir: (m: FilaDeMovimiento) => void
+  /** With both, each row gets the ⋮ menu. */
+  alDuplicar?: (m: FilaDeMovimiento) => void
+  alBorrar?: (m: FilaDeMovimiento) => Promise<void>
 }) {
   const [busqueda, setBusqueda] = useState('')
   const [filtro, setFiltro] = useState<Filtro>('todos')
@@ -237,7 +243,7 @@ export function ListaDeMovimientos({
               </h3>
               <ul>
                 {d.lineas.map((l) => (
-                  <li key={l.fila.id}>
+                  <li key={l.fila.id} className={alDuplicar && alBorrar ? 'con-menu' : undefined}>
                     <button className="fila" onClick={() => alElegir(l.fila)}>
                       <Cara nombre={l.rubro?.nombre ?? ''} foto={l.rubro?.foto} clase="cara-de-rubro" />
                       <span className="fila-texto">
@@ -255,6 +261,13 @@ export function ListaDeMovimientos({
                         </span>
                       </span>
                     </button>
+                    {alDuplicar && alBorrar && (
+                      <MenuDeFila
+                        titulo={l.titulo}
+                        alDuplicar={() => alDuplicar(l.fila)}
+                        alBorrar={() => alBorrar(l.fila)}
+                      />
+                    )}
                   </li>
                 ))}
               </ul>

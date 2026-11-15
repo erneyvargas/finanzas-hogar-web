@@ -639,3 +639,27 @@ button.pc-cat[aria-pressed='true'] { border-color: var(--c); transform: translat
   .factura-arriba { grid-template-columns: 1fr; }
   .factura-elegir { padding: 16px; }
 }
+
+/* The ⋮ menu at the end of a movement row. */
+li.con-menu { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.menu-de-fila { position: relative; }
+button.mas-acciones {
+  width: 32px; height: 40px; padding: 0; border-radius: 10px; font-size: 20px; line-height: 1;
+  background: transparent; color: var(--grafito);
+}
+button.mas-acciones:hover, button.mas-acciones[aria-expanded='true'] { background: var(--fondo); color: var(--tinta); }
+.menu-flotante {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 180px;
+  display: grid; padding: 6px; border-radius: 12px; background: var(--papel);
+  border: 1px solid var(--regla); box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
+}
+.menu-flotante > button {
+  text-align: left; padding: 10px 12px; border-radius: 8px; font-weight: 600;
+  background: transparent; color: var(--tinta);
+}
+.menu-flotante > button:hover, .menu-flotante > button:focus-visible { background: var(--fondo); }
+.menu-flotante > button.borrar { color: var(--alerta); }
+.menu-confirmar { display: grid; gap: 8px; padding: 6px; width: 220px; }
+.menu-confirmar p { margin: 0; font-weight: 600; }
+.menu-botones { display: flex; gap: 6px; }
+.menu-botones button { padding: 8px 12px; font-size: 14px; }

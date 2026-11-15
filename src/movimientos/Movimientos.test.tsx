@@ -632,11 +632,79 @@ describe('closing the panel', () => {
   })
 })
 
+describe('the row menu', () => {
+  const menuDe = async (comercio: RegExp) => {
+    const lista = await screen.findByRole('region', { name: 'Movimientos de octubre' })
+    await userEvent.click(await within(lista).findByRole('button', { name: new RegExp(`Más acciones de ${comercio.source}`) }))
+    return screen.getByRole('menu')
+  }
+
+  it('the three dots offer Duplicar and Borrar; Duplicar opens the copy dated today', async () => {
+    const m = movimientos()
+    montar(m)
+    const menu = await menuDe(/Aguacate/)
+
+    expect(within(menu).getAllByRole('menuitem').map((b) => b.textContent)).toEqual(['Duplicar', 'Borrar'])
+    await userEvent.click(within(menu).getByRole('menuitem', { name: 'Duplicar' }))
+
+    const p = panel()
+    expect(within(p).getByRole('heading', { name: 'Duplicar movimiento' })).toBeInTheDocument()
+    expect(within(p).getByLabelText('Comercio')).toHaveValue('Aguacate')
+    expect(within(p).getByLabelText('Fecha')).toHaveTextContent('Hoy, 28 oct 2026')
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it('Borrar asks first, then deletes through borrar_movimiento and reloads', async () => {
+    const m = movimientos()
+    montar(m)
+    const menu = await menuDe(/Aguacate/)
+
+    await userEvent.click(within(menu).getByRole('menuitem', { name: 'Borrar' }))
+    expect(m.ejecutar).not.toHaveBeenCalled()
+    expect(within(menu).getByText('¿Borrar este movimiento?')).toBeInTheDocument()
+    await userEvent.click(within(menu).getByRole('button', { name: 'Sí, borrar' }))
+
+    expect(m.ejecutar).toHaveBeenCalledWith('borrar_movimiento', { p_id: 'm1' })
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+    await waitFor(() => expect(m.cargar).toHaveBeenCalledTimes(2))
+  })
+
+  it('Cancelar, Escape or a click outside close the menu without deleting', async () => {
+    const m = movimientos()
+    montar(m)
+    let menu = await menuDe(/Aguacate/)
+    await userEvent.click(within(menu).getByRole('menuitem', { name: 'Borrar' }))
+    await userEvent.click(within(menu).getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByRole('menu')).toBeNull()
+
+    menu = await menuDe(/Aguacate/)
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('menu')).toBeNull()
+
+    await menuDe(/Aguacate/)
+    await userEvent.click(document.body)
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(m.ejecutar).not.toHaveBeenCalled()
+  })
+
+  it('a rejected delete says why and keeps the menu open', async () => {
+    const m = movimientos(vi.fn(async () => {
+      throw new ErrorDelServidor('Ese movimiento ya no existe', 'movimiento_no_encontrado')
+    }))
+    montar(m)
+    const menu = await menuDe(/Aguacate/)
+    await userEvent.click(within(menu).getByRole('menuitem', { name: 'Borrar' }))
+    await userEvent.click(within(menu).getByRole('button', { name: 'Sí, borrar' }))
+
+    expect(await within(menu).findByRole('alert')).toHaveTextContent('Ese movimiento ya no existe')
+  })
+})
+
 describe('correcting a movement', () => {
   async function abrirAguacate(m: FuenteDeMovimientos) {
     montar(m)
     const lista = await screen.findByRole('region', { name: 'Movimientos de octubre' })
-    await userEvent.click(await within(lista).findByRole('button', { name: /Aguacate/ }))
+    await userEvent.click(await within(lista).findByRole('button', { name: /^(?!Más acciones).*Aguacate/ }))
     return panel()
   }
 
