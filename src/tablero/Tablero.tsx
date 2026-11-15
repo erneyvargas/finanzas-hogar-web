@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useCargaVisible } from '../core/cargaVisible'
+import { guardarEnLaPestana, leerDeLaPestana } from '../core/recordado'
 import { useSesion } from '../auth/sesion'
 import { diaDe, mesDe, moverMes, resumenDelMes, type ResumenDelMes } from './calculo'
 import type { FuenteDelTablero } from './fuente'
@@ -32,13 +33,14 @@ export function Tablero({
   fuente,
   movimientos,
   facturas,
-  mesInicial = mesDe(new Date().toISOString()),
+  mesInicial,
   ahora = () => new Date(),
 }: {
   fuente: FuenteDelTablero
   movimientos?: FuenteDeMovimientos
   /** Where receipts are uploaded and read; without it, no «Desde factura». */
   facturas?: FuenteDeFacturas
+  /** Without it: the month open before an F5, else the current one. */
   mesInicial?: string
   /** The clock; tests fix it. */
   ahora?: () => Date
@@ -47,7 +49,10 @@ export function Tablero({
   const hoy = mesDe(new Date().toISOString())
   /** Today in Bogotá; a string, so the effect below reruns only when the day changes. */
   const diaDeHoy = diaDe(ahora())
-  const [mes, setMesGuardado] = useState(mesInicial)
+  const [mes, setMesGuardado] = useState(
+    () => mesInicial ?? leerDeLaPestana<string>('mes-del-tablero') ?? mesDe(new Date().toISOString()),
+  )
+  useEffect(() => guardarEnLaPestana('mes-del-tablero', mes), [mes])
   /** Which way the month name slides in. */
   const [direccion, setDireccion] = useState<'atras' | 'adelante' | null>(null)
   const setMes = (nuevo: string) => {

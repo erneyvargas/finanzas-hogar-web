@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { guardarEnLaPestana, leerDeLaPestana } from '../core/recordado'
 import { festivoDe } from '../core/festivos'
 import { colorDe, dinero, MESES, nombreDelMes } from '../core/formato'
 import { diaDe } from '../tablero/calculo'
@@ -45,6 +46,16 @@ function tituloDelDia(dia: string) {
 }
 
 type Filtro = 'todos' | 'expense' | 'income'
+
+const CLAVE_DE_FILTROS = 'filtros-de-movimientos'
+interface FiltrosGuardados {
+  mes: string
+  busqueda: string
+  filtro: Filtro
+  seleccion: string[]
+  rango: Rango | null
+  recientesPrimero: boolean
+}
 const FILTROS: { id: Filtro; nombre: string }[] = [
   { id: 'todos', nombre: 'Todos' },
   { id: 'expense', nombre: 'Gastos' },
@@ -95,11 +106,24 @@ export function ListaDeMovimientos({
   alDuplicar?: (m: FilaDeMovimiento) => void
   alBorrar?: (m: FilaDeMovimiento) => Promise<void>
 }) {
-  const [busqueda, setBusqueda] = useState('')
-  const [filtro, setFiltro] = useState<Filtro>('todos')
-  const [seleccion, setSeleccion] = useState<Set<string>>(new Set())
-  const [rango, setRango] = useState<Rango | null>(null)
-  const [recientesPrimero, setRecientesPrimero] = useState(true)
+  // F5 keeps the filters: they are remembered for this tab. The chosen
+  // days only come back for the month they belong to.
+  const [guardado] = useState(() => leerDeLaPestana<FiltrosGuardados>(CLAVE_DE_FILTROS))
+  const [busqueda, setBusqueda] = useState(guardado?.busqueda ?? '')
+  const [filtro, setFiltro] = useState<Filtro>(guardado?.filtro ?? 'todos')
+  const [seleccion, setSeleccion] = useState<Set<string>>(() => new Set(guardado?.seleccion ?? []))
+  const [rango, setRango] = useState<Rango | null>(guardado?.mes === mes ? (guardado.rango ?? null) : null)
+  const [recientesPrimero, setRecientesPrimero] = useState(guardado?.recientesPrimero ?? true)
+  useEffect(() => {
+    guardarEnLaPestana(CLAVE_DE_FILTROS, {
+      mes,
+      busqueda,
+      filtro,
+      seleccion: [...seleccion],
+      rango,
+      recientesPrimero,
+    } satisfies FiltrosGuardados)
+  }, [mes, busqueda, filtro, seleccion, rango, recientesPrimero])
   const arbol = arbolDeGastos(datos.categorias)
   const cuentas = new Map(datos.cuentas.map((c) => [c.id, c]))
   const categoriaPorId = new Map(datos.categorias.map((c) => [c.id, c]))
