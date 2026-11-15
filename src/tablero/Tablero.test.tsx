@@ -346,17 +346,32 @@ describe('the Por vencer tab', () => {
     reglas: [
       { ...regla, id: 'internet', nombre: 'Internet', monto: 101000, diaDelMes: 18, proximaFecha: '2026-11-18', avisoDias: 3, categoriaId: 'c-internet' },
       { ...regla, id: 'luz', nombre: 'Luz', monto: 211670, diaDelMes: 20, proximaFecha: '2026-11-20', avisoDias: 2, categoriaId: 'c-luz' },
-      { ...regla, id: 'admin', nombre: 'Administración', monto: 307656, diaDelMes: 2, proximaFecha: '2026-11-02', avisoDias: 1, categoriaId: 'c-admin' },
+      { ...regla, id: 'admin', nombre: 'Administración', monto: 307656, diaDelMes: 5, proximaFecha: '2026-12-05', avisoDias: 1, categoriaId: 'c-admin' },
+      { ...regla, id: 'celular', nombre: 'Celular', monto: 61250, diaDelMes: 24, proximaFecha: '2026-11-24', avisoDias: 1, categoriaId: 'c-celular', cuentaId: 'efe' },
       { ...regla, id: 'agua', nombre: 'Agua', monto: 90000, frecuencia: 'yearly', diaDelMes: null, proximaFecha: '2026-09-01', avisoDias: 1, categoriaId: 'c-agua' },
     ],
-    tarjetas: [{ id: 'bbva', nombre: 'Tarjeta BBVA', diaDePago: 17, deuda: 1238273 }],
+    tarjetas: [
+      {
+        id: 'bbva',
+        nombre: 'Tarjeta BBVA',
+        diaDePago: 17,
+        deuda: 6709182,
+        extracto: { corte: '2026-10-28', vence: '2026-11-17', saldo: 1238273, minimo: 120000, pagado: false },
+      },
+      { id: 'nu', nombre: 'Nubank', diaDePago: 25, deuda: 737627, extracto: null },
+    ],
     cuentas: [
       { id: 'nomina', nombre: 'Nómina', principal: true },
+      { id: 'efe', nombre: 'Efectivo', principal: false },
       { id: 'bbva', nombre: 'Tarjeta BBVA', principal: false },
+      { id: 'nu', nombre: 'Nubank', principal: false },
     ],
-    saldoPrincipal: 3458092,
-    gastosDelMes: [{ categoriaId: 'c-admin' }],
-    transferenciasDelMes: [],
+    saldos: { nomina: 3458092, efe: 10000 },
+    gastos: [
+      { categoriaId: 'c-admin', dia: '2026-11-02' },
+      { categoriaId: 'c-luz', dia: '2026-11-05' },
+    ],
+    pagosATarjetas: [],
   }
   const porVencer = (): FuenteDePorVencer => ({ cargar: vi.fn(async () => datosPv) })
   const datosMov: DatosDeMovimientos = {
@@ -384,14 +399,14 @@ describe('the Por vencer tab', () => {
       </ProveedorDeSesion>,
     )
     const tab = await screen.findByRole('tab', { name: /Por vencer/ })
-    await waitFor(() => expect(within(tab).getByText('4')).toBeInTheDocument())
+    await waitFor(() => expect(within(tab).getByText('5')).toBeInTheDocument())
     await userEvent.click(tab)
     return tab
   }
 
   it('is a fourth tab whose badge counts the unpaid items due in the next 30 days', async () => {
     const tab = await montarPv(movimientos())
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Resumen', 'Movimientos', 'Por vencer4'])
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Resumen', 'Movimientos', 'Por vencer5'])
     expect(tab).toHaveAttribute('aria-selected', 'true')
   })
 
@@ -402,8 +417,12 @@ describe('the Por vencer tab', () => {
     expect(internet.closest('[data-dia]')).toHaveAttribute('data-dia', '18')
     expect(internet).toHaveClass('bola-lleno')
     const admin = within(cal).getByRole('button', { name: /^Administración/ })
-    expect(admin.closest('[data-dia]')).toHaveAttribute('data-dia', '2')
+    expect(admin.closest('[data-dia]')).toHaveAttribute('data-dia', '5')
     expect(admin).toHaveClass('bola-hueco')
+    expect(within(cal).getByRole('button', { name: /^Luz/ })).toHaveClass('bola-lleno')
+    const nubank = within(cal).getByRole('button', { name: 'Nubank · debes $737.627 · revisa el extracto' })
+    expect(nubank).toHaveClass('bola-hueco')
+    expect(nubank).toHaveStyle({ '--s': '10px' })
     expect(within(cal).getByRole('button', { name: /^Tarjeta BBVA/ }).closest('[data-dia]')).toHaveAttribute('data-dia', '17')
     const agua = screen.getByRole('button', { name: /^Agua/ })
     expect(agua).toHaveClass('bola-rayado')
@@ -421,14 +440,16 @@ describe('the Por vencer tab', () => {
   it('shows what is left this month and switches to the next 30 days', async () => {
     await montarPv()
     const resumen = screen.getByRole('region', { name: 'Falta pagar en noviembre' })
-    expect(within(resumen).getAllByText('$1.550.943').length).toBeGreaterThan(0)
-    expect(within(resumen).getByText(/quedarían/)).toHaveTextContent('+ agua por confirmar · quedarían $1.907.149 en Nómina')
+    expect(within(resumen).getAllByText('$1.612.193').length).toBeGreaterThan(0)
+    expect(within(resumen).getByText('+ agua por confirmar')).toBeInTheDocument()
+    const quedan = within(resumen).getAllByText(/quedarían/)
+    expect(quedan.map((q) => q.textContent)).toEqual(['quedarían $1.907.149 en Nómina', 'quedarían −$51.250 en Efectivo'])
 
     await userEvent.click(within(resumen).getByRole('button', { name: '30 días' }))
 
     expect(within(resumen).getByRole('button', { name: '30 días' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('heading', { name: 'Falta pagar hasta el 15 dic' })).toBeInTheDocument()
-    expect(within(resumen).getAllByText('$1.858.599').length).toBeGreaterThan(0)
+    expect(within(resumen).getAllByText('$1.919.849').length).toBeGreaterThan(0)
   })
 
   it('marks the heaviest week', async () => {
@@ -439,11 +460,21 @@ describe('the Por vencer tab', () => {
   it('lists the bills by due date, the close ones in red, and the paid ones apart', async () => {
     await montarPv()
     const filas = within(screen.getByRole('list', { name: 'Por pagar' })).getAllByRole('listitem')
-    expect(filas.map((f) => f.querySelector('.n')?.textContent)).toEqual(['Tarjeta BBVA', 'Internet', 'Luz', 'Agua'])
+    expect(filas.map((f) => f.querySelector('.nombre')?.textContent)).toEqual([
+      'Tarjeta BBVA',
+      'Internet',
+      'Luz',
+      'Celular',
+      'Nubank',
+      'Agua',
+    ])
+    expect(filas[0]).toHaveTextContent('pago del extracto')
+    expect(filas[0]).toHaveTextContent('$1.238.273')
     expect(filas[0]).toHaveTextContent('17 nov · faltan 2 días · Nómina')
+    expect(filas[4]).toHaveTextContent('Debes $737.627 · revisa el extracto')
     expect(within(filas[1]).getByText('18 nov · faltan 3 días')).toHaveClass('urgente')
     expect(within(filas[2]).getByText('20 nov · faltan 5 días')).not.toHaveClass('urgente')
-    expect(filas[3]).toHaveTextContent('fecha por confirmar')
+    expect(filas[5]).toHaveTextContent('fecha por confirmar')
     const pagados = screen.getByRole('list', { name: 'Ya pagados' })
     expect(within(pagados).getByText('Administración')).toBeInTheDocument()
     expect(within(pagados).queryByRole('button', { name: /Pagar/ })).not.toBeInTheDocument()
@@ -461,6 +492,13 @@ describe('the Por vencer tab', () => {
     expect(within(panel).getByLabelText('Comercio')).toHaveValue('Internet')
     expect(within(panel).getByText('Hogar')).toBeInTheDocument()
     expect(within(panel).getByRole('group', { name: 'Sale de' })).toHaveTextContent('Nómina')
+  })
+
+  it('offers no expense Pagar for a card: paying it is a transfer', async () => {
+    await montarPv(movimientos())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Pagar Internet' })).toBeEnabled())
+    expect(screen.queryByRole('button', { name: 'Pagar Tarjeta BBVA' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Pagar Nubank' })).not.toBeInTheDocument()
   })
 
   it('keeps the other tabs working', async () => {

@@ -359,7 +359,7 @@ export function Tablero({
               </div>
             )}
             {(movimientos || verCuentas) && (
-              <div className="acciones" role="toolbar" aria-label="Acciones">
+              <div className="acciones-del-tablero" role="toolbar" aria-label="Acciones">
                 {verCuentas && (
                   <>
                     <button className="secundario" disabled={!datosDeCuentas} onClick={() => abrirCuentas({ v: 'nueva' })}>

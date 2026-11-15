@@ -24,12 +24,28 @@ export interface Regla {
   color: string | null
 }
 
+/**
+ * The card's last billed statement (`card_statements`, not `open`): what
+ * the bank asks to pay and when.
+ */
+export interface Extracto {
+  corte: string
+  vence: string
+  /** `statement_balance`: the full payment. */
+  saldo: number
+  /** `minimum_payment`. */
+  minimo: number
+  /** Marked `paid` on the phone. */
+  pagado: boolean
+}
+
 /** A credit card with a payment day; [deuda] is what is owed today. */
 export interface Tarjeta {
   id: string
   nombre: string
   diaDePago: number
   deuda: number
+  extracto: Extracto | null
 }
 
 export interface DatosDePorVencer {
@@ -38,12 +54,12 @@ export interface DatosDePorVencer {
   tarjetas: Tarjeta[]
   /** Live accounts, for names; the principal one pays the cards. */
   cuentas: { id: string; nombre: string; principal: boolean }[]
-  /** Today's balance of the principal account, when there is one. */
-  saldoPrincipal: number | null
-  /** This Bogotá month's live expenses. */
-  gastosDelMes: { categoriaId: string | null }[]
-  /** This Bogotá month's live transfers into a card. */
-  transferenciasDelMes: { haciaCuentaId: string }[]
+  /** Today's balance of each account that pays something. */
+  saldos: Record<string, number>
+  /** Live expenses from 10 days before this Bogotá month to its end, by day. */
+  gastos: { categoriaId: string | null; dia: string }[]
+  /** Live transfers and debt payments into a card, by day. */
+  pagosATarjetas: { haciaCuentaId: string; dia: string; monto: number }[]
 }
 
 export interface Vencimiento {
@@ -61,7 +77,16 @@ export interface Vencimiento {
   categoriaId: string | null
   color: string | null
   pagado: boolean
+  /** What the amount is, for a card: `pago del extracto` or `pago mínimo`. */
+  detalle: string | null
+  /** A card with no statement due this month: only its debt is known, kept out of totals. */
+  sinExtracto: boolean
+  /** What a card without a statement owes. */
+  deuda: number
 }
+
+/** How many days around the due date an expense in the category pays it. */
+export const DIAS_DE_HOLGURA = 10
 
 const DIA_MS = 86_400_000
 const comoUtc = (dia: string) => Date.parse(`${dia}T00:00:00Z`)
@@ -95,9 +120,15 @@ export function vencimientos(d: DatosDePorVencer, hoy: string): Vencimiento[] {
   const siguiente = moverMes(mes, 1)
   const tope = limite30(hoy)
   const principal = d.cuentas.find((c) => c.principal)?.id ?? null
-  const categoriasPagadas = new Set(d.gastosDelMes.map((g) => g.categoriaId))
-  const tarjetasPagadas = new Set(d.transferenciasDelMes.map((t) => t.haciaCuentaId))
   const fuera: Vencimiento[] = []
+  const pagadaEl = (categoriaId: string | null, fecha: string | null) =>
+    categoriaId !== null &&
+    d.gastos.some(
+      (g) =>
+        g.categoriaId === categoriaId &&
+        (fecha === null ? g.dia.startsWith(mes) : Math.abs(diasEntre(fecha, g.dia)) <= DIAS_DE_HOLGURA),
+    )
+  const base = { detalle: null, sinExtracto: false, deuda: 0 }
 
   for (const m of [mes, siguiente]) {
     const esteMes = m === mes
@@ -105,6 +136,7 @@ export function vencimientos(d: DatosDePorVencer, hoy: string): Vencimiento[] {
       const fecha = fechaDeRegla(r, m)
       if (fecha === undefined || (!esteMes && (fecha === null || fecha > tope))) continue
       fuera.push({
+        ...base,
         clave: `regla:${r.id}:${m}`,
         id: r.id,
         tipo: 'regla',
@@ -115,25 +147,46 @@ export function vencimientos(d: DatosDePorVencer, hoy: string): Vencimiento[] {
         cuentaId: r.cuentaId,
         categoriaId: r.categoriaId,
         color: r.color,
-        pagado: esteMes && r.categoriaId !== null && categoriasPagadas.has(r.categoriaId),
+        pagado: esteMes && pagadaEl(r.categoriaId, fecha),
       })
     }
     for (const t of d.tarjetas) {
-      const fecha = conDia(m, t.diaDePago)
-      if (!esteMes && fecha > tope) continue
-      fuera.push({
+      const tarjeta = {
+        ...base,
         clave: `tarjeta:${t.id}:${m}`,
         id: t.id,
-        tipo: 'tarjeta',
+        tipo: 'tarjeta' as const,
         nombre: t.nombre,
-        monto: Math.max(0, t.deuda),
-        fecha,
         avisoDias: 1,
         cuentaId: principal,
         categoriaId: null,
         color: null,
-        pagado: esteMes && (t.deuda <= 0 || tarjetasPagadas.has(t.id)),
-      })
+      }
+      const e = t.extracto
+      if (e && e.vence.startsWith(m) && (esteMes || e.vence <= tope)) {
+        // As the phone's abonadoAlExtracto: payments after the cut count for this statement.
+        const abonado = d.pagosATarjetas
+          .filter((p) => p.haciaCuentaId === t.id && p.dia > e.corte)
+          .reduce((a, p) => a + p.monto, 0)
+        const completo = e.saldo > 0
+        const monto = Math.max(0, (completo ? e.saldo : e.minimo) - abonado)
+        fuera.push({
+          ...tarjeta,
+          monto,
+          fecha: e.vence,
+          detalle: completo ? 'pago del extracto' : 'pago mínimo',
+          pagado: e.pagado || monto <= 0,
+        })
+      } else if (esteMes) {
+        fuera.push({
+          ...tarjeta,
+          monto: 0,
+          fecha: conDia(m, t.diaDePago),
+          sinExtracto: true,
+          deuda: Math.max(0, t.deuda),
+          pagado: t.deuda <= 0,
+        })
+      }
     }
   }
   return fuera
@@ -141,14 +194,29 @@ export function vencimientos(d: DatosDePorVencer, hoy: string): Vencimiento[] {
 
 const sumar = (vs: Vencimiento[]) => vs.reduce((a, x) => a + x.monto, 0)
 
+/** Unpaid, with an amount that counts (a card without a statement does not). */
+const cuenta = (x: Vencimiento) => !x.pagado && !x.sinExtracto
+
 /** The month's unpaid items, overdue ones included. */
-export const pendientesDelMes = (vs: Vencimiento[], mes: string) =>
-  vs.filter((x) => !x.pagado && x.fecha?.startsWith(mes))
+export const pendientesDelMes = (vs: Vencimiento[], mes: string) => vs.filter((x) => cuenta(x) && x.fecha?.startsWith(mes))
 
 /** Unpaid items with a date up to 30 days from [hoy] (the badge count). */
 export const porPagarEn30Dias = (vs: Vencimiento[], hoy: string) => {
   const tope = limite30(hoy)
-  return vs.filter((x) => !x.pagado && x.fecha !== null && x.fecha <= tope)
+  return vs.filter((x) => cuenta(x) && x.fecha !== null && x.fecha <= tope)
+}
+
+/**
+ * What each paying account would keep after its own unpaid dated items in
+ * [vs], in the order the accounts first appear.
+ */
+export function quedanPorCuenta(vs: Vencimiento[], saldos: Record<string, number>): { cuentaId: string; queda: number }[] {
+  const porCuenta = new Map<string, number>()
+  for (const x of vs) {
+    if (!cuenta(x) || x.fecha === null || x.cuentaId === null || !(x.cuentaId in saldos)) continue
+    porCuenta.set(x.cuentaId, (porCuenta.get(x.cuentaId) ?? 0) + x.monto)
+  }
+  return [...porCuenta].map(([cuentaId, suma]) => ({ cuentaId, queda: saldos[cuentaId] - suma }))
 }
 
 export const totalDelMes = (vs: Vencimiento[], mes: string) => sumar(pendientesDelMes(vs, mes))

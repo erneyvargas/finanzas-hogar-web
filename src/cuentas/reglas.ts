@@ -239,6 +239,23 @@ export function origenesPosibles(cuentas: CuentaConSaldo[]): CuentaConSaldo[] {
   return cuentas.filter((c) => !c.archivada && destinosPara(c, cuentas).some((d) => !d.motivo))
 }
 
+/**
+ * Where a transfer form lets money leave from: a source the matrix takes
+ * (not a voucher, not a loan, not archived) that has money (balance > 0).
+ */
+export function origenesConSaldo(cuentas: CuentaConSaldo[]): CuentaConSaldo[] {
+  return origenesPosibles(cuentas).filter((c) => c.tipo !== 'liability' && c.saldo > 0)
+}
+
+/** The form's first source: [pedida] or the principal when they qualify, else the biggest balance. */
+export function origenInicial(origenes: CuentaConSaldo[], pedida?: string): CuentaConSaldo | undefined {
+  return (
+    origenes.find((o) => o.id === pedida) ??
+    origenes.find((o) => o.principal) ??
+    origenes.reduce<CuentaConSaldo | undefined>((max, o) => (!max || o.saldo > max.saldo ? o : max), undefined)
+  )
+}
+
 /** Swapping is offered only when the way back is a valid transfer too. */
 export const puedeInvertir = (origen: CuentaConSaldo, destino: CuentaConSaldo) =>
   origen.tipo !== 'liability' && puedeTransferir(destino.tipo, origen.tipo)

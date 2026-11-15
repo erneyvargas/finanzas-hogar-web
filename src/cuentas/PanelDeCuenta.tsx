@@ -4,6 +4,7 @@ import { diaDe } from '../tablero/calculo'
 import { Cara } from '../movimientos/ListaDeMovimientos'
 import { ErrorDelServidor, MENSAJE_GENERICO, leerMonto } from '../movimientos/reglas'
 import type { FuenteDeCuentas, FuncionDeCuentas } from './fuente'
+import { SelectorDeCuenta } from './SelectorDeCuenta'
 import {
   ESTILOS,
   ETIQUETA,
@@ -14,7 +15,8 @@ import {
   destinosPara,
   errorDeTarjeta,
   grupoDe,
-  origenesPosibles,
+  origenInicial,
+  origenesConSaldo,
   puedeInvertir,
   vistaPrevia,
   type CuentaConSaldo,
@@ -231,7 +233,7 @@ function Detalle({
     }
   }, [fuente, c.id, mes, clave])
   const a = accionesDe(c)
-  const puedeSalir = origenesPosibles(datos.cuentas).some((o) => o.id === c.id)
+  const puedeSalir = origenesConSaldo(datos.cuentas).some((o) => o.id === c.id)
   const nombre = (id: string | null) => datos.cuentas.find((x) => x.id === id)?.nombre ?? 'otra cuenta'
   const filas = movs?.clave === clave ? movs.filas : null
 
@@ -723,17 +725,20 @@ function Transferir({
   correr,
   volver,
 }: Comun & { datos: DatosDeCuentas; vista: { origen?: string; desde?: string }; base: Record<string, unknown> }) {
-  const origenes = origenesPosibles(datos.cuentas)
+  const origenes = origenesConSaldo(datos.cuentas)
   const primero = (o: CuentaConSaldo | undefined) => (o ? destinosPara(o, datos.cuentas).find((d) => !d.motivo)?.cuenta.id ?? '' : '')
-  const [origenId, setOrigenId] = useState(
-    () => origenes.find((o) => o.id === vista.origen)?.id ?? origenes.find((o) => o.principal)?.id ?? origenes[0]?.id ?? '',
-  )
+  const [origenId, setOrigenId] = useState(() => origenInicial(origenes, vista.origen)?.id ?? '')
   const origen = origenes.find((o) => o.id === origenId)
   const destinos = origen ? destinosPara(origen, datos.cuentas) : []
   const [destinoElegido, setDestinoId] = useState(() => primero(origen))
-  // A destination the new source cannot reach falls back to the first one it can.
-  const destinoId = destinos.some((d) => d.cuenta.id === destinoElegido && !d.motivo) ? destinoElegido : primero(origen)
+  // A destination the new source cannot reach is cleared: the user picks again.
+  const destinoId = destinos.some((d) => d.cuenta.id === destinoElegido && !d.motivo) ? destinoElegido : ''
   const destino = datos.cuentas.find((c) => c.id === destinoId)
+  const cambiarOrigen = (id: string) => {
+    setOrigenId(id)
+    const nuevo = origenes.find((o) => o.id === id)
+    if (nuevo && !destinosPara(nuevo, datos.cuentas).some((d) => d.cuenta.id === destinoElegido && !d.motivo)) setDestinoId('')
+  }
   const [montoTexto, setMontoTexto] = useState('')
   const [id] = useState(() => crypto.randomUUID())
   const monto = leerMonto(montoTexto)
@@ -772,16 +777,14 @@ function Transferir({
         </div>
       </div>
       <div className="campo">
-        <label htmlFor="t-de">De</label>
-        <select id="t-de" value={origenId} onChange={(e) => setOrigenId(e.target.value)}>
-          {origenes.map((o) => (
-            <option key={o.id} value={o.id}>
-              {`${o.nombre} · ${conSigno(o.saldo)}`}
-            </option>
-          ))}
-        </select>
+        <SelectorDeCuenta
+          etiqueta="De"
+          opciones={origenes.map((o) => ({ id: o.id, nombre: o.nombre, foto: o.foto, detalle: conSigno(o.saldo) }))}
+          valor={origenId}
+          alElegir={cambiarOrigen}
+        />
       </div>
-      {destino && puedeInvertir(origen, destino) && (
+      {destino && puedeInvertir(origen, destino) && origenes.some((o) => o.id === destino.id) && (
         <button
           type="button"
           className="intercambio"
@@ -796,14 +799,18 @@ function Transferir({
         </button>
       )}
       <div className="campo">
-        <label htmlFor="t-a">A</label>
-        <select id="t-a" value={destinoId} onChange={(e) => setDestinoId(e.target.value)}>
-          {destinos.map((d) => (
-            <option key={d.cuenta.id} value={d.cuenta.id} disabled={!!d.motivo}>
-              {d.motivo ? `${d.cuenta.nombre} — ${d.motivo}` : `${d.cuenta.nombre} · ${conSigno(d.cuenta.saldo)}`}
-            </option>
-          ))}
-        </select>
+        <SelectorDeCuenta
+          etiqueta="A"
+          opciones={destinos.map((d) => ({
+            id: d.cuenta.id,
+            nombre: d.cuenta.nombre,
+            foto: d.cuenta.foto,
+            detalle: conSigno(d.cuenta.saldo),
+            motivo: d.motivo,
+          }))}
+          valor={destinoId}
+          alElegir={setDestinoId}
+        />
       </div>
       {previa && destino && (
         <div className="antes-despues num" aria-label="Cómo quedan">

@@ -4,12 +4,14 @@ import { colorDe, dinero, nombreDelMes } from '../core/formato'
 import { BarraDeSemanas, CalendarioDeCirculos, type Circulo } from '../core/ui/CalendarioDeCirculos'
 import { diasDelMes, semanaDelDia } from '../core/ui/rejillaDelMes'
 import { Cifra } from '../core/ui/Cifra'
+import { conSigno } from '../cuentas/reglas'
 import {
   diaCorto,
   esUrgente,
   limite30,
   pendientesDelMes,
   porPagarEn30Dias,
+  quedanPorCuenta,
   semanaMasCargada,
   tamanoDeCirculo,
   textoDeDias,
@@ -21,6 +23,8 @@ import {
 const conMayuscula = (t: string) => `${t[0].toUpperCase()}${t.slice(1)}`
 /** Cards have no category; they take the card blue. */
 const colorDeItem = (v: Vencimiento) => colorDe(v.color ?? (v.tipo === 'tarjeta' ? 'anil' : null))
+/** `Debes $737.627 · revisa el extracto`: a card with no statement due this month. */
+const textoDeDeuda = (v: Vencimiento) => `Debes ${dinero(v.deuda)} · revisa el extracto`
 const porFecha = (a: Vencimiento, b: Vencimiento) =>
   a.fecha === b.fecha ? a.nombre.localeCompare(b.nombre, 'es') : a.fecha === null ? 1 : b.fecha === null ? -1 : a.fecha < b.fecha ? -1 : 1
 
@@ -46,25 +50,27 @@ export function PorVencer({
   const vs = useMemo(() => vencimientos(datos, hoy), [datos, hoy])
 
   const delMes = vs.filter((v) => v.fecha === null || v.fecha.startsWith(mes))
-  const pendientes = (modo === 'mes' ? pendientesDelMes(vs, mes) : porPagarEn30Dias(vs, hoy)).concat(
-    vs.filter((v) => !v.pagado && v.fecha === null),
-  )
-  pendientes.sort(porFecha)
+  const delPeriodo = modo === 'mes' ? pendientesDelMes(vs, mes) : porPagarEn30Dias(vs, hoy)
+  const total = delPeriodo.reduce((a, v) => a + v.monto, 0)
+  // Listed but out of the total: bills with no date yet («por confirmar»)
+  // and cards with no statement this month (only their debt is known).
+  const aparte = delMes.filter((v) => !v.pagado && (v.fecha === null || v.sinExtracto))
+  const pendientes = [...delPeriodo, ...aparte].sort(porFecha)
   const pagados = delMes.filter((v) => v.pagado).sort(porFecha)
-  // A bill with no date yet is listed but left out of the total, as «por confirmar».
-  const total = pendientes.reduce((a, v) => a + (v.fecha === null ? 0 : v.monto), 0)
-  const porConfirmar = pendientes.filter((v) => v.fecha === null).map((v) => v.nombre.toLocaleLowerCase('es'))
+  const porConfirmar = aparte.filter((v) => v.fecha === null).map((v) => v.nombre.toLocaleLowerCase('es'))
   const cuenta = (id: string | null) => datos.cuentas.find((c) => c.id === id)?.nombre
-  const principal = datos.cuentas.find((c) => c.principal)
+  const quedan = quedanPorCuenta(delPeriodo, datos.saldos)
 
   const maximo = Math.max(0, ...delMes.map((v) => v.monto))
   const circulo = (v: Vencimiento): Circulo => ({
     id: v.clave,
     dia: v.fecha ? Number(v.fecha.slice(8)) : 0,
-    tamano: v.fecha === null ? 14 : tamanoDeCirculo(v.monto, maximo),
+    tamano: v.fecha === null ? 14 : v.sinExtracto ? 10 : tamanoDeCirculo(v.monto, maximo),
     color: colorDeItem(v),
-    estilo: v.fecha === null ? 'rayado' : v.pagado ? 'hueco' : 'lleno',
-    etiqueta: `${v.nombre} · ${dinero(v.monto)} · ${v.pagado ? 'pagado' : textoDeDias(v, hoy)}`,
+    estilo: v.fecha === null ? 'rayado' : v.pagado || v.sinExtracto ? 'hueco' : 'lleno',
+    etiqueta: v.sinExtracto
+      ? `${v.nombre} · ${textoDeDeuda(v).toLocaleLowerCase('es')}`
+      : `${v.nombre} · ${dinero(v.monto)} · ${v.pagado ? 'pagado' : textoDeDias(v, hoy)}`,
   })
   const festivos = new Map(
     [...festivosDe(Number(mes.slice(0, 4)))].filter(([d]) => d.startsWith(mes)).map(([d, n]) => [Number(d.slice(8)), n]),
@@ -89,15 +95,23 @@ export function PorVencer({
       onMouseEnter={() => setEncendido(v.clave)}
       onMouseLeave={() => setEncendido(null)}
     >
-      <span className={`punto ${v.fecha === null ? 'rayado' : v.pagado ? 'hueco' : ''}`} aria-hidden="true" />
-      <span className="n">{v.nombre}</span>
-      <span className="m num">{dinero(v.monto)}</span>
+      <span className={`punto ${v.fecha === null ? 'rayado' : v.pagado || v.sinExtracto ? 'hueco' : ''}`} aria-hidden="true" />
+      <span className="n">
+        <span className="nombre">{v.nombre}</span>
+        {v.detalle && <small> {v.detalle}</small>}
+      </span>
+      <span className="m num">{v.sinExtracto ? '—' : dinero(v.monto)}</span>
       <span className="meta">
         <span>
-          <span className={esUrgente(v, hoy) ? 'urgente' : undefined}>{v.pagado ? 'Pagado' : textoDeDias(v, hoy)}</span>
+          {v.sinExtracto ? (
+            <span>{textoDeDeuda(v)}</span>
+          ) : (
+            <span className={esUrgente(v, hoy) ? 'urgente' : undefined}>{v.pagado ? 'Pagado' : textoDeDias(v, hoy)}</span>
+          )}
           {cuenta(v.cuentaId) && <> · {cuenta(v.cuentaId)}</>}
         </span>
-        {!v.pagado && alPagar && (
+        {/* A card is paid with a transfer, never an expense. */}
+        {!v.pagado && v.tipo === 'regla' && alPagar && (
           <button type="button" className="pagar" aria-label={`Pagar ${v.nombre}`} onClick={() => alPagar(v)}>
             Pagar
           </button>
@@ -117,11 +131,12 @@ export function PorVencer({
             <p className="pv-total num" data-total>
               <Cifra texto={dinero(total)} />
             </p>
-            {principal && datos.saldoPrincipal !== null && (
-              <p className="pv-sub">
-                {porConfirmar.length > 0 && `+ ${porConfirmar.join(', ')} por confirmar · `}quedarían <b className="num">{dinero(datos.saldoPrincipal - total)}</b> en {principal.nombre}
+            {porConfirmar.length > 0 && <p className="pv-sub">+ {porConfirmar.join(', ')} por confirmar</p>}
+            {quedan.map((q) => (
+              <p key={q.cuentaId} className="pv-sub">
+                quedarían <b className={`num ${q.queda < 0 ? 'urgente' : ''}`}>{conSigno(q.queda)}</b> en {cuenta(q.cuentaId)}
               </p>
-            )}
+            ))}
           </div>
           <div className="conmutador" role="group" aria-label="Periodo">
             <button type="button" aria-pressed={modo === 'mes'} onClick={() => setModo('mes')}>

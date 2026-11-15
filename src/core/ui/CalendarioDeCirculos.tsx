@@ -101,18 +101,18 @@ export function CalendarioDeCirculos({
 
 /**
  * How much falls in each week of the month, as bars; the heaviest one is
- * dark. A small floor keeps an empty week visible, as in Vencimientos.
+ * dark; heights are a share of the heaviest week, as in the mockup.
  */
 export function BarraDeSemanas({ totales, mayor, pie }: { totales: number[]; mayor: number; pie: string }) {
-  const suma = totales.reduce((a, b) => a + b, 0)
+  const max = Math.max(0, ...totales)
   return (
     <div className="cal-semanas-caja">
-      <div className="cal-semanas" aria-hidden="true">
+      <div className="cal-semanas" aria-hidden="true" style={{ gridTemplateColumns: `repeat(${totales.length}, 1fr)` }}>
         {totales.map((t, i) => (
           <span
             key={i}
             className={i === mayor ? 'cargada' : undefined}
-            style={{ height: `${suma > 0 ? Math.max(8, Math.round((100 * t) / Math.max(...totales))) : 8}%` }}
+            style={{ height: `${max > 0 ? Math.max(PISO, Math.round((100 * t) / max)) : PISO}%` }}
           />
         ))}
       </div>
@@ -120,3 +120,6 @@ export function BarraDeSemanas({ totales, mayor, pie }: { totales: number[]; may
     </div>
   )
 }
+
+/** The height (%) of an empty week, so the bar still shows the month's shape. */
+const PISO = 4

@@ -4,6 +4,7 @@ import {
   esUrgente,
   fechaDeRegla,
   porPagarEn30Dias,
+  quedanPorCuenta,
   semanaMasCargada,
   tamanoDeCirculo,
   textoDeDias,
@@ -34,9 +35,9 @@ const datos = (d: Partial<DatosDePorVencer>): DatosDePorVencer => ({
   reglas: [],
   tarjetas: [],
   cuentas: [{ id: 'nomina', nombre: 'Nómina', principal: true }],
-  saldoPrincipal: 1_000_000,
-  gastosDelMes: [],
-  transferenciasDelMes: [],
+  saldos: { nomina: 1_000_000 },
+  gastos: [],
+  pagosATarjetas: [],
   ...d,
 })
 
@@ -52,6 +53,9 @@ const v = (x: Partial<Vencimiento>): Vencimiento => ({
   categoriaId: null,
   color: null,
   pagado: false,
+  detalle: null,
+  sinExtracto: false,
+  deuda: 0,
   ...x,
 })
 
@@ -89,36 +93,100 @@ describe('days left', () => {
 })
 
 describe('paid detection', () => {
-  it('marks a rule paid by a live expense in its category this month, and a card by a transfer into it or no debt', () => {
-    const vs = vencimientos(
-      datos({
-        reglas: [regla({ id: 'r1' }), regla({ id: 'r2', nombre: 'Luz', categoriaId: 'c-luz', diaDelMes: 20, proximaFecha: '2026-11-20' })],
-        tarjetas: [
-          { id: 'bbva', nombre: 'Tarjeta BBVA', diaDePago: 17, deuda: 1238273 },
-          { id: 'visa', nombre: 'Visa', diaDePago: 5, deuda: 500 },
-          { id: 'cero', nombre: 'Sin deuda', diaDePago: 9, deuda: 0 },
-        ],
-        gastosDelMes: [{ categoriaId: 'c-internet' }],
-        transferenciasDelMes: [{ haciaCuentaId: 'visa' }],
-      }),
-      '2026-11-15',
-    ).filter((x) => x.fecha?.startsWith('2026-11'))
-    const pagado = Object.fromEntries(vs.map((x) => [x.id, x.pagado]))
-    expect(pagado).toEqual({ r1: true, r2: false, bbva: false, visa: true, cero: true })
+  const pagados = (gastos: DatosDePorVencer['gastos'], reglas: Regla[]) =>
+    Object.fromEntries(
+      vencimientos(datos({ reglas, gastos }), '2026-11-15')
+        .filter((x) => x.fecha?.startsWith('2026-11'))
+        .map((x) => [x.id, x.pagado]),
+    )
+
+  it('keeps Gas paid: due on the 5th, paid on Nov 2', () => {
+    const gas = regla({ id: 'gas', nombre: 'Gas', categoriaId: 'c-gas', diaDelMes: 5, proximaFecha: '2026-12-05' })
+    expect(pagados([{ categoriaId: 'c-gas', dia: '2026-11-02' }], [gas])).toEqual({ gas: true })
   })
 
-  it('pays a card from the principal account and adds next month items due within 30 days, unpaid', () => {
+  it('keeps Administración paid: due on the 5th, paid on Nov 2', () => {
+    const admin = regla({ id: 'admin', nombre: 'Administración', categoriaId: 'c-admin', diaDelMes: 5, proximaFecha: '2026-12-05' })
+    expect(pagados([{ categoriaId: 'c-admin', dia: '2026-11-02' }], [admin])).toEqual({ admin: true })
+  })
+
+  it('leaves Luz unpaid: due on the 20th, its last payment on Nov 5 was October’s bill', () => {
+    const luz = regla({ id: 'luz', nombre: 'Luz', categoriaId: 'c-luz', diaDelMes: 20, proximaFecha: '2026-11-20' })
+    expect(pagados([{ categoriaId: 'c-luz', dia: '2026-11-05' }], [luz])).toEqual({ luz: false })
+  })
+
+  it('adds next month items due within 30 days, unpaid', () => {
     const vs = vencimientos(
-      datos({
-        reglas: [regla({ id: 'r1', diaDelMes: 2, proximaFecha: '2026-11-02' })],
-        tarjetas: [{ id: 'bbva', nombre: 'Tarjeta BBVA', diaDePago: 17, deuda: 100 }],
-        gastosDelMes: [{ categoriaId: 'c-internet' }],
-      }),
+      datos({ reglas: [regla({ id: 'r1', diaDelMes: 2, proximaFecha: '2026-11-02' })], gastos: [{ categoriaId: 'c-internet', dia: '2026-11-02' }] }),
       '2026-11-15',
     )
-    expect(vs.find((x) => x.id === 'bbva')?.cuentaId).toBe('nomina')
-    const diciembre = vs.filter((x) => x.fecha?.startsWith('2026-12'))
-    expect(diciembre.map((x) => [x.id, x.fecha, x.pagado])).toEqual([['r1', '2026-12-02', false]])
+    expect(vs.map((x) => [x.id, x.fecha, x.pagado])).toEqual([
+      ['r1', '2026-11-02', true],
+      ['r1', '2026-12-02', false],
+    ])
+  })
+})
+
+describe('a card', () => {
+  const extracto = { corte: '2026-10-28', vence: '2026-11-17', saldo: 900_000, minimo: 90_000, pagado: false }
+  const tarjeta = (t: Partial<DatosDePorVencer['tarjetas'][number]>) => ({
+    id: 'bbva',
+    nombre: 'Master Card BBVA',
+    diaDePago: 17,
+    deuda: 6_709_182,
+    extracto: null,
+    ...t,
+  })
+  const delMes = (d: Partial<DatosDePorVencer>) =>
+    vencimientos(datos(d), '2026-11-15').filter((x) => x.fecha?.startsWith('2026-11'))
+
+  it('is due its statement payment, less what was paid after the cut, paid from the principal account', () => {
+    const [v] = delMes({
+      tarjetas: [tarjeta({ extracto })],
+      pagosATarjetas: [
+        { haciaCuentaId: 'bbva', dia: '2026-10-20', monto: 50_000 },
+        { haciaCuentaId: 'bbva', dia: '2026-11-03', monto: 100_000 },
+      ],
+    })
+    expect(v).toMatchObject({ monto: 800_000, fecha: '2026-11-17', detalle: 'pago del extracto', pagado: false, sinExtracto: false, cuentaId: 'nomina' })
+  })
+
+  it('is paid when the statement is marked paid or covered after the cut', () => {
+    expect(delMes({ tarjetas: [tarjeta({ extracto: { ...extracto, pagado: true } })] })[0].pagado).toBe(true)
+    expect(
+      delMes({ tarjetas: [tarjeta({ extracto })], pagosATarjetas: [{ haciaCuentaId: 'bbva', dia: '2026-11-10', monto: 900_000 }] })[0].pagado,
+    ).toBe(true)
+  })
+
+  it('falls back to the minimum payment when the statement has only that', () => {
+    const [v] = delMes({ tarjetas: [tarjeta({ extracto: { ...extracto, saldo: 0 } })] })
+    expect(v).toMatchObject({ monto: 90_000, detalle: 'pago mínimo' })
+  })
+
+  it('without a statement this month keeps its debt apart, out of every total', () => {
+    const vs = vencimientos(datos({ tarjetas: [tarjeta({})] }), '2026-11-15')
+    expect(vs).toHaveLength(1)
+    expect(vs[0]).toMatchObject({ fecha: '2026-11-17', monto: 0, deuda: 6_709_182, sinExtracto: true, pagado: false })
+    expect(totalDelMes(vs, '2026-11')).toBe(0)
+    expect(totalEn30Dias(vs, '2026-11-15')).toBe(0)
+    expect(porPagarEn30Dias(vs, '2026-11-15')).toEqual([])
+    expect(semanaMasCargada(vs, '2026-11').mayor).toBe(-1)
+  })
+})
+
+describe('what is left per paying account', () => {
+  it('subtracts only each account’s unpaid dated items from its balance', () => {
+    const vs = [
+      v({ monto: 300, cuentaId: 'nomina', fecha: '2026-11-17' }),
+      v({ monto: 50, cuentaId: 'nomina', fecha: '2026-11-18', pagado: true }),
+      v({ monto: 900, cuentaId: 'efe', fecha: '2026-11-20' }),
+      v({ monto: 70, cuentaId: 'efe', fecha: null }),
+      v({ monto: 0, deuda: 5000, cuentaId: 'efe', fecha: '2026-11-21', sinExtracto: true }),
+    ]
+    expect(quedanPorCuenta(vs, { nomina: 1000, efe: 200 })).toEqual([
+      { cuentaId: 'nomina', queda: 700 },
+      { cuentaId: 'efe', queda: -700 },
+    ])
   })
 })
 
