@@ -186,3 +186,32 @@ describe('resumenDelMes', () => {
     expect(r.meses[5].total).toBe(2000)
   })
 })
+
+describe('spending by category', () => {
+  it('adds each category of the month and what it spent the month before up to the same day', () => {
+    const r = resumenDelMes({
+      movimientos: [
+        mov({ monto: 30000, fecha: '2026-10-03T15:00:00Z', categoriaId: 'k-transp' }),
+        mov({ monto: 20000, fecha: '2026-10-05T15:00:00Z', categoriaId: 'k-salud' }),
+        mov({ monto: 10000, fecha: '2026-10-06T15:00:00Z', categoriaId: 'k-transp' }),
+        { ...mov({ monto: 5000, fecha: '2026-10-07T15:00:00Z' }), categoriaId: null },
+        mov({ monto: 8000, fecha: '2026-09-04T15:00:00Z', categoriaId: 'k-transp' }),
+        // After the cut-off day: left out of the comparison.
+        mov({ monto: 99000, fecha: '2026-09-20T15:00:00Z', categoriaId: 'k-transp' }),
+        // Only last month: not a category of this month.
+        mov({ monto: 7000, fecha: '2026-09-02T15:00:00Z', categoriaId: 'h-mercado', rubroId: 'hogar' }),
+      ],
+      partes: [],
+      categorias: cats,
+      mes: '2026-10',
+      hogarId: HOGAR,
+      hoy: '2026-10-10',
+    })
+
+    expect(r.porCategoria).toEqual([
+      { id: 'k-transp', nombre: 'Transporte', total: 40000, anterior: 8000 },
+      { id: 'k-salud', nombre: 'Salud', total: 20000, anterior: 0 },
+      { id: 'sin-categoria', nombre: 'Sin categoría', total: 5000, anterior: 0 },
+    ])
+  })
+})

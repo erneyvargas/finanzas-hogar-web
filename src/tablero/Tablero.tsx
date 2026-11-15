@@ -8,6 +8,7 @@ import type { FuenteDeMovimientos } from '../movimientos/fuente'
 import { ListaDeMovimientos } from '../movimientos/ListaDeMovimientos'
 import { Panel } from '../movimientos/Panel'
 import type { DatosDeMovimientos, FilaDeMovimiento } from '../movimientos/reglas'
+import { PorCategoria } from './PorCategoria'
 
 const mesLargo = (mes: string) => {
   const n = nombreDelMes(mes)
@@ -40,7 +41,13 @@ export function Tablero({
   const hoy = mesDe(new Date().toISOString())
   /** Today in Bogotá; a string, so the effect below reruns only when the day changes. */
   const diaDeHoy = diaDe(ahora())
-  const [mes, setMes] = useState(mesInicial)
+  const [mes, setMesGuardado] = useState(mesInicial)
+  /** Which way the month name slides in. */
+  const [direccion, setDireccion] = useState<'atras' | 'adelante' | null>(null)
+  const setMes = (nuevo: string) => {
+    setDireccion(nuevo < mes ? 'atras' : 'adelante')
+    setMesGuardado(nuevo)
+  }
   /** With its month: a reload of the same month keeps showing the old one. */
   const [cargado, setCargado] = useState<{ mes: string; r: ResumenDelMes } | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -53,6 +60,10 @@ export function Tablero({
   const [aperturas, setAperturas] = useState(0)
   /** The movement a new registration copies (Duplicar), or none. */
   const [copia, setCopia] = useState<FilaDeMovimiento | null>(null)
+  /** What a new expense from the Por categoría card starts with. */
+  const [inicio, setInicio] = useState<{ categoria?: string; busqueda?: string } | null>(null)
+  /** The expense just added from the card, while its Deshacer shows. */
+  const [anadido, setAnadido] = useState<{ id: string; error?: string } | null>(null)
 
   useEffect(() => {
     let vivo = true
@@ -93,7 +104,19 @@ export function Tablero({
     abridor.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     setAperturas((n) => n + 1)
     setCopia(null)
+    setInicio(null)
     setEnPanel(m)
+  }
+  /**
+   * A new expense from the card: a category with one subcategory comes
+   * chosen; otherwise its name is typed so its subcategories show.
+   */
+  const anadir = (categoriaId: string | null) => {
+    const cats = lista?.datos.categorias ?? []
+    const hijas = cats.filter((c) => c.viva && c.nivel === 'subcategory' && c.padreId === categoriaId)
+    const nombre = cats.find((c) => c.id === categoriaId)?.nombre
+    abrir(null)
+    setInicio(hijas.length === 1 ? { categoria: hijas[0].id } : nombre ? { busqueda: nombre } : {})
   }
   // Swaps the correction for a new movement copied from it. What opened the
   // correction keeps its claim on the focus.
@@ -102,10 +125,28 @@ export function Tablero({
     setCopia(m)
     setEnPanel(null)
   }
-  const cerrar = (guardado: boolean) => {
+  const cerrar = (guardado: boolean, idNuevo?: string) => {
     setEnPanel(undefined)
     if (guardado) setRecarga((n) => n + 1)
+    if (inicio && idNuevo) setAnadido({ id: idNuevo })
+    setInicio(null)
   }
+  const deshacer = async (id: string) => {
+    if (!movimientos) return
+    try {
+      await movimientos.ejecutar('borrar_movimiento', { p_id: id })
+      setAnadido(null)
+      setRecarga((n) => n + 1)
+    } catch (e) {
+      setAnadido({ id, error: e instanceof Error ? e.message : 'No se pudo deshacer.' })
+    }
+  }
+  // The undo offer goes away on its own after a while.
+  useEffect(() => {
+    if (!anadido || anadido.error) return
+    const t = setTimeout(() => setAnadido(null), 8000)
+    return () => clearTimeout(t)
+  }, [anadido])
   useEffect(() => {
     if (enPanel === undefined && abridor.current?.isConnected) {
       abridor.current.focus()
@@ -117,6 +158,21 @@ export function Tablero({
     setErrorDeLista(null)
     setRecarga((n) => n + 1)
   }
+  // ← and → change the month, unless a field is typing or the panel is open.
+  const teclaDeMes = useRef<(e: KeyboardEvent) => void>(() => {})
+  teclaDeMes.current = (e) => {
+    const t = e.target
+    if (t instanceof HTMLElement && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))) return
+    if (enPanel !== undefined || e.ctrlKey || e.metaKey || e.altKey) return
+    if (e.key === 'ArrowLeft') setMes(moverMes(mes, -1))
+    else if (e.key === 'ArrowRight' && mes < hoy) setMes(moverMes(mes, 1))
+  }
+  useEffect(() => {
+    const alTeclear = (e: KeyboardEvent) => teclaDeMes.current(e)
+    window.addEventListener('keydown', alTeclear)
+    return () => window.removeEventListener('keydown', alTeclear)
+  }, [])
+
   // Only a new month shows the skeleton. A reload after saving keeps the
   // page (and the list's filters) until the new numbers arrive.
   const resumen = cargado?.mes === mes ? cargado.r : null
@@ -139,7 +195,11 @@ export function Tablero({
           <button className="flecha" aria-label="Mes anterior" onClick={() => setMes(moverMes(mes, -1))}>
             ‹
           </button>
-          <span>{mesLargo(mes)}</span>
+          <span className="mes-visible" aria-live="polite">
+            <span key={mes} data-dir={direccion ?? undefined}>
+              {mesLargo(mes)}
+            </span>
+          </span>
           <button
             className="flecha"
             aria-label="Mes siguiente"
@@ -173,7 +233,15 @@ export function Tablero({
         )}
         {error && <Fallo texto={error} alReintentar={reintentar} />}
         {!error && esqueleto && <Esqueleto mes={mes} conResumen={verResumen} conLista={verLista} />}
-        {verResumen && resumen && !esqueleto && <Contenido mes={mes} r={resumen} />}
+        {verResumen && resumen && !esqueleto && (
+          <Contenido
+            mes={mes}
+            r={resumen}
+            lista={listaDelMes}
+            alElegirMovimiento={abrir}
+            alAnadir={movimientos && lista ? anadir : undefined}
+          />
+        )}
         {verLista && errorDeLista && <Fallo texto={errorDeLista} alReintentar={reintentar} />}
         {verLista && !errorDeLista && listaDelMes && !esqueleto && (
           <ListaDeMovimientos mes={mes} datos={listaDelMes} alElegir={abrir} />
@@ -194,11 +262,22 @@ export function Tablero({
           datos={lista.datos}
           original={enPanel}
           copia={copia}
+          categoriaInicial={inicio?.categoria}
+          busquedaInicial={inicio?.busqueda}
           fuente={movimientos}
           ahora={ahora}
           alCerrar={cerrar}
           alDuplicar={duplicar}
         />
+      )}
+
+      {anadido && (
+        <div role="status" aria-label="Gasto añadido" className="aviso-flotante">
+          <span>{anadido.error ?? 'Gasto añadido'}</span>
+          <button type="button" className="secundario" onClick={() => void deshacer(anadido.id)}>
+            {anadido.error ? 'Reintentar' : 'Deshacer'}
+          </button>
+        </div>
       )}
     </div>
   )
@@ -295,7 +374,19 @@ function diasDelMes(mes: string): number {
   return new Date(Date.UTC(a, m, 0)).getUTCDate()
 }
 
-function Contenido({ mes, r }: { mes: string; r: ResumenDelMes }) {
+function Contenido({
+  mes,
+  r,
+  lista,
+  alElegirMovimiento,
+  alAnadir,
+}: {
+  mes: string
+  r: ResumenDelMes
+  lista: DatosDeMovimientos | null
+  alElegirMovimiento: (m: FilaDeMovimiento) => void
+  alAnadir?: (categoriaId: string | null) => void
+}) {
   const anterior =
     nombreDelMes(moverMes(mes, -1)) +
     (r.comparadoHasta === null ? '' : ` hasta el día ${r.comparadoHasta}`)
@@ -359,6 +450,15 @@ function Contenido({ mes, r }: { mes: string; r: ResumenDelMes }) {
           {quedan >= 0 ? ' después de los gastos' : ' sobre lo que entró'}
         </p>
       </section>
+
+      <PorCategoria
+        mes={mes}
+        categorias={r.porCategoria}
+        filas={lista?.movimientos ?? null}
+        categoriasDeMovimientos={lista?.categorias ?? []}
+        alElegirMovimiento={alElegirMovimiento}
+        alAnadir={alAnadir}
+      />
 
       <section className="tarjeta ancha" aria-labelledby="t-matriz">
         <h2 id="t-matriz">Categorías por persona</h2>

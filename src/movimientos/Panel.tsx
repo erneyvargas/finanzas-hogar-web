@@ -68,6 +68,8 @@ export function Panel({
   datos,
   original,
   copia = null,
+  categoriaInicial,
+  busquedaInicial = '',
   fuente,
   ahora,
   alCerrar,
@@ -77,9 +79,14 @@ export function Panel({
   original: FilaDeMovimiento | null
   /** The movement a new registration copies; ignored while correcting. */
   copia?: FilaDeMovimiento | null
+  /** A new movement's category, already chosen. */
+  categoriaInicial?: string
+  /** A new movement's category search, already typed (its options show). */
+  busquedaInicial?: string
   fuente: FuenteDeMovimientos
   ahora: () => Date
-  alCerrar: (guardado: boolean) => void
+  /** Whether something was saved; a registration also gives the new id. */
+  alCerrar: (guardado: boolean, idNuevo?: string) => void
   /** Offers Duplicar while correcting; gets the movement as it now stands. */
   alDuplicar?: (m: FilaDeMovimiento) => void
 }) {
@@ -94,8 +101,8 @@ export function Panel({
   const [base, setBase] = useState(original)
   const [tipo, setTipo] = useState<Tipo>(desde?.tipo ?? 'expense')
   const [montoTexto, setMontoTexto] = useState(desde ? miles(desde.monto) : '')
-  const [categoriaId, setCategoriaId] = useState(desde?.categoriaId ?? '')
-  const [busqueda, setBusqueda] = useState('')
+  const [categoriaId, setCategoriaId] = useState(desde?.categoriaId ?? categoriaInicial ?? '')
+  const [busqueda, setBusqueda] = useState(desde ? '' : busquedaInicial)
   /** The search box shows while there is no category yet, or after Cambiar. */
   const [buscando, setBuscando] = useState(false)
   const [cuentaId, setCuentaId] = useState(desde?.cuentaId ?? inicial(desde?.tipo ?? 'expense'))
@@ -211,13 +218,13 @@ export function Panel({
         p_guardar_igual: guardarIgual,
         p_id: nuevoId,
       })
-      alCerrar(true)
+      alCerrar(true, nuevoId)
     } catch (e) {
       const fallo = comoError(e)
       // Only a retry after an unknown outcome (no answer, no rule) can meet
       // its own earlier save; a rule rejection stored nothing.
       if (fallo.codigo === 'ya_existe' && yaIntento.current) {
-        alCerrar(true)
+        alCerrar(true, nuevoId)
         return
       }
       if (fallo.codigo === null) yaIntento.current = true
