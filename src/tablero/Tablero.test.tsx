@@ -468,21 +468,21 @@ describe('the Por vencer tab', () => {
   it('shows what is left this month and switches to the next 30 days', async () => {
     await montarPv()
     const resumen = screen.getByRole('region', { name: 'Falta pagar en noviembre' })
-    expect(within(resumen).getAllByText('$1.612.193').length).toBeGreaterThan(0)
+    expect(within(resumen).getAllByText('$493.920').length).toBeGreaterThan(0)
     expect(within(resumen).getByText('+ agua por confirmar')).toBeInTheDocument()
     const quedan = within(resumen).getAllByText(/quedarían/)
-    expect(quedan.map((q) => q.textContent)).toEqual(['quedarían $1.907.149 en Nómina', 'quedarían −$51.250 en Efectivo'])
+    expect(quedan.map((q) => q.textContent)).toEqual(['quedarían $3.025.422 en Nómina', 'quedarían −$51.250 en Efectivo'])
 
     await userEvent.click(within(resumen).getByRole('button', { name: '30 días' }))
 
     expect(within(resumen).getByRole('button', { name: '30 días' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('heading', { name: 'Falta pagar hasta el 15 dic' })).toBeInTheDocument()
-    expect(within(resumen).getAllByText('$1.919.849').length).toBeGreaterThan(0)
+    expect(within(resumen).getAllByText('$801.576').length).toBeGreaterThan(0)
   })
 
   it('marks the heaviest week', async () => {
     await montarPv()
-    expect(screen.getByText('16–22 nov: $1.550.943, la más cargada')).toBeInTheDocument()
+    expect(screen.getByText('16–22 nov: $432.670, la más cargada')).toBeInTheDocument()
   })
 
   it('lists the bills by due date, the close ones in red, and the paid ones apart', async () => {
@@ -496,8 +496,9 @@ describe('the Por vencer tab', () => {
       'Nubank',
       'Agua',
     ])
-    expect(filas[0]).toHaveTextContent('pago del extracto')
-    expect(filas[0]).toHaveTextContent('$1.238.273')
+    expect(filas[0]).toHaveTextContent('pago mínimo')
+    expect(filas[0]).toHaveTextContent('$120.000')
+    expect(filas[0]).toHaveTextContent('total $1.238.273')
     expect(filas[0]).toHaveTextContent('17 nov · faltan 2 días · Nómina')
     expect(filas[4]).toHaveTextContent('Debes $737.627 · revisa el extracto')
     expect(within(filas[1]).getByText('18 nov · faltan 3 días')).toHaveClass('urgente')
@@ -577,7 +578,7 @@ describe('the Por vencer tab', () => {
       await screen.findByRole('button', { name: 'Pagar Tarjeta BBVA' })
     }
 
-    it('a card: from the principal account to the card, with the statement amount', async () => {
+    it('a card: from the principal account to the card, with the minimum payment', async () => {
       await montarConCuentas()
       const pagar = screen.getByRole('button', { name: 'Pagar Tarjeta BBVA' })
       await waitFor(() => expect(pagar).toBeEnabled())
@@ -586,7 +587,7 @@ describe('the Por vencer tab', () => {
       const panel = screen.getByRole('dialog', { name: 'Transferir' })
       expect(within(panel).getByRole('button', { name: /^De / })).toHaveTextContent('Nómina')
       expect(within(panel).getByRole('button', { name: /^A / })).toHaveTextContent('Tarjeta BBVA')
-      expect(within(panel).getByLabelText('Monto')).toHaveValue('1.238.273')
+      expect(within(panel).getByLabelText('Monto')).toHaveValue('120.000')
       expect(screen.queryByRole('dialog', { name: 'Registrar movimiento' })).not.toBeInTheDocument()
     })
 

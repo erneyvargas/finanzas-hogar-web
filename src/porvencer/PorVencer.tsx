@@ -115,6 +115,7 @@ export function PorVencer({
       <span className="n">
         <span className="nombre">{v.nombre}</span>
         {v.detalle && <small> {v.detalle}</small>}
+        {v.tipo === 'tarjeta' && v.total > v.monto && <small className="total-tarjeta"> · total {dinero(v.total)}</small>}
       </span>
       <span className="m num">{v.sinExtracto ? '—' : dinero(v.monto)}</span>
       <span className="meta">
