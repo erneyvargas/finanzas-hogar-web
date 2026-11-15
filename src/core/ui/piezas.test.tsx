@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { Anillo } from './Anillo'
 import { Cifra } from './Cifra'
+import { BarraDeSemanas } from './CalendarioDeCirculos'
 
 describe('Cifra', () => {
   it('reads as its text and draws one rolling column per digit', () => {
@@ -59,5 +60,22 @@ describe('Anillo', () => {
     rerender(<Anillo etiqueta="x" partes={partes} elegido="b" alElegir={alElegir} />)
     expect(container.querySelectorAll('.anillo-seg')[1]).toHaveAttribute('data-elegido', 'true')
     expect(container.querySelectorAll('.anillo-seg')[0]).not.toHaveAttribute('data-elegido')
+  })
+})
+
+describe('BarraDeSemanas', () => {
+  it('sizes each week as a share of the heaviest, which alone is dark, with a thin floor for empty ones', () => {
+    const { container } = render(<BarraDeSemanas totales={[10, 0, 40, 20]} mayor={2} pie="la más cargada" />)
+
+    const barras = Array.from(container.querySelectorAll<HTMLElement>('.cal-semanas > span'))
+    expect(barras.map((b) => b.style.height)).toEqual(['25%', '4%', '100%', '50%'])
+    expect(barras.map((b) => b.classList.contains('cargada'))).toEqual([false, false, true, false])
+    expect(container.querySelector('.cal-semanas')).toHaveStyle({ gridTemplateColumns: 'repeat(4, 1fr)' })
+  })
+
+  it('draws every week at the floor when nothing is left', () => {
+    const { container } = render(<BarraDeSemanas totales={[0, 0, 0, 0, 0]} mayor={-1} pie="nada" />)
+    const barras = Array.from(container.querySelectorAll<HTMLElement>('.cal-semanas > span'))
+    expect(barras.map((b) => b.style.height)).toEqual(['4%', '4%', '4%', '4%', '4%'])
   })
 })

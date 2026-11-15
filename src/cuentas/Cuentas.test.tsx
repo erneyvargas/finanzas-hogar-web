@@ -58,9 +58,9 @@ const datos: DatosDeCuentas = {
   categoriasDeGasto: [{ id: 'gmf', ruta: 'Hogar › Impuestos › 4x1000' }],
 }
 
-function fuente(ejecutar: FuenteDeCuentas['ejecutar'] = async () => null): FuenteDeCuentas {
+function fuente(ejecutar: FuenteDeCuentas['ejecutar'] = async () => null, d: DatosDeCuentas = datos): FuenteDeCuentas {
   return {
-    cargar: vi.fn(async () => datos),
+    cargar: vi.fn(async () => d),
     movimientos: vi.fn(async () => [
       { id: 'm1', tipo: 'expense' as const, monto: 2_600, fecha: '2026-10-14T15:00:00Z', cuentaId: 'nequi', contracuentaId: null, comercio: 'Buseta', nota: null },
       { id: 'm2', tipo: 'transfer' as const, monto: 20_000, fecha: '2026-10-12T15:00:00Z', cuentaId: 'nequi', contracuentaId: 'efe', comercio: null, nota: null },
@@ -371,13 +371,30 @@ describe('transfers', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Transferir' }))
     return panel()
   }
+  /** The picker's button: its name starts with its label, then the chosen account. */
+  const selector = (p: HTMLElement, etiqueta: 'De' | 'A') => within(p).getByRole('button', { name: new RegExp(`^${etiqueta} `) })
+  async function elegir(p: HTMLElement, etiqueta: 'De' | 'A', nombre: string) {
+    await userEvent.click(selector(p, etiqueta))
+    await userEvent.click(within(p).getByRole('option', { name: new RegExp(`^${nombre}`) }))
+  }
+  const opciones = (p: HTMLElement) =>
+    within(within(p).getByRole('listbox')).getAllByRole('option').map((o) => o.querySelector('.nombre')?.textContent)
+  const conMas: DatosDeCuentas = {
+    ...datos,
+    cuentas: [
+      ...datos.cuentas,
+      cuenta({ id: 'cero', nombre: 'Daviplata', tipo: 'wallet', saldo: 0 }),
+      cuenta({ id: 'neg', nombre: 'Cuenta sobregirada', tipo: 'debit', saldo: -5_000 }),
+      cuenta({ id: 'bog', nombre: 'Ahorro Bogotá', tipo: 'savings', saldo: 120_000, foto: 'https://fotos/bog.jpg' }),
+    ],
+  }
 
-  it('sends the transfer and previews both balances', async () => {
+  it('sends the transfer with the same params and previews both balances', async () => {
     const f = await montar()
 
     const p = await abrirTransferir()
-    await userEvent.selectOptions(within(p).getByLabelText('De'), 'nequi')
-    await userEvent.selectOptions(within(p).getByLabelText('A'), 'efe')
+    await elegir(p, 'De', 'Nequi Karen')
+    await elegir(p, 'A', 'Efectivo')
     await userEvent.type(within(p).getByLabelText('Monto'), '20000')
     expect(within(p).getByText('Nequi Karen queda')).toBeInTheDocument()
     expect(within(p).getByText('$27.810')).toBeInTheDocument()
@@ -397,32 +414,101 @@ describe('transfers', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
-  it('offers only the destinations the server takes, a loan disabled', async () => {
+  it('offers as sources only accounts with money: no negatives, no zero, no voucher, loan or archived', async () => {
+    await montar(fuente(undefined, conMas))
+
+    const p = await abrirTransferir()
+    await userEvent.click(selector(p, 'De'))
+
+    expect(opciones(p)).toEqual(['Efectivo', 'Nequi Karen', 'Ahorros', 'Ahorro Bogotá'])
+  })
+
+  it('starts from the principal account, or the one with the most money when the principal has none', async () => {
+    await montar()
+    expect(selector(await abrirTransferir(), 'De')).toHaveTextContent('Efectivo')
+  })
+
+  it('starts from the biggest balance when the principal is empty', async () => {
+    const vacia = { ...datos, cuentas: datos.cuentas.map((c) => (c.id === 'efe' ? { ...c, saldo: 0 } : c)) }
+    await montar(fuente(undefined, vacia))
+    expect(selector(await abrirTransferir(), 'De')).toHaveTextContent('Ahorros')
+  })
+
+  it('searches ignoring case and accents, and shows each account photo or initials', async () => {
+    await montar(fuente(undefined, conMas))
+
+    const p = await abrirTransferir()
+    await userEvent.click(selector(p, 'De'))
+    const lista = within(p).getByRole('listbox')
+    expect(within(lista).getByRole('option', { name: /^Ahorro Bogotá/ }).querySelector('img')).toHaveAttribute('src', 'https://fotos/bog.jpg')
+    expect(within(lista).getByRole('option', { name: /^Nequi Karen/ })).toHaveTextContent('NK')
+    expect(within(lista).getByRole('option', { name: /^Nequi Karen/ })).toHaveTextContent('$47.890')
+
+    const buscar = within(p).getByRole('combobox', { name: 'Buscar cuenta' })
+    await userEvent.type(buscar, 'bogota')
+    expect(opciones(p)).toEqual(['Ahorro Bogotá'])
+    await userEvent.clear(buscar)
+    await userEvent.type(buscar, 'AHORRO')
+    expect(opciones(p)).toEqual(['Ahorros', 'Ahorro Bogotá'])
+  })
+
+  it('picks with the keyboard and Escape closes without changing', async () => {
     await montar()
 
     const p = await abrirTransferir()
-    await userEvent.selectOptions(within(p).getByLabelText('De'), 'efe')
-    const destinos = within(within(p).getByLabelText('A')).getAllByRole('option')
-    expect(destinos.map((o) => o.getAttribute('value'))).toEqual(['nequi', 'bono', 'tc', 'visa', 'lib', 'aho'])
-    expect(within(p).getByRole('option', { name: /Libranza Davivienda.*Un préstamo se paga desde Deudas/ })).toBeDisabled()
+    await userEvent.click(selector(p, 'De'))
+    const buscar = within(p).getByRole('combobox', { name: 'Buscar cuenta' })
+    expect(buscar).toHaveFocus()
+    await userEvent.keyboard('{ArrowDown}')
+    expect(buscar).toHaveAttribute('aria-activedescendant', within(p).getByRole('option', { name: /^Nequi Karen/ }).id)
+    await userEvent.keyboard('{Enter}')
 
-    await userEvent.selectOptions(within(p).getByLabelText('De'), 'aho')
-    const desdeAhorros = within(within(p).getByLabelText('A')).getAllByRole('option')
-    expect(desdeAhorros.map((o) => o.getAttribute('value'))).toEqual(['efe', 'nequi', 'bono'])
+    expect(within(p).queryByRole('listbox')).not.toBeInTheDocument()
+    expect(selector(p, 'De')).toHaveTextContent('Nequi Karen')
+    expect(selector(p, 'De')).toHaveFocus()
+
+    await userEvent.keyboard('{Enter}')
+    await userEvent.keyboard('{ArrowUp}{Escape}')
+    expect(within(p).queryByRole('listbox')).not.toBeInTheDocument()
+    expect(selector(p, 'De')).toHaveTextContent('Nequi Karen')
+  })
+
+  it('offers only the destinations the server takes, a loan disabled, and clears one the new source cannot reach', async () => {
+    await montar()
+
+    const p = await abrirTransferir()
+    await elegir(p, 'De', 'Efectivo')
+    await userEvent.click(selector(p, 'A'))
+    expect(opciones(p)).toEqual(['Nequi Karen', 'Bono alimentación', 'Master Card BBVA', 'Visa Falabella', 'Libranza Davivienda', 'Ahorros'])
+    const prestamo = within(p).getByRole('option', { name: /^Libranza Davivienda/ })
+    expect(prestamo).toHaveAttribute('aria-disabled', 'true')
+    expect(prestamo).toHaveTextContent('Un préstamo se paga desde Deudas')
+    await userEvent.click(prestamo)
+    expect(within(p).getByRole('listbox')).toBeInTheDocument()
+    await userEvent.click(within(p).getByRole('option', { name: /^Master Card BBVA/ }))
+    expect(selector(p, 'A')).toHaveTextContent('Master Card BBVA')
+
+    await elegir(p, 'De', 'Ahorros')
+
+    expect(selector(p, 'A')).toHaveTextContent('Elige una cuenta')
+    await userEvent.click(selector(p, 'A'))
+    expect(opciones(p)).toEqual(['Efectivo', 'Nequi Karen', 'Bono alimentación'])
   })
 
   it('swaps the accounts only when the way back is allowed', async () => {
     await montar()
 
     const p = await abrirTransferir()
-    await userEvent.selectOptions(within(p).getByLabelText('De'), 'efe')
-    await userEvent.selectOptions(within(p).getByLabelText('A'), 'tc')
+    await elegir(p, 'De', 'Efectivo')
+    await elegir(p, 'A', 'Nequi Karen')
     await userEvent.click(within(p).getByRole('button', { name: 'Invertir' }))
-    expect(within(p).getByLabelText('De')).toHaveValue('tc')
-    expect(within(p).getByLabelText('A')).toHaveValue('efe')
+    expect(selector(p, 'De')).toHaveTextContent('Nequi Karen')
+    expect(selector(p, 'A')).toHaveTextContent('Efectivo')
 
-    await userEvent.selectOptions(within(p).getByLabelText('De'), 'efe')
-    await userEvent.selectOptions(within(p).getByLabelText('A'), 'bono')
+    await elegir(p, 'De', 'Efectivo')
+    await elegir(p, 'A', 'Master Card BBVA')
+    expect(within(p).queryByRole('button', { name: 'Invertir' })).not.toBeInTheDocument()
+    await elegir(p, 'A', 'Bono alimentación')
     expect(within(p).queryByRole('button', { name: 'Invertir' })).not.toBeInTheDocument()
   })
 
@@ -434,8 +520,8 @@ describe('transfers', () => {
     )
 
     const p = await abrirTransferir()
-    await userEvent.selectOptions(within(p).getByLabelText('De'), 'efe')
-    await userEvent.selectOptions(within(p).getByLabelText('A'), 'nequi')
+    await elegir(p, 'De', 'Efectivo')
+    await elegir(p, 'A', 'Nequi Karen')
     await userEvent.type(within(p).getByLabelText('Monto'), '50000')
     await userEvent.click(within(p).getByRole('button', { name: 'Transferir $50.000' }))
 
@@ -446,7 +532,7 @@ describe('transfers', () => {
     await montar()
     const p = await abrir('Nequi Karen')
     await userEvent.click(within(p).getByRole('button', { name: 'Transferir' }))
-    expect(within(panel()).getByLabelText('De')).toHaveValue('nequi')
+    expect(selector(panel(), 'De')).toHaveTextContent('Nequi Karen')
   })
 })
 

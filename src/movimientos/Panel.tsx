@@ -72,6 +72,9 @@ export function Panel({
   copia = null,
   categoriaInicial,
   busquedaInicial = '',
+  montoInicial,
+  cuentaInicial,
+  comercioInicial,
   fuente,
   ahora,
   alCerrar,
@@ -85,6 +88,10 @@ export function Panel({
   categoriaInicial?: string
   /** A new movement's category search, already typed (its options show). */
   busquedaInicial?: string
+  /** A new movement's amount, account and merchant, already filled (Pagar in Por vencer). */
+  montoInicial?: number
+  cuentaInicial?: string
+  comercioInicial?: string
   fuente: FuenteDeMovimientos
   ahora: () => Date
   /** Whether something was saved; a registration also gives the new id. */
@@ -102,15 +109,20 @@ export function Panel({
 
   const [base, setBase] = useState(original)
   const [tipo, setTipo] = useState<Tipo>(desde?.tipo ?? 'expense')
-  const [montoTexto, setMontoTexto] = useState(desde ? miles(desde.monto) : '')
+  const [montoTexto, setMontoTexto] = useState(
+    desde ? miles(desde.monto) : montoInicial && montoInicial > 0 ? miles(montoInicial) : '',
+  )
   const [categoriaId, setCategoriaId] = useState(desde?.categoriaId ?? categoriaInicial ?? '')
   const [busqueda, setBusqueda] = useState(desde ? '' : busquedaInicial)
   /** The search box shows while there is no category yet, or after Cambiar. */
   const [buscando, setBuscando] = useState(false)
-  const [cuentaId, setCuentaId] = useState(desde?.cuentaId ?? inicial(desde?.tipo ?? 'expense'))
+  const [cuentaId, setCuentaId] = useState(
+    desde?.cuentaId ??
+      (cuentaInicial && datos.cuentas.some((c) => c.id === cuentaInicial) ? cuentaInicial : inicial(desde?.tipo ?? 'expense')),
+  )
   const [otra, setOtra] = useState(false)
   const [dia, setDia] = useState(original ? diaDe(original.fecha) : diaDe(ahora()))
-  const [comercio, setComercio] = useState(desde?.comercio ?? '')
+  const [comercio, setComercio] = useState(desde?.comercio ?? comercioInicial ?? '')
   const [nota, setNota] = useState(desde?.nota ?? '')
   const [saldos, setSaldos] = useState<Record<string, number | null>>({})
   const [error, setError] = useState<ErrorDelServidor | null>(null)
