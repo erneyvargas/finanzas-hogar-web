@@ -116,6 +116,21 @@ export interface MovimientoDeCuenta {
   contracuentaId: string | null
   comercio: string | null
   nota: string | null
+  /** `Rubro › Categoría › Subcategoría`, when it has one. */
+  categoria?: string | null
+}
+
+/** +1 when the movement brings money into [id], −1 when it takes it out. */
+export const signoDe = (m: MovimientoDeCuenta, id: string) =>
+  m.tipo === 'income' || ((m.tipo === 'transfer' || m.tipo === 'debt_payment') && m.contracuentaId === id) ? 1 : -1
+
+/** How a movement reads from [id]'s side: the other account for a transfer, else merchant or note. */
+export function textoDe(m: MovimientoDeCuenta, id: string, nombre: (id: string | null) => string) {
+  if (m.tipo === 'transfer' || m.tipo === 'debt_payment') {
+    const palabra = m.tipo === 'transfer' ? 'Transferencia' : 'Abono'
+    return m.cuentaId === id ? `${palabra} a ${nombre(m.contracuentaId)}` : `${palabra} de ${nombre(m.cuentaId)}`
+  }
+  return m.comercio || m.nota || (m.tipo === 'income' ? 'Ingreso' : 'Gasto')
 }
 
 export const grupoDe = (c: { tipo: TipoDeCuenta }) => GRUPO[c.tipo]

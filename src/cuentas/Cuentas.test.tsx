@@ -8,6 +8,12 @@ import type { FuenteDeMovimientos } from '../movimientos/fuente'
 import { ErrorDelServidor } from '../movimientos/reglas'
 import type { FuenteDeCuentas } from './fuente'
 import type { CuentaConSaldo, DatosDeCuentas } from './reglas'
+import { descargarExcel } from './excel'
+
+vi.mock('./excel', async (original) => ({
+  ...(await original<typeof import('./excel')>()),
+  descargarExcel: vi.fn(async () => {}),
+}))
 
 const auth: ClienteDeAuth = {
   getSession: async () => ({ data: { session: { user: { email: 'erney@example.com' } } } }),
@@ -619,3 +625,38 @@ describe('the tabs with accounts', () => {
     expect(screen.queryByRole('button', { name: 'Nueva cuenta' })).toBeInTheDocument()
   })
 })
+
+describe('downloading an account to Excel', () => {
+  it('Descargar Excel sends the month rows, the balance running back from the month end, and the file name', async () => {
+    const f = fuente()
+    f.saldoAl = vi.fn(async () => 47_890)
+    await montar(f)
+    const p = await abrir('Nequi Karen')
+    await within(p).findByRole('list', { name: 'Movimientos de octubre' })
+    await masAcciones(p)
+
+    await userEvent.click(within(p).getByRole('button', { name: 'Descargar Excel' }))
+
+    await waitFor(() => expect(descargarExcel).toHaveBeenCalledTimes(1))
+    expect(f.saldoAl).toHaveBeenCalledWith('nequi', '2026-10')
+    const [filas, archivo] = vi.mocked(descargarExcel).mock.calls[0]
+    expect(archivo).toBe('Nequi Karen - octubre 2026.xlsx')
+    expect(filas.map((x) => [x.descripcion, x.tipo, x.monto, x.saldo])).toEqual([
+      ['Buseta', 'Gasto', -2_600, 47_890],
+      ['Transferencia a Efectivo', 'Transferencia', -20_000, 50_490],
+      ['Transferencia de Ahorros', 'Transferencia', 100_000, 70_490],
+    ])
+  })
+
+  it('says so when the Excel cannot be prepared', async () => {
+    const f = fuente()
+    f.saldoAl = vi.fn(async () => Promise.reject(new Error('red')))
+    await montar(f)
+    const p = await abrir('Nequi Karen')
+    await within(p).findByRole('list', { name: 'Movimientos de octubre' })
+    await masAcciones(p)
+    await userEvent.click(within(p).getByRole('button', { name: 'Descargar Excel' }))
+    expect(await within(p).findByRole('alert')).toHaveTextContent('No se pudo preparar el Excel. Intenta de nuevo.')
+  })
+})
+
