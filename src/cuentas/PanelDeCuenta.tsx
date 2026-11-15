@@ -5,6 +5,7 @@ import { Cara } from '../movimientos/ListaDeMovimientos'
 import { ErrorDelServidor, MENSAJE_GENERICO, leerMonto } from '../movimientos/reglas'
 import type { FuenteDeCuentas, FuncionDeCuentas } from './fuente'
 import { SelectorDeCuenta } from './SelectorDeCuenta'
+import { descargarExcel, filasParaExcel, nombreDelArchivo } from './excel'
 import {
   ESTILOS,
   ETIQUETA,
@@ -15,6 +16,8 @@ import {
   destinosPara,
   errorDeTarjeta,
   grupoDe,
+  signoDe,
+  textoDe,
   origenInicial,
   origenesConSaldo,
   puedeInvertir,
@@ -190,17 +193,6 @@ function Pie({ texto, guardando, volver, conVolver = true }: { texto: string; gu
   )
 }
 
-const signoDe = (m: MovimientoDeCuenta, id: string) =>
-  m.tipo === 'income' || ((m.tipo === 'transfer' || m.tipo === 'debt_payment') && m.contracuentaId === id) ? 1 : -1
-
-function textoDe(m: MovimientoDeCuenta, id: string, nombre: (id: string | null) => string) {
-  if (m.tipo === 'transfer' || m.tipo === 'debt_payment') {
-    const palabra = m.tipo === 'transfer' ? 'Transferencia' : 'Abono'
-    return m.cuentaId === id ? `${palabra} a ${nombre(m.contracuentaId)}` : `${palabra} de ${nombre(m.cuentaId)}`
-  }
-  return m.comercio || m.nota || (m.tipo === 'income' ? 'Ingreso' : 'Gasto')
-}
-
 function Detalle({
   c,
   datos,
@@ -238,6 +230,22 @@ function Detalle({
   const puedeSalir = origenesConSaldo(datos.cuentas).some((o) => o.id === c.id)
   const nombre = (id: string | null) => datos.cuentas.find((x) => x.id === id)?.nombre ?? 'otra cuenta'
   const filas = movs?.clave === clave ? movs.filas : null
+  // The month's movements as an .xlsx, the balance running back from the month's end.
+  const [exportando, setExportando] = useState(false)
+  const [falloExcel, setFalloExcel] = useState<string | null>(null)
+  async function exportar() {
+    if (!filas || !fuente.saldoAl) return
+    setExportando(true)
+    setFalloExcel(null)
+    try {
+      const saldoFinal = await fuente.saldoAl(c.id, mes)
+      await descargarExcel(filasParaExcel(filas, c, saldoFinal, nombre), nombreDelArchivo(c.nombre, mes))
+    } catch {
+      setFalloExcel('No se pudo preparar el Excel. Intenta de nuevo.')
+    } finally {
+      setExportando(false)
+    }
+  }
 
   return (
     <div className="panel-cuerpo">
@@ -291,6 +299,11 @@ function Detalle({
           {a.gmf && <button type="button" onClick={() => alIr({ v: 'gmf', id: c.id })}>4x1000</button>}
           {a.estilo && <button type="button" onClick={() => alIr({ v: 'estilo', id: c.id })}>Estilo de tarjeta</button>}
           {a.foto && <button type="button" onClick={() => alIr({ v: 'foto', id: c.id })}>Foto</button>}
+          {fuente.saldoAl && (
+            <button type="button" disabled={!filas || filas.length === 0 || exportando} onClick={() => void exportar()}>
+              {exportando ? 'Preparando Excel…' : 'Descargar Excel'}
+            </button>
+          )}
           {a.archivar && (
             <button type="button" className="texto-peligro" onClick={() => setArchivando(true)}>
               Archivar
@@ -311,7 +324,7 @@ function Detalle({
         </div>
       )}
 
-      <Aviso texto={error} />
+      <Aviso texto={error ?? falloExcel} />
 
       <div>
         <h3 className="rotulo">Movimientos de {nombreDelMes(mes)}</h3>

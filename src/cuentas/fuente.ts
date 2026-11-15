@@ -31,6 +31,8 @@ export interface FuenteDeCuentas {
   cargar(): Promise<DatosDeCuentas>
   /** The movements of [mes] that touch the account, from either side. */
   movimientos(cuentaId: string, mes: string): Promise<MovimientoDeCuenta[]>
+  /** The account's balance at the end of [mes] (`saldo_por_capital`); optional so a source without it offers no Excel. */
+  saldoAl?(cuentaId: string, mes: string): Promise<number>
   /** Calls a server function; rejects with an `ErrorDelServidor`. */
   ejecutar(funcion: FuncionDeCuentas, params: Record<string, unknown>): Promise<unknown>
   /** Uploads the photo where the phone puts it and returns its path. */
@@ -134,7 +136,7 @@ export function fuenteDeCuentasDeSupabase(sb: SupabaseClient, hogar: () => Promi
       const filas = await todas((a, b) =>
         sb
           .from('transactions')
-          .select('id, kind, amount, occurred_at, account_id, counter_account_id, merchant_name, note')
+          .select('id, kind, amount, occurred_at, account_id, counter_account_id, merchant_name, note, category_id')
           .eq('household_id', hogarId)
           .is('deleted_at', null)
           .not('voided', 'is', true)
@@ -144,6 +146,19 @@ export function fuenteDeCuentasDeSupabase(sb: SupabaseClient, hogar: () => Promi
           .order('occurred_at', { ascending: false })
           .range(a, b),
       )
+      // The category path of each movement, from the household's tree.
+      const conCategoria = filas.some((m) => m.category_id)
+      const cats = conCategoria
+        ? await todas((a, b) =>
+            sb.from('categories').select('id, name, parent_id').eq('household_id', hogarId).order('id').range(a, b),
+          )
+        : []
+      const porId = new Map(cats.map((x) => [x.id as string, x]))
+      const ruta = (id: string | null) => {
+        const partes: string[] = []
+        for (let x = id ? porId.get(id) : undefined, n = 0; x && n < 4; x = porId.get(x.parent_id), n++) partes.unshift(x.name)
+        return partes.length ? partes.join(' › ') : null
+      }
       return filas.map((m) => ({
         id: m.id,
         tipo: m.kind,
@@ -153,7 +168,17 @@ export function fuenteDeCuentasDeSupabase(sb: SupabaseClient, hogar: () => Promi
         contracuentaId: m.counter_account_id,
         comercio: m.merchant_name,
         nota: m.note,
+        categoria: ruta(m.category_id),
       }))
+    },
+
+    async saldoAl(cuentaId, mes) {
+      const { hasta } = limitesDelMes(mes)
+      // saldo_por_capital counts up to and including p_hasta; the month ends just before.
+      const fin = new Date(Date.parse(hasta) - 1).toISOString()
+      const { data, error } = await sb.rpc('saldo_por_capital', { p_account_id: cuentaId, p_hasta: fin })
+      if (error) throw new Error(error.message)
+      return Number(data ?? 0)
     },
 
     async ejecutar(funcion, params) {
