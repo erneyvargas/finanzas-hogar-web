@@ -717,6 +717,26 @@ describe('autocomplete in the panel', () => {
   })
 })
 
+describe('days off in the list', () => {
+  it('Saturdays, Sundays and holidays get their own background, and a holiday says its name', async () => {
+    const conFestivo: DatosDeMovimientos = {
+      ...datos,
+      movimientos: [
+        ...datos.movimientos,
+        { id: 'm8', tipo: 'expense', monto: 8600, fecha: '2026-10-12T17:37:00Z', cuentaId: 'efe', categoriaId: 'frutas', rubroId: 'hogar', comercio: 'Uber', nota: null },
+      ],
+    }
+    montar(movimientos(undefined, conFestivo))
+    const lista = await screen.findByRole('region', { name: 'Movimientos de octubre' })
+    const grupo = (titulo: RegExp) => within(lista).getByRole('heading', { name: titulo }).closest('.dia')
+
+    expect(grupo(/Sábado 24 oct/)).toHaveClass('no-habil')
+    expect(grupo(/Lunes 12 oct/)).toHaveClass('no-habil')
+    expect(within(lista).getByRole('heading', { name: /Lunes 12 oct/ })).toHaveTextContent('Día de la Raza')
+    expect(grupo(/Martes 27 oct/)).not.toHaveClass('no-habil')
+  })
+})
+
 describe('the row menu', () => {
   const menuDe = async (comercio: RegExp) => {
     const lista = await screen.findByRole('region', { name: 'Movimientos de octubre' })
