@@ -142,6 +142,24 @@ export function Panel({
   const registrado = useRef(false)
   const ofreceFactura = !original && !!facturas?.vincular
 
+  // A copied image (a screenshot, an image copied from a page) or a copied
+  // file pasted anywhere in the panel with Ctrl+V becomes the receipt.
+  const elegirRef = useRef<(f: File | undefined) => void>(() => {})
+  useEffect(() => {
+    if (!ofreceFactura) return
+    const pegar = (e: ClipboardEvent) => {
+      const archivos = Array.from(e.clipboardData?.files ?? [])
+      const pegado = archivos.find((a) => a.type.startsWith('image/') || a.type === 'application/pdf')
+      if (!pegado) return
+      e.preventDefault()
+      // The browser names every pasted screenshot «image.png».
+      const nombre = /^image\.(png|jpe?g)$/i.test(pegado.name) ? `captura.${pegado.name.split('.').pop()}` : pegado.name
+      elegirRef.current(nombre === pegado.name ? pegado : new File([pegado], nombre, { type: pegado.type }))
+    }
+    window.addEventListener('paste', pegar)
+    return () => window.removeEventListener('paste', pegar)
+  }, [ofreceFactura])
+
   function elegirArchivo(elegido: File | undefined) {
     if (!elegido) return
     const problema = problemaDelArchivo(elegido)
@@ -151,6 +169,9 @@ export function Panel({
     }
     setError(null)
     setArchivo(elegido)
+  }
+  elegirRef.current = (f) => {
+    if (!guardando && !registrado.current) elegirArchivo(f)
   }
 
   // Escape closes, like the ✕, but not while a save is on its way: its
@@ -510,7 +531,7 @@ export function Panel({
                   }}
                 />
                 <span>Adjuntar foto o PDF</span>
-                <small>Opcional · queda como soporte del pago</small>
+                <small>Opcional · o pega una captura con Ctrl+V</small>
               </label>
             )}
           </div>

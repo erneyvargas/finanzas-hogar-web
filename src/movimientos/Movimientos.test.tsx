@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { ProveedorDeSesion, type ClienteDeAuth } from '../auth/sesion'
@@ -1238,6 +1238,32 @@ describe('a receipt as evidence of a new movement', () => {
     expect(enviado.name).toBe('recibo-luz.pdf')
     const idMovimiento = vi.mocked(m.ejecutar).mock.calls[0][1].p_id
     expect(f.vincular).toHaveBeenCalledWith(idMovimiento, reciboId)
+  })
+
+  it('a copied image pasted with Ctrl+V becomes the receipt, and is uploaded on save', async () => {
+    const m = movimientos()
+    const f = facturas()
+    montarConFacturas(m, f)
+    const p = await registrarGasto()
+    expect(within(p).getByText(/pega una captura con Ctrl\+V/)).toBeInTheDocument()
+
+    const captura = new File(['png'], 'image.png', { type: 'image/png' })
+    fireEvent.paste(within(p).getByLabelText('Observaciones'), { clipboardData: { files: [captura], types: ['Files'] } })
+
+    expect(within(p).getByText('captura.png')).toBeInTheDocument()
+    await userEvent.click(guardar(p))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    const [, enviado] = vi.mocked(f.subir).mock.calls[0]
+    expect(enviado.type).toBe('image/png')
+    expect(enviado.name).toBe('captura.png')
+  })
+
+  it('pasting text keeps working as text, and attaches nothing', async () => {
+    const f = facturas()
+    montarConFacturas(movimientos(), f)
+    const p = await registrarGasto()
+    fireEvent.paste(within(p).getByLabelText('Observaciones'), { clipboardData: { files: [], types: ['text/plain'], getData: () => 'hola' } })
+    expect(within(p).getByText('Adjuntar foto o PDF')).toBeInTheDocument()
   })
 
   it('Quitar drops the file, and then nothing is uploaded', async () => {
