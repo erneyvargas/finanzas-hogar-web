@@ -97,6 +97,35 @@ describe('the month dashboard', () => {
     expect(f.cargar).toHaveBeenLastCalledWith('2026-09')
   })
 
+  it('the left and right keys change the month and the name slides that way', async () => {
+    const f = fuente()
+    montar(f)
+    await screen.findByRole('region', { name: 'Gastado en octubre' })
+
+    await userEvent.keyboard('{ArrowLeft}')
+    expect(await screen.findByRole('region', { name: 'Gastado en septiembre' })).toBeInTheDocument()
+    expect(f.cargar).toHaveBeenLastCalledWith('2026-09')
+    expect(screen.getByText('Septiembre 2026')).toHaveAttribute('data-dir', 'atras')
+
+    await userEvent.keyboard('{ArrowRight}')
+    expect(await screen.findByRole('region', { name: 'Gastado en octubre' })).toBeInTheDocument()
+    expect(screen.getByText('Octubre 2026')).toHaveAttribute('data-dir', 'adelante')
+  })
+
+  it('the month keys leave a field alone', async () => {
+    const f = fuente()
+    montar(f)
+    await screen.findByRole('region', { name: 'Gastado en octubre' })
+    const campo = document.createElement('input')
+    document.body.appendChild(campo)
+    campo.focus()
+
+    await userEvent.keyboard('{ArrowLeft}')
+
+    expect(f.cargar).not.toHaveBeenCalledWith('2026-09')
+    campo.remove()
+  })
+
   it('says so when the data cannot be loaded', async () => {
     montar({ cargar: vi.fn(async () => Promise.reject(new Error('Failed to fetch'))) })
 

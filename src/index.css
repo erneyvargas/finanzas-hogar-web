@@ -533,3 +533,13 @@ button.pc-cat[aria-pressed='true'] { border-color: var(--c); transform: translat
   button.pc-cat, .pc-barra i { transition: none; }
   .pc-mov, .aviso-flotante { animation: none; }
 }
+
+/* The month name slides in from the side it comes from (Moxen Gastos). */
+.mes-visible { display: inline-grid; overflow: hidden; }
+.mes-visible > [data-dir='atras'] { animation: mes-desde-izq 0.32s cubic-bezier(0.16, 1, 0.3, 1); }
+.mes-visible > [data-dir='adelante'] { animation: mes-desde-der 0.32s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes mes-desde-izq { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: none; } }
+@keyframes mes-desde-der { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .mes-visible > span { animation: none; }
+}

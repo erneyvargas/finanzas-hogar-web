@@ -41,7 +41,13 @@ export function Tablero({
   const hoy = mesDe(new Date().toISOString())
   /** Today in Bogotá; a string, so the effect below reruns only when the day changes. */
   const diaDeHoy = diaDe(ahora())
-  const [mes, setMes] = useState(mesInicial)
+  const [mes, setMesGuardado] = useState(mesInicial)
+  /** Which way the month name slides in. */
+  const [direccion, setDireccion] = useState<'atras' | 'adelante' | null>(null)
+  const setMes = (nuevo: string) => {
+    setDireccion(nuevo < mes ? 'atras' : 'adelante')
+    setMesGuardado(nuevo)
+  }
   /** With its month: a reload of the same month keeps showing the old one. */
   const [cargado, setCargado] = useState<{ mes: string; r: ResumenDelMes } | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -152,6 +158,21 @@ export function Tablero({
     setErrorDeLista(null)
     setRecarga((n) => n + 1)
   }
+  // ← and → change the month, unless a field is typing or the panel is open.
+  const teclaDeMes = useRef<(e: KeyboardEvent) => void>(() => {})
+  teclaDeMes.current = (e) => {
+    const t = e.target
+    if (t instanceof HTMLElement && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))) return
+    if (enPanel !== undefined || e.ctrlKey || e.metaKey || e.altKey) return
+    if (e.key === 'ArrowLeft') setMes(moverMes(mes, -1))
+    else if (e.key === 'ArrowRight' && mes < hoy) setMes(moverMes(mes, 1))
+  }
+  useEffect(() => {
+    const alTeclear = (e: KeyboardEvent) => teclaDeMes.current(e)
+    window.addEventListener('keydown', alTeclear)
+    return () => window.removeEventListener('keydown', alTeclear)
+  }, [])
+
   // Only a new month shows the skeleton. A reload after saving keeps the
   // page (and the list's filters) until the new numbers arrive.
   const resumen = cargado?.mes === mes ? cargado.r : null
@@ -174,7 +195,11 @@ export function Tablero({
           <button className="flecha" aria-label="Mes anterior" onClick={() => setMes(moverMes(mes, -1))}>
             ‹
           </button>
-          <span>{mesLargo(mes)}</span>
+          <span className="mes-visible" aria-live="polite">
+            <span key={mes} data-dir={direccion ?? undefined}>
+              {mesLargo(mes)}
+            </span>
+          </span>
           <button
             className="flecha"
             aria-label="Mes siguiente"
