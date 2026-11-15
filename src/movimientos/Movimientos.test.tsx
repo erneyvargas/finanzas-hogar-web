@@ -646,6 +646,55 @@ describe('correcting a movement', () => {
     expect(fecha).toHaveTextContent('Hoy, 28 oct 2026')
   })
 
+  it('Duplicar opens a new movement with the same fields and today as its date', async () => {
+    const m = movimientos()
+    const p = await abrirAguacate(m)
+
+    await userEvent.click(within(p).getByRole('button', { name: 'Duplicar' }))
+
+    const copia = panel()
+    expect(within(copia).getByRole('heading', { name: 'Duplicar movimiento' })).toBeInTheDocument()
+    expect(within(copia).getByLabelText('Valor')).toHaveValue('5.000')
+    expect(within(copia).getByRole('button', { name: /Frutas y verduras.*Hogar › Mercado/ })).toBeInTheDocument()
+    expect(within(copia).getByRole('group', { name: 'Sale de' })).toHaveTextContent('Master Card BBVA')
+    expect(within(copia).getByLabelText('Fecha')).toHaveTextContent('Hoy, 28 oct 2026')
+    expect(within(copia).getByLabelText('Comercio')).toHaveValue('Aguacate')
+    expect(within(copia).queryByRole('button', { name: 'Borrar' })).toBeNull()
+    expect(m.ejecutar).not.toHaveBeenCalled()
+  })
+
+  it('the duplicate saves as a new movement on the date chosen, and leaves the original alone', async () => {
+    const m = movimientos()
+    const p = await abrirAguacate(m)
+    await userEvent.click(within(p).getByRole('button', { name: 'Duplicar' }))
+    const copia = panel()
+    await userEvent.click(within(copia).getByLabelText('Fecha'))
+    await userEvent.click(within(copia).getByRole('button', { name: /26 de octubre de 2026/ }))
+
+    await userEvent.click(guardar(copia))
+
+    expect(m.ejecutar).toHaveBeenCalledTimes(1)
+    expect(m.ejecutar).toHaveBeenCalledWith('registrar_movimiento', {
+      p_household_id: 'h1',
+      p_account_id: 'tc',
+      p_kind: 'expense',
+      p_amount: 5000,
+      p_category_id: 'frutas',
+      p_occurred_at: '2026-10-26T15:30:00-05:00',
+      p_note: null,
+      p_merchant_name: 'Aguacate',
+      p_guardar_igual: false,
+      p_id: expect.stringMatching(/^[0-9a-f-]{36}$/),
+    })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('a new movement has no Duplicar button', async () => {
+    montar(movimientos())
+    const p = await registrarGasto()
+    expect(within(p).queryByRole('button', { name: 'Duplicar' })).toBeNull()
+  })
+
   it('opens the panel filled, titled Corregir movimiento', async () => {
     const p = await abrirAguacate(movimientos())
 

@@ -51,6 +51,8 @@ export function Tablero({
   /** `undefined`: closed; `null`: registering; a movement: correcting it. */
   const [enPanel, setEnPanel] = useState<FilaDeMovimiento | null | undefined>(undefined)
   const [aperturas, setAperturas] = useState(0)
+  /** The movement a new registration copies (Duplicar), or none. */
+  const [copia, setCopia] = useState<FilaDeMovimiento | null>(null)
 
   useEffect(() => {
     let vivo = true
@@ -90,7 +92,15 @@ export function Tablero({
   const abrir = (m: FilaDeMovimiento | null) => {
     abridor.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     setAperturas((n) => n + 1)
+    setCopia(null)
     setEnPanel(m)
+  }
+  // Swaps the correction for a new movement copied from it. What opened the
+  // correction keeps its claim on the focus.
+  const duplicar = (m: FilaDeMovimiento) => {
+    setAperturas((n) => n + 1)
+    setCopia(m)
+    setEnPanel(null)
   }
   const cerrar = (guardado: boolean) => {
     setEnPanel(undefined)
@@ -183,9 +193,11 @@ export function Tablero({
           key={aperturas}
           datos={lista.datos}
           original={enPanel}
+          copia={copia}
           fuente={movimientos}
           ahora={ahora}
           alCerrar={cerrar}
+          alDuplicar={duplicar}
         />
       )}
     </div>
