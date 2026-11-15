@@ -142,7 +142,14 @@ export function Anillo({
       raf.current = requestAnimationFrame(cuadro)
     }
   }
-  useEffect(() => () => cancelAnimationFrame(raf.current), [])
+  // Forget the frame on unmount too, or a remount (StrictMode) thinks one is pending.
+  useEffect(
+    () => () => {
+      cancelAnimationFrame(raf.current)
+      raf.current = 0
+    },
+    [],
+  )
 
   // New sizes: each segment springs to them; a new [clave] grows them in turn.
   const total = partes.reduce((s, p) => s + p.valor, 0) || 1

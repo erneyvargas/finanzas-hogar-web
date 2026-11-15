@@ -1,3 +1,4 @@
+import { StrictMode } from 'react'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
@@ -35,6 +36,17 @@ describe('Anillo', () => {
 
     expect(screen.getByRole('img', { name: 'Gasto por categoría' })).toBeInTheDocument()
     expect(container.querySelectorAll('.anillo-seg')).toHaveLength(2)
+  })
+
+  it('draws its segments also after a StrictMode remount', async () => {
+    const { container } = render(
+      <StrictMode>
+        <Anillo etiqueta="x" partes={partes} elegido={null} alElegir={() => {}} />
+      </StrictMode>,
+    )
+    await vi.waitFor(() => {
+      for (const p of container.querySelectorAll('.anillo-seg')) expect(p.getAttribute('d')).toMatch(/^M/)
+    }, { timeout: 3000 })
   })
 
   it('a click on a segment chooses its part, and marks the chosen one', async () => {
