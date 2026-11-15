@@ -52,6 +52,16 @@ export interface FilaDeMatriz {
   porRubro: Record<string, number>
 }
 
+/** A level-2 category's spending in the month and in the month before. */
+export interface CategoriaDelMes {
+  /** The category id, or `sin-categoria`. */
+  id: string
+  nombre: string
+  total: number
+  /** The month before, up to the same day while the month runs. */
+  anterior: number
+}
+
 export interface MesDeTendencia {
   mes: string
   total: number
@@ -66,6 +76,8 @@ export interface ResumenDelMes {
   ingresos: number
   porRubro: TotalDeRubro[]
   matriz: FilaDeMatriz[]
+  /** Biggest first; only categories that spent this month. */
+  porCategoria: CategoriaDelMes[]
   meses: MesDeTendencia[]
 }
 
@@ -202,14 +214,30 @@ export function resumenDelMes(entrada: {
       .map((m) => m.monto),
   )
 
+  const delAnterior = lineas
+    .filter((l) => l.mes === moverMes(mes, -1))
+    .filter((l) => comparadoHasta === null || l.dia <= comparadoHasta)
+  const idDe = (l: Linea) => l.categoriaId ?? 'sin-categoria'
+  const porCategoria = new Map<string, CategoriaDelMes>()
+  for (const l of delMes) {
+    const id = idDe(l)
+    const c = porCategoria.get(id) ?? {
+      id,
+      nombre: (l.categoriaId && cat.get(l.categoriaId)?.nombre) || 'Sin categoría',
+      total: 0,
+      anterior: 0,
+    }
+    c.total += l.monto
+    porCategoria.set(id, c)
+  }
+  for (const l of delAnterior) {
+    const c = porCategoria.get(idDe(l))
+    if (c) c.anterior += l.monto
+  }
+
   return {
     gastado: sumar(delMes.map((l) => l.monto)),
-    gastadoAnterior: sumar(
-      lineas
-        .filter((l) => l.mes === moverMes(mes, -1))
-        .filter((l) => comparadoHasta === null || l.dia <= comparadoHasta)
-        .map((l) => l.monto),
-    ),
+    gastadoAnterior: sumar(delAnterior.map((l) => l.monto)),
     comparadoHasta,
     ingresos,
     porRubro: [...rubros.entries()]
@@ -221,6 +249,7 @@ export function resumenDelMes(entrada: {
       }))
       .sort((a, b) => b.total - a.total),
     matriz: [...filas.values()].sort((a, b) => b.total - a.total),
+    porCategoria: [...porCategoria.values()].sort((a, b) => b.total - a.total),
     meses,
   }
 }
