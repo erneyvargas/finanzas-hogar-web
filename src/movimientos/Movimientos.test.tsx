@@ -632,6 +632,43 @@ describe('closing the panel', () => {
   })
 })
 
+describe('autocomplete in the panel', () => {
+  const conTextos: DatosDeMovimientos = {
+    ...datos,
+    movimientos: [
+      ...datos.movimientos,
+      { id: 'm9', tipo: 'expense', monto: 350000, fecha: '2026-10-05T15:00:00Z', cuentaId: 'efe', categoriaId: 'aseo', rubroId: 'hogar', comercio: 'Jardín Infantil', nota: 'Pensión jardín', },
+    ],
+  }
+
+  it('suggests merchants and notes already used; picking one fills the field', async () => {
+    montar(movimientos(undefined, conTextos))
+    const p = await registrarGasto()
+
+    await userEvent.clear(within(p).getByLabelText('Comercio'))
+    await userEvent.type(within(p).getByLabelText('Comercio'), 'jar')
+    await userEvent.click(within(p).getByRole('option', { name: 'Jardín Infantil' }))
+    expect(within(p).getByLabelText('Comercio')).toHaveValue('Jardín Infantil')
+
+    await userEvent.type(within(p).getByLabelText('Observaciones'), 'pens')
+    await userEvent.keyboard('{ArrowDown}{Enter}')
+    expect(within(p).getByLabelText('Observaciones')).toHaveValue('Pensión jardín')
+    expect(within(p).queryByRole('listbox', { name: 'Sugerencias de observaciones' })).toBeNull()
+  })
+
+  it('Escape hides the suggestions without closing the panel', async () => {
+    montar(movimientos(undefined, conTextos))
+    const p = await registrarGasto()
+    await userEvent.type(within(p).getByLabelText('Observaciones'), 'pens')
+    expect(within(p).getByRole('listbox', { name: 'Sugerencias de observaciones' })).toBeInTheDocument()
+
+    await userEvent.keyboard('{Escape}')
+
+    expect(within(p).queryByRole('listbox', { name: 'Sugerencias de observaciones' })).toBeNull()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+})
+
 describe('the row menu', () => {
   const menuDe = async (comercio: RegExp) => {
     const lista = await screen.findByRole('region', { name: 'Movimientos de octubre' })
