@@ -154,6 +154,26 @@ describe('the month dashboard', () => {
     expect(cargar).toHaveBeenCalledTimes(2)
   })
 
+  it('reloads when the tab comes back after a while, so balances changed elsewhere (the phone) are fresh', async () => {
+    const buena = fuente()
+    const cargar = vi.fn<FuenteDelTablero['cargar']>(buena.cargar)
+    const reloj = vi.spyOn(Date, 'now').mockReturnValue(1_000_000)
+    montar({ cargar })
+    await screen.findByRole('region', { name: 'Gastado en octubre' })
+    expect(cargar).toHaveBeenCalledTimes(1)
+
+    // Back within 30 s: nothing to fetch.
+    reloj.mockReturnValue(1_010_000)
+    document.dispatchEvent(new Event('visibilitychange'))
+    expect(cargar).toHaveBeenCalledTimes(1)
+
+    // Back after a minute: everything reloads.
+    reloj.mockReturnValue(1_070_000)
+    document.dispatchEvent(new Event('visibilitychange'))
+    await waitFor(() => expect(cargar).toHaveBeenCalledTimes(2))
+    reloj.mockRestore()
+  })
+
   it('shows the dashboard shape while the month loads', async () => {
     let soltar: () => void = () => {}
     const buena = fuente()

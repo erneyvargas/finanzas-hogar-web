@@ -108,6 +108,24 @@ export function Tablero({
   const [datosPorVencer, setDatosPorVencer] = useState<DatosDePorVencer | null>(null)
   const [errorPorVencer, setErrorPorVencer] = useState<string | null>(null)
 
+  // Coming back to the tab after a while reloads everything: the phone may
+  // have registered movements meanwhile, and a stale balance makes the
+  // server reject a transfer the page said was covered.
+  const ultimaCarga = useRef(Date.now())
+  useEffect(() => {
+    ultimaCarga.current = Date.now()
+  }, [recarga])
+  useEffect(() => {
+    const alVolver = () => {
+      if (document.visibilityState === 'hidden') return
+      if (Date.now() - ultimaCarga.current < 30_000) return
+      ultimaCarga.current = Date.now()
+      setRecarga((n) => n + 1)
+    }
+    document.addEventListener('visibilitychange', alVolver)
+    return () => document.removeEventListener('visibilitychange', alVolver)
+  }, [])
+
   useEffect(() => {
     let vivo = true
     setError(null)
