@@ -3,31 +3,30 @@ import { colorDe, dinero } from '../core/formato'
 import { diaDe } from '../tablero/calculo'
 import { CampoDeFecha } from '../movimientos/CampoDeFecha'
 import type { FuenteDeMovimientos } from '../movimientos/fuente'
-import { Cara } from '../movimientos/ListaDeMovimientos'
 import {
-  ErrorDelServidor,
-  MENSAJE_GENERICO,
   categoriasPara,
-  cuentasPara,
   fechaParaServidor,
   leerMonto,
-  masUsadas,
   rutaDeCategoria,
   type DatosDeMovimientos,
 } from '../movimientos/reglas'
 import type { FuenteDeFacturas } from './fuente'
+import { useGuardarFactura } from './guardar'
+import { ElegirCuenta, Vista } from './piezas'
 import {
   camposDeFactura,
   categoriaSugerida,
   cuentaSugerida,
   diferenciaDe,
-  extensionDe,
+  esNomina,
   partesDe,
   problemaDelArchivo,
   sumaDe,
   textoDeMonto,
+  type DeudaAbierta,
   type LecturaDeFactura,
 } from './reglas'
+import { RevisionDeNomina } from './RevisionDeNomina'
 
 /** Polls every 2 s while `parse-receipt` works, for about a minute. */
 const PAUSA_MS = 2000
@@ -38,16 +37,16 @@ type Fase =
   | { tipo: 'elegir'; problema: string | null }
   | { tipo: 'leyendo' }
   | { tipo: 'fallo'; mensaje: string }
-  | { tipo: 'revisar'; lectura: LecturaDeFactura }
-
-const comoError = (e: unknown) =>
-  e instanceof ErrorDelServidor ? e : new ErrorDelServidor(MENSAJE_GENERICO, null)
+  /** [deudas] is `null` on a purchase, and the open debts on a payslip. */
+  | { tipo: 'revisar'; lectura: LecturaDeFactura; deudas: DeudaAbierta[] | null }
 
 /**
  * «Registrar desde factura» (proposal 2): a wide dialog that takes a
  * photo or PDF, uploads it, waits for `parse-receipt` and shows the
  * receipt beside a review form that saves through
- * `registrar_movimiento_de_factura`. [alCerrar] says whether it saved.
+ * `registrar_movimiento_de_factura`. A payslip gets its own review
+ * (`RevisionDeNomina`), saved through `registrar_nomina_de_factura`.
+ * [alCerrar] says whether it saved.
  */
 export function DesdeFactura({
   datos,
@@ -140,7 +139,9 @@ export function DesdeFactura({
         return
       }
       if (l && l.estado !== 'uploaded' && l.estado !== 'processing') {
-        setFase({ tipo: 'revisar', lectura: l })
+        // A payslip's deductions can pay debts; without them it still saves with categories.
+        const deudas = esNomina(l.items) ? await (fuente.deudas?.() ?? Promise.resolve([])).catch(() => []) : null
+        if (vigente()) setFase({ tipo: 'revisar', lectura: l, deudas })
         return
       }
       if (intento >= INTENTOS) {
@@ -172,6 +173,7 @@ export function DesdeFactura({
       <div ref={raiz} className="factura" role="dialog" aria-modal="true" aria-labelledby="t-factura" tabIndex={-1}>
         <div className="factura-cabeza">
           <h2 id="t-factura">{titulo}</h2>
+          {fase.tipo === 'revisar' && fase.deudas && <span className="tipo-doc">Comprobante de nómina</span>}
           {archivo && <span className="apagado nombre-archivo">{archivo.name}</span>}
           <button className="flecha" aria-label="Cerrar" disabled={guardando} onClick={() => alCerrar(false)}>
             ✕
@@ -285,7 +287,24 @@ export function DesdeFactura({
           </>
         )}
 
-        {fase.tipo === 'revisar' && archivo && (
+        {fase.tipo === 'revisar' && archivo && fase.deudas && (
+          <RevisionDeNomina
+            lectura={fase.lectura}
+            deudas={fase.deudas}
+            archivo={archivo}
+            vista={vista}
+            datos={datos}
+            reciboId={reciboId}
+            nuevoId={nuevoId}
+            movimientos={movimientos}
+            ahora={ahora}
+            guardando={guardando}
+            setGuardando={setGuardando}
+            alCerrar={alCerrar}
+          />
+        )}
+
+        {fase.tipo === 'revisar' && archivo && !fase.deudas && (
           <Revision
             lectura={fase.lectura}
             archivo={archivo}
@@ -301,32 +320,6 @@ export function DesdeFactura({
           />
         )}
       </div>
-    </div>
-  )
-}
-
-/** The receipt as uploaded: the photo, the PDF, or a tile when it cannot be shown. */
-function Vista({ archivo, url, leyendo }: { archivo: File; url: string | null; leyendo: boolean }) {
-  const pdf = extensionDe(archivo) === 'pdf'
-  const teja = (
-    <div className="teja-pdf">
-      <span className="icono-hoja" aria-hidden="true" />
-      <b>{pdf ? 'PDF' : 'Foto'}</b>
-      <span>{archivo.name}</span>
-    </div>
-  )
-  return (
-    <div className="mesa">
-      {!url ? (
-        teja
-      ) : pdf ? (
-        <object data={url} type="application/pdf" aria-label="La factura en PDF">
-          {teja}
-        </object>
-      ) : (
-        <img src={url} alt="La foto de la factura" />
-      )}
-      {leyendo && <span className="barrido" aria-hidden="true" />}
     </div>
   )
 }
@@ -388,15 +381,7 @@ function Revision({
   const [busqueda, setBusqueda] = useState('')
   const [buscando, setBuscando] = useState(false)
   const [nota, setNota] = useState('')
-  const [error, setError] = useState<ErrorDelServidor | null>(null)
-  const yaIntento = useRef(false)
-
-  const ofrecidas = cuentasPara('expense', datos.cuentas)
-  const usadas = masUsadas(datos.movimientos, 'expense', ofrecidas)
-  const orden = [...usadas, ...ofrecidas.map((c) => c.id).filter((id) => !usadas.includes(id))]
-  let chips = orden.slice(0, 4)
-  if (cuentaId && !chips.includes(cuentaId)) chips = [...chips.slice(0, 3), cuentaId]
-  const [otra, setOtra] = useState(false)
+  const { error, guardar } = useGuardarFactura(movimientos, setGuardando, alCerrar)
 
   const validas = useMemo(() => categoriasPara('expense', datos.categorias), [datos.categorias])
   const rutas = useMemo(
@@ -440,37 +425,20 @@ function Revision({
 
   async function registrar(guardarIgual: boolean) {
     if (motivo) return
-    setGuardando(true)
-    setError(null)
-    try {
-      await movimientos.ejecutar('registrar_movimiento_de_factura', {
-        p_household_id: datos.hogarId,
-        p_receipt_id: reciboId,
-        p_account_id: cuentaId,
-        p_amount: monto,
-        p_category_id: modo === 'una' ? categoriaId : null,
-        p_occurred_at: fechaParaServidor(dia, ahora()),
-        p_note: nota.trim() || null,
-        p_merchant_name: comercio.trim() || null,
-        p_merchant_nit: campos.nit,
-        p_partes: modo === 'items' ? partes : null,
-        p_guardar_igual: guardarIgual,
-        p_id: nuevoId,
-      })
-      setGuardando(false)
-      alCerrar(true)
-    } catch (e) {
-      const fallo = comoError(e)
-      // Only a retry after an unknown outcome can meet its own earlier save.
-      if (fallo.codigo === 'ya_existe' && yaIntento.current) {
-        setGuardando(false)
-        alCerrar(true)
-        return
-      }
-      if (fallo.codigo === null) yaIntento.current = true
-      setError(fallo)
-      setGuardando(false)
-    }
+    await guardar('registrar_movimiento_de_factura', {
+      p_household_id: datos.hogarId,
+      p_receipt_id: reciboId,
+      p_account_id: cuentaId,
+      p_amount: monto,
+      p_category_id: modo === 'una' ? categoriaId : null,
+      p_occurred_at: fechaParaServidor(dia, ahora()),
+      p_note: nota.trim() || null,
+      p_merchant_name: comercio.trim() || null,
+      p_merchant_nit: campos.nit,
+      p_partes: modo === 'items' ? partes : null,
+      p_guardar_igual: guardarIgual,
+      p_id: nuevoId,
+    })
   }
 
   return (
@@ -508,45 +476,7 @@ function Revision({
             </div>
           </div>
 
-          <fieldset className="campo">
-            <legend>
-              Sale de <span className="requerido">*</span>
-              {!cuentaId && <span className="apagado"> — elige la cuenta para poder guardar</span>}
-            </legend>
-            <div className={`chips ${cuentaId ? '' : 'pide'}`}>
-              {chips.map((id) => {
-                const c = datos.cuentas.find((x) => x.id === id)!
-                return (
-                  <button key={id} type="button" className="chip" aria-pressed={id === cuentaId} onClick={() => setCuentaId(id)}>
-                    <Cara nombre={c.nombre} foto={c.foto} />
-                    {c.nombre}
-                  </button>
-                )
-              })}
-              {ofrecidas.length > chips.length && (
-                <button type="button" className="chip" aria-expanded={otra} onClick={() => setOtra(!otra)}>
-                  Otra…
-                </button>
-              )}
-            </div>
-            {otra && (
-              <select
-                aria-label="Otra cuenta"
-                value={cuentaId}
-                onChange={(e) => {
-                  setCuentaId(e.target.value)
-                  setOtra(false)
-                }}
-              >
-                <option value="">Elige una cuenta</option>
-                {ofrecidas.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre}
-                  </option>
-                ))}
-              </select>
-            )}
-          </fieldset>
+          <ElegirCuenta tipo="expense" leyenda="Sale de" datos={datos} cuentaId={cuentaId} alElegir={setCuentaId} />
 
           <div className="fila-etiqueta">
             <span className="etiqueta">Categoría</span>

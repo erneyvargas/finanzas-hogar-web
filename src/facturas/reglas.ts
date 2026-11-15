@@ -1,5 +1,6 @@
 import { miles } from '../core/formato'
-import { categoriasPara, cuentasPara, type CategoriaDeMovimiento, type Cuenta } from '../movimientos/reglas'
+import { normalizarNombre } from '../movimientos/historial'
+import { categoriasPara, cuentasPara, type CategoriaDeMovimiento, type Cuenta, type Tipo } from '../movimientos/reglas'
 
 /**
  * What the web needs to turn a receipt read by `parse-receipt` into an
@@ -31,6 +32,12 @@ export interface ItemDeFactura {
   cantidad: number | null
   total: number | null
   categoriaSugerida: string | null
+  /**
+   * `receipt_items.kind` as the model read it: `income`, `expense`, or
+   * anything else. Lines read before migration 0014 have none and count
+   * as expenses, as on the phone.
+   */
+  tipo?: string | null
 }
 
 /** The receipt row and its items as they stand on the server. */
@@ -74,15 +81,19 @@ export function camposDeFactura(l: LecturaDeFactura): CamposDeFactura {
   }
 }
 
-/** The account the model read on the receipt, only if it can pay an expense; else `''`. */
-export function cuentaSugerida(l: LecturaDeFactura, cuentas: Cuenta[]): string {
+/** The account the model read on the receipt, only if it takes a movement of [tipo]; else `''`. */
+export function cuentaSugerida(l: LecturaDeFactura, cuentas: Cuenta[], tipo: Tipo = 'expense'): string {
   const id = l.ocr?.account_id
-  return id && cuentasPara('expense', cuentas).some((c) => c.id === id) ? id : ''
+  return id && cuentasPara(tipo, cuentas).some((c) => c.id === id) ? id : ''
 }
 
-/** The suggested category, only if it is a live expense subcategory; else `''`. */
-export function categoriaSugerida(id: string | null, categorias: CategoriaDeMovimiento[]): string {
-  return id && categoriasPara('expense', categorias).some((c) => c.id === id) ? id : ''
+/** The suggested category, only if it is a live subcategory of [tipo]; else `''`. */
+export function categoriaSugerida(
+  id: string | null,
+  categorias: CategoriaDeMovimiento[],
+  tipo: Tipo = 'expense',
+): string {
+  return id && categoriasPara(tipo, categorias).some((c) => c.id === id) ? id : ''
 }
 
 /** Total minus the items, to the cent: positive when items are missing, negative when they exceed it. */
@@ -110,6 +121,118 @@ export function partesDe(filas: FilaDeReparto[]): Parte[] | null {
   const conMonto = filas.filter((f) => (f.total ?? 0) > 0)
   if (conMonto.some((f) => !f.categoriaId)) return null
   return conMonto.map((f) => ({ category_id: f.categoriaId, amount: f.total!, note: texto(f.descripcion) }))
+}
+
+/**
+ * A payslip (comprobante de nómina) brings what comes in and what is
+ * deducted on the same paper: at least one `income` line and one other.
+ * There is no document-type flag; the phone tells it the same way.
+ */
+export function esNomina(items: ItemDeFactura[]): boolean {
+  return items.some((i) => i.tipo === 'income') && items.some((i) => i.tipo !== 'income')
+}
+
+/** An open debt the household owes, as the payslip offers it on a deduction. */
+export interface DeudaAbierta {
+  id: string
+  nombre: string
+  /** `installments_total - installments_paid`; `null` without installment info. */
+  cuotasRestantes: number | null
+}
+
+/** A payslip line under review: an income, or a deduction that takes a category or pays a debt. */
+export interface LineaDeNomina {
+  clave: string
+  descripcion: string
+  monto: number
+  signo: 'ingreso' | 'descuento'
+  /** An income subcategory on income lines, an expense one on deductions; `''` when none. */
+  categoriaId: string
+  /** Only on deductions: the debt the line pays; `''` when none. */
+  deudaId: string
+}
+
+export interface AbonoDeNomina {
+  debt_id: string
+  amount: number
+}
+
+/**
+ * The deductions named like one of [deudas] pay it (the phone's
+ * `sugerirDeudas`): same name ignoring case, accents and repeated
+ * spaces. Only deductions nobody classified yet; the rest is kept.
+ */
+export function sugerirDeudas(lineas: LineaDeNomina[], deudas: DeudaAbierta[]): LineaDeNomina[] {
+  const porNombre = new Map<string, string>()
+  for (const d of deudas) {
+    const llave = normalizarNombre(d.nombre)
+    if (llave) porNombre.set(llave, d.id)
+  }
+  return lineas.map((l) => {
+    if (l.signo !== 'descuento' || l.categoriaId || l.deudaId) return l
+    const id = porNombre.get(normalizarNombre(l.descripcion) ?? '')
+    return id ? { ...l, deudaId: id } : l
+  })
+}
+
+/**
+ * The payslip's lines with an amount: income lines with the suggested
+ * income category, deductions with the suggested expense one, then the
+ * debts suggested by name.
+ */
+export function lineasDeNomina(
+  items: ItemDeFactura[],
+  categorias: CategoriaDeMovimiento[],
+  deudas: DeudaAbierta[],
+): LineaDeNomina[] {
+  const lineas = items
+    .filter((i) => (i.total ?? 0) > 0)
+    .map((i): LineaDeNomina => {
+      const ingreso = i.tipo === 'income'
+      return {
+        clave: `l${i.linea}`,
+        descripcion: i.descripcion,
+        monto: i.total!,
+        signo: ingreso ? 'ingreso' : 'descuento',
+        categoriaId: categoriaSugerida(i.categoriaSugerida, categorias, ingreso ? 'income' : 'expense'),
+        deudaId: '',
+      }
+    })
+  return sugerirDeudas(lineas, deudas)
+}
+
+/** Income, deductions and their net, to the cent. */
+export function totalesDeNomina(lineas: LineaDeNomina[]): { ingresos: number; descuentos: number; neto: number } {
+  const ingresos = sumaDe(lineas.filter((l) => l.signo === 'ingreso').map((l) => l.monto))
+  const descuentos = sumaDe(lineas.filter((l) => l.signo === 'descuento').map((l) => l.monto))
+  return { ingresos, descuentos, neto: (aCentavos(ingresos) - aCentavos(descuentos)) / 100 }
+}
+
+/**
+ * The net printed on the payslip (NETO A RECIBIR): the QR's total, else
+ * the one read. Never the items' sum, which would square by definition.
+ */
+export function netoDelComprobante(l: LecturaDeFactura): number | null {
+  return numero(l.qr?.valorTotal) ?? numero(l.ocr?.total)
+}
+
+/**
+ * `p_ingresos`, `p_gastos` and `p_abonos` for `registrar_nomina_de_factura`
+ * (migration 0047). `null` while a line has neither a category nor a
+ * debt. Several lines of one debt stay apart: the server sums them.
+ */
+export function partesDeNomina(
+  lineas: LineaDeNomina[],
+): { ingresos: Parte[]; gastos: Parte[]; abonos: AbonoDeNomina[] } | null {
+  if (lineas.some((l) => !l.categoriaId && !(l.signo === 'descuento' && l.deudaId))) return null
+  const parte = (l: LineaDeNomina): Parte => ({ category_id: l.categoriaId, amount: l.monto, note: texto(l.descripcion) })
+  return {
+    ingresos: lineas.filter((l) => l.signo === 'ingreso').map(parte),
+    gastos: lineas.filter((l) => l.signo === 'descuento' && !l.deudaId).map(parte),
+    abonos: lineas
+      .filter((l) => l.signo === 'descuento' && l.deudaId)
+      .map((l) => ({ debt_id: l.deudaId, amount: l.monto })),
+  }
 }
 
 export const TAMANO_MAXIMO = 10 * 1024 * 1024
