@@ -339,6 +339,41 @@ describe('the filter panel', () => {
     expect(within(lista).getByRole('checkbox', { name: 'Hogar' })).toHaveAttribute('aria-checked', 'mixed')
   })
 
+  it('the search box narrows the rubros and opens the ones whose categories match', async () => {
+    const lista = await abrir()
+    const panel = within(lista).getByRole('group', { name: 'Rubros y categorías' })
+
+    await userEvent.type(within(lista).getByRole('searchbox', { name: 'Buscar rubro o categoría' }), 'servi')
+
+    expect(within(panel).getByRole('checkbox', { name: 'Servicios' })).toBeInTheDocument()
+    expect(within(panel).getByRole('checkbox', { name: 'Hogar' })).toBeInTheDocument()
+    expect(within(panel).queryByRole('checkbox', { name: 'Erney' })).toBeNull()
+    // The search only narrows the panel, never the movements.
+    expect(comercios(lista)).toHaveLength(conRubros.movimientos.length)
+  })
+
+  it('says so when no rubro or category matches, and Escape clears the search', async () => {
+    const lista = await abrir()
+    const buscar = within(lista).getByRole('searchbox', { name: 'Buscar rubro o categoría' })
+
+    await userEvent.type(buscar, 'xyz')
+    expect(within(lista).getByText('Sin resultados para «xyz»')).toBeInTheDocument()
+
+    await userEvent.type(buscar, '{Escape}')
+    expect(buscar).toHaveValue('')
+    expect(within(lista).getByRole('checkbox', { name: 'Erney' })).toBeInTheDocument()
+    expect(within(lista).queryByRole('checkbox', { name: 'Servicios' })).toBeNull()
+  })
+
+  it('a checked category hidden by the search stays checked', async () => {
+    const lista = await abrir()
+    await userEvent.click(within(lista).getByRole('checkbox', { name: 'Erney' }))
+
+    await userEvent.type(within(lista).getByRole('searchbox', { name: 'Buscar rubro o categoría' }), 'servi')
+
+    expect(comercios(lista)).toEqual(['Frisby'])
+  })
+
   it('two taps on the calendar choose the days between them', async () => {
     const lista = await abrir()
 

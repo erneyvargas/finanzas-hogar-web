@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { colorDe, dinero, MESES, nombreDelMes } from '../core/formato'
 import { diaDe } from '../tablero/calculo'
-import { alternar, arbolDeGastos, dentroDelRango, pasaLaSeleccion, textoDelRango, tocarDia, type Rango } from './filtros'
+import { alternar, arbolDeGastos, dentroDelRango, pasaLaSeleccion, plano, textoDelRango, tocarDia, type Rango } from './filtros'
 import { FiltrosDelMes } from './FiltrosDelMes'
 import { rutaDeCategoria, type DatosDeMovimientos, type FilaDeMovimiento } from './reglas'
 
@@ -34,9 +34,6 @@ function tituloDelDia(dia: string) {
   const [a, m, d] = dia.split('-').map(Number)
   return `${DIAS[new Date(Date.UTC(a, m - 1, d)).getUTCDay()]} ${d} ${MESES[m - 1].slice(0, 3)}`
 }
-
-/** Lower case, without accents, to compare what the user types. */
-const plano = (t: string) => t.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
 
 type Filtro = 'todos' | 'expense' | 'income'
 const FILTROS: { id: Filtro; nombre: string }[] = [

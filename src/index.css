@@ -351,6 +351,11 @@ button.dia-del-mes.tono-4 { background: color-mix(in srgb, var(--marca) 58%, tra
 button.dia-del-mes:hover { border-color: var(--marca); }
 button.dia-del-mes[aria-pressed='true'] { background: var(--marca); color: #fff; }
 .rubros { display: grid; gap: 2px; }
+.buscar-rubro {
+  width: 100%; font: inherit; font-size: 14px; padding: 8px 10px; margin-bottom: 8px;
+  border-radius: 10px; border: 1px solid var(--borde); background: var(--papel); color: var(--tinta);
+}
+.sin-resultados { padding: 6px 2px; }
 .rubro + .rubro { margin-top: 6px; }
 button.casilla {
   width: 100%; display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 4px 6px;

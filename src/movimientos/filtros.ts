@@ -24,6 +24,25 @@ export function arbolDeGastos(categorias: CategoriaDeMovimiento[]): RubroDelArbo
     }))
 }
 
+/** Lower case, without accents, to compare what the user types. */
+export const plano = (t: string) => t.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
+
+/**
+ * The rubros and categories whose name contains [texto], ignoring case and
+ * accents. A rubro that matches keeps all its categories; otherwise it stays
+ * only with the categories that match. A blank text returns [arbol] itself.
+ */
+export function buscarEnArbol(arbol: RubroDelArbol[], texto: string): RubroDelArbol[] {
+  const buscado = plano(texto.trim())
+  if (!buscado) return arbol
+  const contiene = (nombre: string) => plano(nombre).includes(buscado)
+  return arbol.flatMap((r) => {
+    if (contiene(r.nombre)) return [r]
+    const categorias = r.categorias.filter((c) => contiene(c.nombre))
+    return categorias.length > 0 ? [{ ...r, categorias }] : []
+  })
+}
+
 /**
  * Checks or unchecks [id] (a rubro or a category). A selected rubro stands
  * for all its categories: unchecking one of them keeps the others, and
