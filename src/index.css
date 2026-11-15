@@ -872,7 +872,20 @@ button.bola-rayado { background: transparent; border: 2px dashed var(--c); }
 .lista-v button.pagar { padding: 6px 12px; font-size: 14px; }
 .urgente { color: var(--alerta); font-weight: 700; }
 h3.pv-pagados { margin: 16px 0 4px; font-size: 15px; color: var(--baja); }
+/* Unpaid by urgency: due today or overdue sends out a ring of its color; this week glows. */
+button.bola { position: relative; }
+button.bola-pulso-urgente::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--c); pointer-events: none;
+  animation: bola-onda 1.2s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+}
+@keyframes bola-onda { from { transform: scale(1); opacity: 0.8; } to { transform: scale(2.2); opacity: 0; } }
+button.bola-pulso-pronto { animation: bola-brillo 2.8s ease-in-out infinite; }
+@keyframes bola-brillo {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--c) 0%, transparent); }
+  50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--c) 28%, transparent); }
+}
 @media (prefers-reduced-motion: reduce) {
+  button.bola-pulso-urgente::after, button.bola-pulso-pronto { animation: none; }
   button.bola, .lista-v li { transition: none; }
   button.bola:hover, button.bola:focus-visible, button.bola.encendida { scale: 1; }
 }

@@ -15,6 +15,8 @@ export interface Circulo {
   estilo: 'lleno' | 'hueco' | 'rayado'
   /** What a screen reader and the tooltip say. */
   etiqueta: string
+  /** How loudly it moves: `urgente` ripples, `pronto` glows; absent stays still. */
+  pulso?: 'urgente' | 'pronto'
 }
 
 const DIAS_DE_LA_SEMANA = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
@@ -53,7 +55,7 @@ export function CalendarioDeCirculos({
     <button
       key={c.id}
       type="button"
-      className={`bola bola-${c.estilo} ${encendido === c.id ? 'encendida' : ''}`}
+      className={`bola bola-${c.estilo}${c.pulso ? ` bola-pulso-${c.pulso}` : ''} ${encendido === c.id ? 'encendida' : ''}`}
       style={{ ['--s' as string]: `${c.tamano}px`, ['--c' as string]: c.color }}
       aria-label={c.etiqueta}
       title={c.etiqueta}

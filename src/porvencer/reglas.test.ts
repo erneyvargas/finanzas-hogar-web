@@ -57,6 +57,7 @@ const v = (x: Partial<Vencimiento>): Vencimiento => ({
   sinExtracto: false,
   deuda: 0,
   destinoId: null,
+  total: 0,
   ...x,
 })
 
@@ -141,27 +142,27 @@ describe('a card', () => {
   const delMes = (d: Partial<DatosDePorVencer>) =>
     vencimientos(datos(d), '2026-11-15').filter((x) => x.fecha?.startsWith('2026-11'))
 
-  it('is due its statement payment, less what was paid after the cut, paid from the principal account', () => {
+  it('is due its minimum payment, less what was paid after the cut, with the statement total beside it, paid from the principal account', () => {
     const [v] = delMes({
       tarjetas: [tarjeta({ extracto })],
       pagosATarjetas: [
         { haciaCuentaId: 'bbva', dia: '2026-10-20', monto: 50_000 },
-        { haciaCuentaId: 'bbva', dia: '2026-11-03', monto: 100_000 },
+        { haciaCuentaId: 'bbva', dia: '2026-11-03', monto: 30_000 },
       ],
     })
-    expect(v).toMatchObject({ monto: 800_000, fecha: '2026-11-17', detalle: 'pago del extracto', pagado: false, sinExtracto: false, cuentaId: 'nomina' })
+    expect(v).toMatchObject({ monto: 60_000, total: 870_000, fecha: '2026-11-17', detalle: 'pago mínimo', pagado: false, sinExtracto: false, cuentaId: 'nomina' })
   })
 
-  it('is paid when the statement is marked paid or covered after the cut', () => {
+  it('is paid when the statement is marked paid or the minimum is covered after the cut', () => {
     expect(delMes({ tarjetas: [tarjeta({ extracto: { ...extracto, pagado: true } })] })[0].pagado).toBe(true)
     expect(
-      delMes({ tarjetas: [tarjeta({ extracto })], pagosATarjetas: [{ haciaCuentaId: 'bbva', dia: '2026-11-10', monto: 900_000 }] })[0].pagado,
+      delMes({ tarjetas: [tarjeta({ extracto })], pagosATarjetas: [{ haciaCuentaId: 'bbva', dia: '2026-11-10', monto: 90_000 }] })[0].pagado,
     ).toBe(true)
   })
 
-  it('falls back to the minimum payment when the statement has only that', () => {
-    const [v] = delMes({ tarjetas: [tarjeta({ extracto: { ...extracto, saldo: 0 } })] })
-    expect(v).toMatchObject({ monto: 90_000, detalle: 'pago mínimo' })
+  it('falls back to the statement payment when the statement has no minimum', () => {
+    const [v] = delMes({ tarjetas: [tarjeta({ extracto: { ...extracto, minimo: 0 } })] })
+    expect(v).toMatchObject({ monto: 900_000, total: 900_000, detalle: 'pago del extracto' })
   })
 
   it('without a statement this month keeps its debt apart, out of every total', () => {

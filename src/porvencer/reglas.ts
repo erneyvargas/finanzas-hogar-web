@@ -94,6 +94,8 @@ export interface Vencimiento {
    * itself; `null` for an expense rule, which is paid with an expense.
    */
   destinoId: string | null
+  /** A card's statement total still owed (after payments since the cut); 0 otherwise. */
+  total: number
 }
 
 /** How many days around the due date an expense in the category pays it. */
@@ -145,7 +147,7 @@ export function vencimientos(d: DatosDePorVencer, hoy: string): Vencimiento[] {
         a.deudaId === deudaId &&
         (fecha === null ? a.dia.startsWith(mes) : Math.abs(diasEntre(fecha, a.dia)) <= DIAS_DE_HOLGURA),
     )
-  const base = { detalle: null, sinExtracto: false, deuda: 0 }
+  const base = { detalle: null, sinExtracto: false, deuda: 0, total: 0 }
 
   for (const m of [mes, siguiente]) {
     const esteMes = m === mes
@@ -187,13 +189,15 @@ export function vencimientos(d: DatosDePorVencer, hoy: string): Vencimiento[] {
         const abonado = d.pagosATarjetas
           .filter((p) => p.haciaCuentaId === t.id && p.dia > e.corte)
           .reduce((a, p) => a + p.monto, 0)
-        const completo = e.saldo > 0
-        const monto = Math.max(0, (completo ? e.saldo : e.minimo) - abonado)
+        // The minimum is what is due; the statement total is shown beside it.
+        const conMinimo = e.minimo > 0
+        const monto = Math.max(0, (conMinimo ? e.minimo : e.saldo) - abonado)
         fuera.push({
           ...tarjeta,
           monto,
+          total: Math.max(0, e.saldo - abonado),
           fecha: e.vence,
-          detalle: completo ? 'pago del extracto' : 'pago mínimo',
+          detalle: conMinimo ? 'pago mínimo' : 'pago del extracto',
           pagado: e.pagado || monto <= 0,
         })
       } else if (esteMes) {
