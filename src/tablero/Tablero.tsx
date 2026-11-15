@@ -12,6 +12,10 @@ import { ListaDeMovimientos } from '../movimientos/ListaDeMovimientos'
 import { Panel } from '../movimientos/Panel'
 import type { DatosDeMovimientos, FilaDeMovimiento } from '../movimientos/reglas'
 import { PorCategoria } from './PorCategoria'
+import { Cuentas } from '../cuentas/Cuentas'
+import type { FuenteDeCuentas } from '../cuentas/fuente'
+import { PanelDeCuenta, type VistaDeCuenta } from '../cuentas/PanelDeCuenta'
+import type { DatosDeCuentas } from '../cuentas/reglas'
 
 const mesLargo = (mes: string) => {
   const n = nombreDelMes(mes)
@@ -28,11 +32,14 @@ const mesCorto = (mes: string) => {
  * person, and the last six months. With [movimientos], the month's
  * list below it and the side panel to register and correct. With
  * [facturas] too, «Desde factura» registers an expense from a receipt.
+ * With [cuentas], the «Cuentas» tab: today's balances and the accounts'
+ * own side panel.
  */
 export function Tablero({
   fuente,
   movimientos,
   facturas,
+  cuentas,
   mesInicial,
   ahora = () => new Date(),
 }: {
@@ -40,6 +47,8 @@ export function Tablero({
   movimientos?: FuenteDeMovimientos
   /** Where receipts are uploaded and read; without it, no «Desde factura». */
   facturas?: FuenteDeFacturas
+  /** Where the accounts are read and written; without it, no «Cuentas» tab. */
+  cuentas?: FuenteDeCuentas
   /** Without it: the month open before an F5, else the current one. */
   mesInicial?: string
   /** The clock; tests fix it. */
@@ -77,6 +86,10 @@ export function Tablero({
   const [anadido, setAnadido] = useState<{ id: string; error?: string } | null>(null)
   /** The receipt dialog's opening count while it is open; `null` when closed. */
   const [factura, setFactura] = useState<number | null>(null)
+  const [datosDeCuentas, setDatosDeCuentas] = useState<DatosDeCuentas | null>(null)
+  const [errorDeCuentas, setErrorDeCuentas] = useState<string | null>(null)
+  /** The accounts panel: `undefined` when closed. */
+  const [enCuentas, setEnCuentas] = useState<VistaDeCuenta | undefined>(undefined)
 
   useEffect(() => {
     let vivo = true
@@ -111,8 +124,32 @@ export function Tablero({
     }
   }, [movimientos, mes, recarga])
 
+  useEffect(() => {
+    if (!cuentas) return
+    let vivo = true
+    setErrorDeCuentas(null)
+    cuentas
+      .cargar()
+      .then((d) => {
+        if (vivo) setDatosDeCuentas(d)
+      })
+      .catch((e: Error) => {
+        if (vivo) setErrorDeCuentas(`No se pudieron cargar las cuentas. ${e.message}`)
+      })
+    return () => {
+      vivo = false
+    }
+  }, [cuentas, recarga])
+
   /** What had the focus when the panel opened; it gets it back on close. */
   const abridor = useRef<HTMLElement | null>(null)
+  const abrirCuentas = (v: VistaDeCuenta) => {
+    if (enCuentas === undefined) {
+      abridor.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    }
+    setEnCuentas(v)
+  }
+  const recargar = () => setRecarga((n) => n + 1)
   const abrir = (m: FilaDeMovimiento | null) => {
     abridor.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     setAperturas((n) => n + 1)
@@ -176,14 +213,15 @@ export function Tablero({
     return () => clearTimeout(t)
   }, [anadido])
   useEffect(() => {
-    if (enPanel === undefined && factura === null && abridor.current?.isConnected) {
+    if (enPanel === undefined && factura === null && enCuentas === undefined && abridor.current?.isConnected) {
       abridor.current.focus()
       abridor.current = null
     }
-  }, [enPanel, factura])
+  }, [enPanel, factura, enCuentas])
   const reintentar = () => {
     setError(null)
     setErrorDeLista(null)
+    setErrorDeCuentas(null)
     setRecarga((n) => n + 1)
   }
   // ← and → change the month, unless a field is typing or the panel is open.
@@ -191,7 +229,7 @@ export function Tablero({
   teclaDeMes.current = (e) => {
     const t = e.target
     if (t instanceof HTMLElement && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))) return
-    if (enPanel !== undefined || factura !== null || e.ctrlKey || e.metaKey || e.altKey) return
+    if (enPanel !== undefined || enCuentas !== undefined || factura !== null || e.ctrlKey || e.metaKey || e.altKey) return
     if (e.key === 'ArrowLeft') setMes(moverMes(mes, -1))
     else if (e.key === 'ArrowRight' && mes < hoy) setMes(moverMes(mes, 1))
   }
@@ -206,17 +244,21 @@ export function Tablero({
   const resumen = cargado?.mes === mes ? cargado.r : null
   const esqueleto = useCargaVisible(!error && !resumen)
   const listaDelMes = lista?.mes === mes ? lista.datos : null
-  const [pestana, setPestana] = useState<Pestana>(pestanaGuardada)
+  const [pestanaGuardadaAhora, setPestana] = useState<Pestana>(pestanaGuardada)
   const elegirPestana = (p: Pestana) => {
     setPestana(p)
     guardarPestana(p)
+    setEnCuentas(undefined)
   }
-  // Without the movements there is only the summary, and no tabs.
-  const verResumen = !movimientos || pestana === 'resumen'
-  const verLista = !!movimientos && pestana === 'movimientos'
+  // A tab whose source is missing is not offered; without either, no tabs.
+  const pestanas = PESTANAS.filter((p) => (p.id === 'movimientos' ? !!movimientos : p.id === 'cuentas' ? !!cuentas : true))
+  const pestana = pestanas.some((p) => p.id === pestanaGuardadaAhora) ? pestanaGuardadaAhora : 'resumen'
+  const verResumen = pestana === 'resumen'
+  const verLista = pestana === 'movimientos'
+  const verCuentas = pestana === 'cuentas'
 
   return (
-    <div className={`marco ${enPanel !== undefined ? 'con-panel' : ''}`}>
+    <div className={`marco ${enPanel !== undefined || enCuentas !== undefined ? 'con-panel' : ''}`}>
       <header className="barra">
         <span className="marca-texto">Finanzas del hogar</span>
         <nav className="selector-mes" aria-label="Mes">
@@ -237,6 +279,11 @@ export function Tablero({
             ›
           </button>
         </nav>
+        {verCuentas && (
+          <span className="apagado saldos-de-hoy">
+            Saldos al {Number(diaDeHoy.slice(8))} de {nombreDelMes(diaDeHoy.slice(0, 7))}
+          </span>
+        )}
         <span className="apagado correo">{usuario?.email}</span>
         <button className="secundario" onClick={() => void salir()}>
           Salir
@@ -244,9 +291,9 @@ export function Tablero({
       </header>
 
       <main className="contenido">
-        {movimientos && (
+        {pestanas.length > 1 && (
           <div className="pestanas" role="tablist" aria-label="Vista">
-            {PESTANAS.map((p) => (
+            {pestanas.map((p) => (
               <button
                 key={p.id}
                 role="tab"
@@ -280,20 +327,45 @@ export function Tablero({
             alBorrar={borrarDesdeLaLista}
           />
         )}
+        {verCuentas && errorDeCuentas && <Fallo texto={errorDeCuentas} alReintentar={reintentar} />}
+        {verCuentas && !errorDeCuentas && !datosDeCuentas && <p className="cargando">Cargando cuentas…</p>}
+        {verCuentas && !errorDeCuentas && datosDeCuentas && (
+          <Cuentas
+            datos={datosDeCuentas}
+            seleccionada={enCuentas && 'id' in enCuentas ? enCuentas.id : null}
+            alElegir={(id) => abrirCuentas({ v: 'detalle', id })}
+          />
+        )}
       </main>
 
       {/* Bottom right, as on the phone. It stays mounted while the panel is
           open (CSS hides it) so the focus can come back to it on close. */}
-      {movimientos && (
+      {(movimientos || verCuentas) && (
         <div className="flotantes">
-          {facturas && (
+          {verCuentas && (
+            <>
+              <button className="secundario flotante" disabled={!datosDeCuentas} onClick={() => abrirCuentas({ v: 'nueva' })}>
+                Nueva cuenta
+              </button>
+              <button
+                className="secundario flotante"
+                disabled={!datosDeCuentas}
+                onClick={() => abrirCuentas({ v: 'transferir' })}
+              >
+                Transferir
+              </button>
+            </>
+          )}
+          {movimientos && facturas && (
             <button className="secundario desde-factura flotante" disabled={!lista} onClick={abrirFactura}>
               Desde factura
             </button>
           )}
-          <button className="registrar flotante" disabled={!lista} onClick={() => abrir(null)}>
-            + Registrar
-          </button>
+          {movimientos && (
+            <button className="registrar flotante" disabled={!lista} onClick={() => abrir(null)}>
+              + Registrar
+            </button>
+          )}
         </div>
       )}
 
@@ -320,6 +392,17 @@ export function Tablero({
           ahora={ahora}
           alCerrar={cerrar}
           alDuplicar={duplicar}
+        />
+      )}
+
+      {cuentas && datosDeCuentas && enCuentas !== undefined && (
+        <PanelDeCuenta
+          datos={datosDeCuentas}
+          vista={enCuentas}
+          mes={mes}
+          fuente={cuentas}
+          alCambiarVista={setEnCuentas}
+          alGuardar={recargar}
         />
       )}
 
@@ -394,17 +477,19 @@ function Esqueleto({ mes, conResumen, conLista }: { mes: string; conResumen: boo
   )
 }
 
-type Pestana = 'resumen' | 'movimientos'
+type Pestana = 'resumen' | 'movimientos' | 'cuentas'
 const PESTANAS: { id: Pestana; nombre: string }[] = [
   { id: 'resumen', nombre: 'Resumen' },
   { id: 'movimientos', nombre: 'Movimientos' },
+  { id: 'cuentas', nombre: 'Cuentas' },
 ]
 const CLAVE_DE_PESTANA = 'pestana-del-tablero'
 
 /** The tab left open last time, in this browser; Resumen the first time. */
 function pestanaGuardada(): Pestana {
   try {
-    return localStorage.getItem(CLAVE_DE_PESTANA) === 'movimientos' ? 'movimientos' : 'resumen'
+    const guardada = localStorage.getItem(CLAVE_DE_PESTANA)
+    return guardada === 'movimientos' || guardada === 'cuentas' ? guardada : 'resumen'
   } catch {
     return 'resumen'
   }

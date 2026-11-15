@@ -7,6 +7,7 @@ import type { FuenteDelTablero } from './fuente'
 import type { FuenteDeFacturas } from '../facturas/fuente'
 import type { FuenteDeMovimientos } from '../movimientos/fuente'
 import type { DatosDeMovimientos } from '../movimientos/reglas'
+import type { FuenteDeCuentas } from '../cuentas/fuente'
 
 const auth: ClienteDeAuth = {
   getSession: async () => ({ data: { session: { user: { email: 'erney@example.com' } } } }),
@@ -260,5 +261,35 @@ describe('registering from a receipt on the dashboard', () => {
     await userEvent.keyboard('{ArrowLeft}')
 
     expect(t.cargar).not.toHaveBeenCalledWith('2026-09')
+  })
+})
+
+describe('the tabs', () => {
+  const cuentas = (): FuenteDeCuentas => ({
+    cargar: vi.fn(async () => ({ hogarId: 'h1', cuentas: [], deudas: [], categoriasDeGasto: [] })),
+    movimientos: vi.fn(async () => []),
+    ejecutar: vi.fn(async () => null),
+    subirFoto: vi.fn(async () => ''),
+    borrarFoto: vi.fn(async () => {}),
+  })
+
+  it('offers only the tabs whose source is given, a saved missing one falling back to Resumen', async () => {
+    window.localStorage.setItem('pestana-del-tablero', 'movimientos')
+    render(
+      <ProveedorDeSesion cliente={auth}>
+        <Tablero fuente={fuente()} cuentas={cuentas()} mesInicial="2026-10" />
+      </ProveedorDeSesion>,
+    )
+
+    const tabs = await screen.findAllByRole('tab')
+    expect(tabs.map((t) => t.textContent)).toEqual(['Resumen', 'Cuentas'])
+    expect(screen.getByRole('tab', { name: 'Resumen' })).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByRole('region', { name: 'Gastado en octubre' })).toBeInTheDocument()
+  })
+
+  it('shows no tabs without movements nor accounts', async () => {
+    montar(fuente())
+    await screen.findByRole('region', { name: 'Gastado en octubre' })
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
   })
 })

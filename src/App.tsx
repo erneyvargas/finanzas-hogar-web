@@ -5,6 +5,7 @@ import { Tablero } from './tablero/Tablero'
 import type { FuenteDelTablero } from './tablero/fuente'
 import type { FuenteDeMovimientos } from './movimientos/fuente'
 import type { FuenteDeFacturas } from './facturas/fuente'
+import type { FuenteDeCuentas } from './cuentas/fuente'
 
 /**
  * Hash routes because GitHub Pages serves static files: a path like
@@ -14,10 +15,12 @@ function Rutas({
   fuente,
   movimientos,
   facturas,
+  cuentas,
 }: {
   fuente: FuenteDelTablero
   movimientos?: FuenteDeMovimientos
   facturas?: FuenteDeFacturas
+  cuentas?: FuenteDeCuentas
 }) {
   const { usuario } = useSesion()
 
@@ -26,7 +29,7 @@ function Rutas({
 
   return (
     <Routes>
-      <Route path="/" element={<Tablero fuente={fuente} movimientos={movimientos} facturas={facturas} />} />
+      <Route path="/" element={<Tablero fuente={fuente} movimientos={movimientos} facturas={facturas} cuentas={cuentas} />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
@@ -37,16 +40,18 @@ export function App({
   fuente,
   movimientos,
   facturas,
+  cuentas,
 }: {
   cliente: ClienteDeAuth
   fuente: FuenteDelTablero
   movimientos?: FuenteDeMovimientos
   facturas?: FuenteDeFacturas
+  cuentas?: FuenteDeCuentas
 }) {
   return (
     <ProveedorDeSesion cliente={cliente}>
       <HashRouter>
-        <Rutas fuente={fuente} movimientos={movimientos} facturas={facturas} />
+        <Rutas fuente={fuente} movimientos={movimientos} facturas={facturas} cuentas={cuentas} />
       </HashRouter>
     </ProveedorDeSesion>
   )

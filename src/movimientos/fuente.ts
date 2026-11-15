@@ -20,14 +20,14 @@ export interface FuenteDeMovimientos {
 }
 
 /** The phone uploads account and category photos to this private bucket. */
-const BUCKET_DE_FOTOS = 'categorias'
+export const BUCKET_DE_FOTOS = 'categorias'
 
 /**
  * Signed links for the account and category photos, by path. The bucket is private, so
  * the stored path is useless without a signature; one that cannot be
  * signed just leaves the initials, as when there is no photo.
  */
-async function firmarFotos(sb: SupabaseClient, rutas: string[]): Promise<Map<string, string>> {
+export async function firmarFotos(sb: SupabaseClient, rutas: string[]): Promise<Map<string, string>> {
   const enlaces = new Map<string, string>()
   if (rutas.length === 0) return enlaces
   try {

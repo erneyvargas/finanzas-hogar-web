@@ -6,6 +6,7 @@ import { supabase } from './core/supabase'
 import { fuenteDeSupabase, hogarEnCache } from './tablero/fuente'
 import { fuenteDeMovimientosDeSupabase } from './movimientos/fuente'
 import { fuenteDeFacturasDeSupabase } from './facturas/fuente'
+import { fuenteDeCuentasDeSupabase } from './cuentas/fuente'
 
 const raiz = createRoot(document.getElementById('root')!)
 const hogar = supabase ? hogarEnCache(supabase) : null
@@ -18,6 +19,7 @@ raiz.render(
         fuente={fuenteDeSupabase(supabase, hogar!)}
         movimientos={fuenteDeMovimientosDeSupabase(supabase, hogar!)}
         facturas={fuenteDeFacturasDeSupabase(supabase, hogar!)}
+        cuentas={fuenteDeCuentasDeSupabase(supabase, hogar!)}
       />
     ) : (
       <p className="cargando">
