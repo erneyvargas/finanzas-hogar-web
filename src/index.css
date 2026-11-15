@@ -79,6 +79,8 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--marca); out
 }
 .marca-texto { font-weight: 700; font-size: 20px; color: var(--marca); margin-right: auto; }
 .contenido { max-width: 1200px; margin: 0 auto; padding: 24px; }
+/* Room under the last row so the floating buttons never cover it. */
+.contenido { padding-bottom: 112px; }
 
 /* Rubro fill colors of the phone app (PaletaDeCategorias.rellenos*). */
 :root {
@@ -134,7 +136,7 @@ svg text { fill: var(--grafito); font-family: inherit; font-size: 12px; }
   .barra .secundario { order: 2; }
   .selector-mes { order: 3; }
   .selector-mes span { min-width: 120px; }
-  .contenido { padding: 16px; }
+  .contenido { padding: 16px 16px 152px; }
 }
 
 /* Movements list and the side panel (option A of the register proposals). */
