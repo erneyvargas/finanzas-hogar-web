@@ -1,0 +1,210 @@
+import { useEffect, useMemo, useState } from 'react'
+import { Anillo } from '../core/ui/Anillo'
+import { Cifra } from '../core/ui/Cifra'
+import { colorDe, dinero, nombreDelMes } from '../core/formato'
+import { pasaLaSeleccion } from '../movimientos/filtros'
+import { rutaDeCategoria, type CategoriaDeMovimiento, type FilaDeMovimiento } from '../movimientos/reglas'
+import { diaDe, moverMes, type CategoriaDelMes } from './calculo'
+
+/** Six slices read at a glance; the rest go together. */
+const CUANTAS = 6
+/** Palette keys of the phone app, in the order the slices take them. */
+const PALETA = ['marino', 'arcilla', 'laguna', 'lavanda', 'musgo', 'ciruela']
+const FILAS_A_LA_VISTA = 6
+
+interface Grupo extends CategoriaDelMes {
+  color: string
+  /** The level-2 categories it stands for. */
+  ids: string[]
+}
+
+function agrupar(categorias: CategoriaDelMes[]): Grupo[] {
+  const grandes = categorias.length > CUANTAS ? categorias.slice(0, CUANTAS - 1) : categorias
+  const grupos: Grupo[] = grandes.map((c, i) => ({ ...c, color: colorDe(PALETA[i]), ids: [c.id] }))
+  const resto = categorias.slice(grandes.length)
+  if (resto.length > 0) {
+    grupos.push({
+      id: 'otras',
+      nombre: 'Otras',
+      total: resto.reduce((s, c) => s + c.total, 0),
+      anterior: resto.reduce((s, c) => s + c.anterior, 0),
+      color: 'var(--grafito)',
+      ids: resto.map((c) => c.id),
+    })
+  }
+  return grupos
+}
+
+const pct = (parte: number, todo: number) => (todo > 0 ? Math.round((parte / todo) * 100) : 0)
+const editable = (el: EventTarget | null) =>
+  el instanceof HTMLElement && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))
+
+/**
+ * Spending by category (the Moxen "Gastos" layout): a ring with the
+ * month's total in the middle, the categories with their share and the
+ * change against the month before, and the month's movements below.
+ * Choosing a category (its row, its slice or keys 1–6) narrows all of it;
+ * again, Escape or the pill clear it.
+ */
+export function PorCategoria({
+  mes,
+  categorias,
+  filas,
+  categoriasDeMovimientos,
+  alElegirMovimiento,
+  alAnadir,
+}: {
+  mes: string
+  categorias: CategoriaDelMes[]
+  /** The month's movements; without them the card shows no list. */
+  filas: FilaDeMovimiento[] | null
+  categoriasDeMovimientos: CategoriaDeMovimiento[]
+  alElegirMovimiento: (fila: FilaDeMovimiento) => void
+  /** Opens a new expense for the chosen level-2 category, or none. */
+  alAnadir?: (categoriaId: string | null) => void
+}) {
+  const grupos = useMemo(() => agrupar(categorias), [categorias])
+  const total = grupos.reduce((s, g) => s + g.total, 0)
+  const [elegido, setElegido] = useState<string | null>(null)
+  const grupo = grupos.find((g) => g.id === elegido) ?? null
+  const anterior = nombreDelMes(moverMes(mes, -1))
+
+  // A new month starts with nothing chosen.
+  const [mesVisto, setMesVisto] = useState(mes)
+  if (mesVisto !== mes) {
+    setMesVisto(mes)
+    setElegido(null)
+  }
+
+  const alternar = (id: string) => setElegido((e) => (e === id ? null : id))
+
+  useEffect(() => {
+    const alTeclear = (e: KeyboardEvent) => {
+      // The panel owns the keys while it is open, and fields own their typing.
+      if (document.querySelector('[role="dialog"]') || editable(e.target)) return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      if (e.key === 'Escape') setElegido(null)
+      const n = Number(e.key)
+      if (Number.isInteger(n) && n >= 1 && n <= grupos.length) alternar(grupos[n - 1].id)
+    }
+    window.addEventListener('keydown', alTeclear)
+    return () => window.removeEventListener('keydown', alTeclear)
+  }, [grupos])
+
+  const delGrupo = (f: FilaDeMovimiento) => {
+    if (!grupo) return true
+    if (grupo.ids.includes('sin-categoria') && f.categoriaId === null) return true
+    return pasaLaSeleccion(new Set(grupo.ids), f.categoriaId, categoriasDeMovimientos)
+  }
+  const visibles = (filas ?? [])
+    .filter((f) => f.tipo === 'expense' && delGrupo(f))
+    .sort((a, b) => (a.fecha < b.fecha ? 1 : -1))
+
+  const cuantos = visibles.length
+  const subtitulo = grupo
+    ? `${pct(grupo.total, total)} % del mes`
+    : `${grupos.length} ${grupos.length === 1 ? 'categoría' : 'categorías'}`
+
+  return (
+    <section className="tarjeta completa por-categoria" aria-labelledby="t-categorias">
+      <div className="pc-cabeza">
+        <h2 id="t-categorias">Por categoría</h2>
+        {grupo && (
+          <button
+            type="button"
+            className="pc-filtro"
+            aria-label={`Quitar filtro ${grupo.nombre}`}
+            style={{ ['--c' as string]: grupo.color }}
+            onClick={() => setElegido(null)}
+          >
+            {grupo.nombre} <span aria-hidden="true">✕</span>
+          </button>
+        )}
+        {alAnadir && (
+          <button type="button" className="secundario pc-anadir" onClick={() => alAnadir(grupo?.id ?? null)}>
+            Añadir gasto
+          </button>
+        )}
+      </div>
+
+      {grupos.length === 0 ? (
+        <p className="nota">Sin gastos este mes.</p>
+      ) : (
+        <div className="pc-cuerpo">
+          <Anillo
+            etiqueta={`Gasto por categoría de ${nombreDelMes(mes)}`}
+            partes={grupos.map((g) => ({ id: g.id, valor: g.total, color: g.color, nombre: g.nombre }))}
+            elegido={elegido}
+            alElegir={alternar}
+            clave={mes}
+          >
+            <span className="pc-centro-et">{grupo ? grupo.nombre : `Gastado en ${nombreDelMes(mes)}`}</span>
+            <Cifra className="pc-centro-total" texto={dinero(grupo ? grupo.total : total)} />
+            <span className="pc-centro-sub">{subtitulo}</span>
+          </Anillo>
+
+          <ul className="pc-cats">
+            {grupos.map((g, i) => {
+              const cambio = g.anterior > 0 ? Math.round(((g.total - g.anterior) / g.anterior) * 100) : null
+              return (
+                <li key={g.id}>
+                  <button
+                    type="button"
+                    className="pc-cat"
+                    aria-pressed={g.id === elegido}
+                    aria-keyshortcuts={String(i + 1)}
+                    style={{ ['--c' as string]: g.color }}
+                    onClick={() => alternar(g.id)}
+                  >
+                    <span className="pc-cat-nom">{g.nombre}</span>
+                    <span className="pc-pildora num">{pct(g.total, total)} %</span>
+                    <b className="pc-cat-monto num">{dinero(g.total)}</b>
+                    <span className="pc-cat-cambio">
+                      {cambio === null ? (
+                        `Sin gasto en ${anterior}`
+                      ) : cambio === 0 ? (
+                        `Igual que en ${anterior}`
+                      ) : (
+                        <span className={cambio > 0 ? 'sube' : 'baja'}>
+                          {cambio > 0 ? '↑' : '↓'} {Math.abs(cambio)} % vs {anterior}
+                        </span>
+                      )}
+                    </span>
+                    <span className="pc-barra" aria-hidden="true">
+                      <i style={{ ['--w' as string]: total > 0 ? g.total / total : 0 }} />
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
+
+      {filas && grupos.length > 0 && (
+        <div className="pc-movimientos">
+          <p className="nota">
+            {cuantos} {cuantos === 1 ? 'movimiento' : 'movimientos'}
+            {grupo ? ` de ${grupo.nombre}` : ''}
+            {cuantos > FILAS_A_LA_VISTA ? ` · los ${FILAS_A_LA_VISTA} más recientes` : ''}
+          </p>
+          <ul>
+            {visibles.slice(0, FILAS_A_LA_VISTA).map((f) => {
+              const ruta = rutaDeCategoria(f.categoriaId, categoriasDeMovimientos).texto
+              const dia = diaDe(f.fecha)
+              return (
+                <li key={f.id} className="pc-mov">
+                  <button type="button" onClick={() => alElegirMovimiento(f)}>
+                    <span className="pc-mov-nom">{f.comercio || ruta.split(' › ').pop() || 'Sin categoría'}</span>
+                    <span className="nota">{`${Number(dia.slice(8))} ${nombreDelMes(dia.slice(0, 7)).slice(0, 3)}`}</span>
+                    <b className="num">−{dinero(f.monto)}</b>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
+    </section>
+  )
+}

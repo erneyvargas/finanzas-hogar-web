@@ -471,3 +471,65 @@ button.registrar.flotante {
 @media (prefers-reduced-motion: reduce) {
   .cifra-tira { transition: none; }
 }
+
+/* Por categoría: the Moxen "Gastos" layout on the dashboard's tokens. */
+.tarjeta.completa { grid-column: 1 / -1; }
+.pc-cabeza { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.pc-cabeza h2 { margin: 0; }
+.pc-anadir { margin-left: auto; padding: 8px 14px; font-size: 14px; }
+button.pc-filtro {
+  padding: 5px 12px; font-size: 13px; border-radius: 999px;
+  background: color-mix(in srgb, var(--c) 16%, var(--papel)); color: var(--tinta);
+}
+.pc-cuerpo { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 24px; align-items: center; }
+.pc-centro-et, .pc-centro-sub { font-size: 13px; font-weight: 600; color: var(--grafito); }
+.pc-centro-total { font-size: 34px; font-weight: 700; letter-spacing: -0.03em; }
+.pc-cats { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+button.pc-cat {
+  width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; align-items: center;
+  padding: 10px 12px; border-radius: 12px; text-align: left; font-weight: 400;
+  background: var(--fondo); color: var(--tinta); border: 1px solid transparent;
+  transition: transform 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+}
+button.pc-cat:hover { transform: translateY(-2px); border-color: var(--regla); }
+button.pc-cat[aria-pressed='true'] { border-color: var(--c); transform: translateY(-2px); }
+.por-categoria:has(.pc-cat[aria-pressed='true']) .pc-cat:not([aria-pressed='true']) { opacity: 0.6; }
+.pc-cat-nom { font-size: 14px; font-weight: 600; color: var(--grafito); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-pildora {
+  padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700;
+  background: color-mix(in srgb, var(--c) 18%, var(--papel));
+}
+.pc-cat-monto { font-size: 17px; }
+.pc-cat-cambio { grid-column: 1 / -1; font-size: 12px; color: var(--grafito); }
+.pc-barra { grid-column: 1 / -1; height: 4px; margin-top: 6px; border-radius: 4px; overflow: hidden; background: color-mix(in srgb, var(--c) 15%, transparent); }
+.pc-barra i {
+  display: block; height: 100%; background: var(--c); transform-origin: 0 50%;
+  transform: scaleX(var(--w, 0)); transition: transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.pc-movimientos { margin-top: 16px; border-top: 1px solid var(--regla); padding-top: 12px; }
+.pc-movimientos ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 2px; }
+.pc-mov { animation: pc-entra 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.pc-mov button {
+  width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center;
+  padding: 8px 10px; border-radius: 10px; text-align: left; font-weight: 400; background: transparent; color: var(--tinta);
+}
+.pc-mov button:hover { background: var(--fondo); }
+.pc-mov-nom { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@keyframes pc-entra { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.aviso-flotante {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 30;
+  display: flex; align-items: center; gap: 14px; padding: 10px 12px 10px 18px; border-radius: 14px;
+  background: var(--tinta); color: var(--papel); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25);
+  animation: pc-entra 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.aviso-flotante button.secundario { color: var(--papel); border-color: color-mix(in srgb, var(--papel) 40%, transparent); padding: 8px 14px; }
+@media (max-width: 900px) {
+  .pc-cuerpo { grid-template-columns: 1fr; }
+}
+@media (max-width: 560px) {
+  .pc-cats { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  button.pc-cat, .pc-barra i { transition: none; }
+  .pc-mov, .aviso-flotante { animation: none; }
+}
