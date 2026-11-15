@@ -98,6 +98,7 @@ export function ListaDeMovimientos({
   alElegir,
   alDuplicar,
   alBorrar,
+  alVerFactura,
 }: {
   mes: string
   datos: DatosDeMovimientos
@@ -105,6 +106,8 @@ export function ListaDeMovimientos({
   /** With both, each row gets the ⋮ menu. */
   alDuplicar?: (m: FilaDeMovimiento) => void
   alBorrar?: (m: FilaDeMovimiento) => Promise<void>
+  /** With it, a row with a receipt offers «Ver factura» in its menu. */
+  alVerFactura?: (m: FilaDeMovimiento, titulo: string) => void
 }) {
   // F5 keeps the filters: they are remembered for this tab. The chosen
   // days only come back for the month they belong to.
@@ -318,6 +321,9 @@ export function ListaDeMovimientos({
                     {alDuplicar && alBorrar && (
                       <MenuDeFila
                         titulo={l.titulo}
+                        alVerFactura={
+                          alVerFactura && l.fila.reciboId ? () => alVerFactura(l.fila, l.titulo) : undefined
+                        }
                         alDuplicar={() => alDuplicar(l.fila)}
                         alBorrar={() => alBorrar(l.fila)}
                       />

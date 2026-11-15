@@ -7,6 +7,7 @@ import type { FuenteDelTablero } from './fuente'
 import { colorDe, dinero, nombreDelMes } from '../core/formato'
 import type { FuenteDeMovimientos } from '../movimientos/fuente'
 import { DesdeFactura } from '../facturas/DesdeFactura'
+import { VisorDeFactura } from '../movimientos/VisorDeFactura'
 import type { FuenteDeFacturas } from '../facturas/fuente'
 import { ListaDeMovimientos } from '../movimientos/ListaDeMovimientos'
 import { Panel } from '../movimientos/Panel'
@@ -98,6 +99,8 @@ export function Tablero({
   const [anadido, setAnadido] = useState<{ id: string; error?: string } | null>(null)
   /** The receipt dialog's opening count while it is open; `null` when closed. */
   const [factura, setFactura] = useState<number | null>(null)
+  /** The movement whose receipt is being seen (Ver factura). */
+  const [viendoFactura, setViendoFactura] = useState<{ reciboId: string; titulo: string } | null>(null)
   const [datosDeCuentas, setDatosDeCuentas] = useState<DatosDeCuentas | null>(null)
   const [errorDeCuentas, setErrorDeCuentas] = useState<string | null>(null)
   /** The accounts panel: `undefined` when closed. */
@@ -271,7 +274,7 @@ export function Tablero({
   teclaDeMes.current = (e) => {
     const t = e.target
     if (t instanceof HTMLElement && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))) return
-    if (enPanel !== undefined || enCuentas !== undefined || factura !== null || e.ctrlKey || e.metaKey || e.altKey) return
+    if (enPanel !== undefined || enCuentas !== undefined || factura !== null || viendoFactura !== null || e.ctrlKey || e.metaKey || e.altKey) return
     if (e.key === 'ArrowLeft') setMes(moverMes(mes, -1))
     else if (e.key === 'ArrowRight' && mes < hoy) setMes(moverMes(mes, 1))
   }
@@ -403,6 +406,14 @@ export function Tablero({
             alElegir={abrir}
             alDuplicar={duplicar}
             alBorrar={borrarDesdeLaLista}
+            alVerFactura={
+              movimientos?.factura
+                ? (m, titulo) => {
+                    abridor.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+                    if (m.reciboId) setViendoFactura({ reciboId: m.reciboId, titulo })
+                  }
+                : undefined
+            }
           />
         )}
         {verCuentas && errorDeCuentas && <Fallo texto={errorDeCuentas} alReintentar={reintentar} />}
@@ -429,6 +440,17 @@ export function Tablero({
           movimientos={movimientos}
           ahora={ahora}
           alCerrar={cerrarFactura}
+        />
+      )}
+
+      {movimientos?.factura && viendoFactura && (
+        <VisorDeFactura
+          titulo={viendoFactura.titulo}
+          cargar={() => movimientos.factura!(viendoFactura.reciboId)}
+          alCerrar={() => {
+            setViendoFactura(null)
+            abridor.current?.focus()
+          }}
         />
       )}
 

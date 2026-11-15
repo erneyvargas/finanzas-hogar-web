@@ -2,16 +2,19 @@ import { useEffect, useRef, useState } from 'react'
 
 /**
  * The ⋮ button at the end of a movement row and its small menu:
- * Duplicar, and Borrar with a confirmation inside the menu. Escape or a
+ * Ver factura (when the movement has one), Duplicar, and Borrar with a confirmation inside the menu. Escape or a
  * click outside closes it; a rejected delete shows its reason and stays.
  */
 export function MenuDeFila({
   titulo,
+  alVerFactura,
   alDuplicar,
   alBorrar,
 }: {
   /** The row's title, to name the button for screen readers. */
   titulo: string
+  /** Offers «Ver factura» first; only for a movement with a receipt. */
+  alVerFactura?: () => void
   alDuplicar: () => void
   alBorrar: () => Promise<void>
 }) {
@@ -98,6 +101,18 @@ export function MenuDeFila({
             </div>
           ) : (
             <>
+              {alVerFactura && (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    cerrar(false)
+                    alVerFactura()
+                  }}
+                >
+                  Ver factura
+                </button>
+              )}
               <button
                 type="button"
                 role="menuitem"
