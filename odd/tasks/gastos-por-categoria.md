@@ -14,13 +14,16 @@ Branch: feat/gastos-por-categoria (on top of feat/buscar-rubros). Delivery: sing
 
 ## Tasks
 
-- T1 S4 numbers per category in `calculo.ts` (inline)
-- T2 S1 S2 domain-free `Anillo` and `Cifra` in `src/core/ui` (inline)
-- T3 S1 S3 S4 S5 card «Por categoría» in the Tablero (inline)
-- T4 S6 month slide and ←/→ keys (inline)
-- T5 S7 Añadir gasto with the category and undo toast (inline)
+- [x] T1 S4 numbers per category in `calculo.ts` (inline) — 953afc2
+- [x] T2 S1 S2 domain-free `Anillo` and `Cifra` in `src/core/ui` (inline) — 8067abc, f3d8d87
+- [x] T3 S1 S3 S4 S5 card «Por categoría» in the Tablero (inline) — b25b5f6
+- [x] T4 S6 month slide and ←/→ keys (inline) — 8a9298a
+- [x] T5 S7 Añadir gasto with the category and undo toast (inline) — b25b5f6
 
 ## Log
 
 - L1 (2026-11-15) "ayudame a mejorar finanzas hogar web, usa moxen para logragr un mejor diseño" → chose resource 1 (Gastos) "en el tablero", parts "todos"; part 7 option "1" (opens the existing Panel with the category, Deshacer via borrar_movimiento).
 - Part 6 reuses the existing month selector; parts 5 and 7 reuse the movements source and the Panel.
+- Registering needs a subcategory, so Añadir gasto types the level-2 name (its subcategories show) or picks the only one.
+- S5 rows animate in; leaving rows are not animated (they just go).
+- Browser check (2026-11-15, writes blocked): ring, filter, rolling total and list render with real data; found and fixed the ring not drawing after a StrictMode remount (f3d8d87).
