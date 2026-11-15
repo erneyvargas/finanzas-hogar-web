@@ -432,6 +432,32 @@ describe('the Por vencer tab', () => {
     expect(cal.querySelector('[data-dia="15"]')).toHaveClass('hoy')
   })
 
+  it('animates the unpaid circles by urgency: due today or overdue ripples, this week glows, later and paid stay still', async () => {
+    const conHoy = {
+      ...datosPv,
+      reglas: [
+        ...datosPv.reglas,
+        { ...regla, id: 'escrituras', nombre: 'Deuda escrituras', monto: 606000, diaDelMes: 15, proximaFecha: '2026-11-15', avisoDias: 1, categoriaId: 'c-esc' },
+        { ...regla, id: 'gym', nombre: 'Gimnasio', monto: 90000, diaDelMes: 10, proximaFecha: '2026-11-10', avisoDias: 1, categoriaId: 'c-gym' },
+      ],
+    }
+    window.localStorage.setItem('pestana-del-tablero', 'porvencer')
+    render(
+      <ProveedorDeSesion cliente={auth}>
+        <Tablero fuente={fuente()} porVencer={{ cargar: vi.fn(async () => conHoy) }} mesInicial="2026-10" ahora={ahora} />
+      </ProveedorDeSesion>,
+    )
+    const cal = await screen.findByRole('group', { name: 'Calendario de noviembre' })
+    const bola = (n: RegExp) => within(cal).getByRole('button', { name: n })
+    expect(bola(/^Deuda escrituras/)).toHaveClass('bola-pulso-urgente')
+    expect(bola(/^Gimnasio/)).toHaveClass('bola-pulso-urgente')
+    expect(bola(/^Internet/)).toHaveClass('bola-pulso-pronto')
+    expect(bola(/^Tarjeta BBVA/)).toHaveClass('bola-pulso-pronto')
+    expect(bola(/^Celular/).className).not.toMatch(/bola-pulso/)
+    expect(bola(/^Administración/).className).not.toMatch(/bola-pulso/)
+    expect(bola(/^Nubank/).className).not.toMatch(/bola-pulso/)
+  })
+
   it('lights the row of a hovered circle', async () => {
     await montarPv()
     await userEvent.hover(screen.getByRole('button', { name: /^Luz/ }))

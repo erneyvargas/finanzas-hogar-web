@@ -7,6 +7,7 @@ import { Cifra } from '../core/ui/Cifra'
 import { conSigno } from '../cuentas/reglas'
 import {
   diaCorto,
+  diasEntre,
   esUrgente,
   limite30,
   pendientesDelMes,
@@ -20,6 +21,16 @@ import {
   type Vencimiento,
 } from './reglas'
 
+/**
+ * What is still unpaid moves by urgency: due today or overdue ripples,
+ * the next 7 days glow, later stays still. Paid, unknown dates and cards
+ * without a statement never move.
+ */
+const pulsoDe = (v: Vencimiento, hoy: string): 'urgente' | 'pronto' | undefined => {
+  if (v.pagado || v.sinExtracto || v.fecha === null) return undefined
+  const dias = diasEntre(hoy, v.fecha)
+  return dias <= 0 ? 'urgente' : dias <= 7 ? 'pronto' : undefined
+}
 const conMayuscula = (t: string) => `${t[0].toUpperCase()}${t.slice(1)}`
 /** Cards have no category; they take the card blue. */
 const colorDeItem = (v: Vencimiento) => colorDe(v.color ?? (v.tipo === 'tarjeta' ? 'anil' : null))
@@ -75,6 +86,7 @@ export function PorVencer({
     etiqueta: v.sinExtracto
       ? `${v.nombre} · ${textoDeDeuda(v).toLocaleLowerCase('es')}`
       : `${v.nombre} · ${dinero(v.monto)} · ${v.pagado ? 'pagado' : textoDeDias(v, hoy)}`,
+    pulso: pulsoDe(v, hoy),
   })
   const festivos = new Map(
     [...festivosDe(Number(mes.slice(0, 4)))].filter(([d]) => d.startsWith(mes)).map(([d, n]) => [Number(d.slice(8)), n]),
