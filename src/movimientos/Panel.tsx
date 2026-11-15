@@ -10,6 +10,7 @@ import { problemaDelArchivo } from '../facturas/reglas'
 import type { FuenteDeMovimientos } from './fuente'
 import { Cara } from './ListaDeMovimientos'
 import { CampoDeCategoria } from './SelectorDeCategoria'
+import { SelectorDeCuenta } from '../cuentas/SelectorDeCuenta'
 import {
   ErrorDelServidor,
   MENSAJE_GENERICO,
@@ -453,20 +454,14 @@ export function Panel({
             </button>
           </div>
           {otra && (
-            <select
-              aria-label="Otra cuenta"
-              value={cuentaId}
-              onChange={(e) => {
-                setCuentaId(e.target.value)
-                setOtra(false)
-              }}
-            >
-              {ofrecidas.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.nombre}
-                </option>
-              ))}
-            </select>
+            <SelectorDeCuenta
+              etiqueta="Otra cuenta"
+              soloLista
+              opciones={ofrecidas.map((c) => ({ id: c.id, nombre: c.nombre, foto: c.foto, detalle: '' }))}
+              valor={cuentaId}
+              alElegir={setCuentaId}
+              alCerrar={() => setOtra(false)}
+            />
           )}
         </fieldset>
 
