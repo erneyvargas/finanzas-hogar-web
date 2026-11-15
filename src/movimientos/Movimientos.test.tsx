@@ -374,6 +374,15 @@ describe('the filter panel', () => {
     expect(comercios(lista)).toEqual(['Frisby'])
   })
 
+  it('marks Colombian holidays on the calendar, with their name', async () => {
+    const lista = await abrir()
+
+    const festivo = within(lista).getByRole('button', { name: '12 de octubre, festivo: Día de la Raza' })
+    expect(festivo).toHaveClass('festivo')
+    expect(festivo.title).toContain('Día de la Raza')
+    expect(within(lista).getByRole('button', { name: '13 de octubre' })).not.toHaveClass('festivo')
+  })
+
   it('two taps on the calendar choose the days between them', async () => {
     const lista = await abrir()
 
@@ -693,6 +702,16 @@ describe('correcting a movement', () => {
     montar(movimientos())
     const p = await registrarGasto()
     expect(within(p).queryByRole('button', { name: 'Duplicar' })).toBeNull()
+  })
+
+  it('the date calendar marks Colombian holidays, with their name', async () => {
+    montar(movimientos())
+    const p = await registrarGasto()
+    await userEvent.click(within(p).getByLabelText('Fecha'))
+
+    const festivo = within(p).getByRole('button', { name: /12 de octubre de 2026.*festivo: Día de la Raza/ })
+    expect(festivo.closest('td')).toHaveClass('festivo')
+    expect(within(p).getByRole('button', { name: /13 de octubre de 2026/ }).closest('td')).not.toHaveClass('festivo')
   })
 
   it('opens the panel filled, titled Corregir movimiento', async () => {

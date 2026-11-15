@@ -350,6 +350,9 @@ button.dia-del-mes.tono-3 { background: color-mix(in srgb, var(--marca) 40%, tra
 button.dia-del-mes.tono-4 { background: color-mix(in srgb, var(--marca) 58%, transparent); }
 button.dia-del-mes:hover { border-color: var(--marca); }
 button.dia-del-mes[aria-pressed='true'] { background: var(--marca); color: #fff; }
+/* Colombian holidays read in red, as on a printed calendar. */
+button.dia-del-mes.festivo { color: var(--alerta); }
+button.dia-del-mes.festivo[aria-pressed='true'] { color: #fff; }
 .rubros { display: grid; gap: 2px; }
 .buscar-rubro {
   width: 100%; font: inherit; font-size: 14px; padding: 8px 10px; margin-bottom: 8px;
@@ -432,6 +435,7 @@ button.dia-del-mes[data-previa='true'] {
 .calendario-flotante .rdp-caption_label { text-transform: capitalize; font-weight: 700; }
 .calendario-flotante .rdp-weekday { color: var(--grafito); font-size: 12px; font-weight: 700; text-transform: uppercase; }
 .calendario-flotante .rdp-day_button { font: inherit; font-weight: 600; padding: 0; background: transparent; color: inherit; border-radius: 10px; }
+.calendario-flotante .festivo .rdp-day_button { color: var(--alerta); }
 .calendario-flotante .rdp-selected .rdp-day_button { background: var(--marca); color: #fff; border-color: var(--marca); }
 .calendario-flotante .rdp-button_previous, .calendario-flotante .rdp-button_next { background: transparent; padding: 0; border-radius: 8px; }
 .calendario-flotante .rdp-chevron { fill: var(--marca); }

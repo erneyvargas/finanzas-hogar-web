@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { DayPicker } from 'react-day-picker'
+import { DayPicker, labelDayButton } from 'react-day-picker'
 import { es } from 'react-day-picker/locale'
 import 'react-day-picker/style.css'
+import { festivoDe } from '../core/festivos'
 import { MESES } from '../core/formato'
 
 /** `YYYY-MM-DD` as a local date, and back. */
@@ -11,6 +12,15 @@ const aFecha = (dia: string) => {
 }
 const aDia = (f: Date) =>
   `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, '0')}-${String(f.getDate()).padStart(2, '0')}`
+
+/** Colombian holidays, marked on the calendar and named in each day's label. */
+const esFestivo = (f: Date) => festivoDe(aDia(f)) !== undefined
+const etiquetaDelDia: typeof labelDayButton = (fecha, modificadores, opciones, lib) => {
+  const delIdioma = es.labels?.labelDayButton
+  const base = (typeof delIdioma === 'function' ? delIdioma : labelDayButton)(fecha, modificadores, opciones, lib)
+  const festivo = festivoDe(aDia(fecha))
+  return festivo ? `${base}, festivo: ${festivo}` : base
+}
 
 /** `25 oct 2026`, and `Hoy, 28 oct 2026` for today. */
 function textoDeLaFecha(dia: string, hoy: string) {
@@ -87,6 +97,9 @@ export function CampoDeFecha({
             selected={aFecha(dia)}
             defaultMonth={aFecha(dia)}
             today={aFecha(hoy)}
+            modifiers={{ festivo: esFestivo }}
+            modifiersClassNames={{ festivo: 'festivo' }}
+            labels={{ labelDayButton: etiquetaDelDia }}
             autoFocus
             onSelect={(f) => {
               if (f) alCambiar(aDia(f))

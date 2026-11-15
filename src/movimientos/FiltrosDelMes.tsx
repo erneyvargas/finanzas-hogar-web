@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { festivoDe } from '../core/festivos'
 import { colorDe, dinero, MESES } from '../core/formato'
 import { buscarEnArbol, dentroDelRango, type Rango, type RubroDelArbol } from './filtros'
 
@@ -75,16 +76,19 @@ export function FiltrosDelMes({
           const enPrevia = !elegido && previa !== null && dentroDelRango(previa, dia)
           // Five shades, so a quiet day and a heavy one read apart.
           const tono = gasto > 0 && mayor > 0 ? Math.max(1, Math.round((gasto / mayor) * 4)) : 0
+          const festivo = festivoDe(dia)
+          const nombre = `${i + 1} de ${MESES[m - 1]}`
+          const titulo = [festivo, gasto > 0 ? dinero(gasto) : null].filter(Boolean).join(' · ')
           return (
             <button
               key={dia}
               type="button"
-              className={`dia-del-mes tono-${tono}`}
-              aria-label={`${i + 1} de ${MESES[m - 1]}`}
+              className={`dia-del-mes tono-${tono}${festivo ? ' festivo' : ''}`}
+              aria-label={festivo ? `${nombre}, festivo: ${festivo}` : nombre}
               aria-pressed={elegido}
               data-previa={enPrevia || undefined}
               onMouseEnter={() => setSobre(dia)}
-              title={gasto > 0 ? dinero(gasto) : undefined}
+              title={titulo || undefined}
               onClick={() => alTocarDia(dia)}
             >
               {i + 1}
