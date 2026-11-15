@@ -18,6 +18,12 @@ export interface FuenteDeFacturas {
    * without it simply offers no debts.
    */
   deudas?(): Promise<DeudaAbierta[]>
+  /**
+   * Links an uploaded receipt to a movement as its evidence
+   * (`transactions.receipt_id`, one per movement). Optional so a source
+   * without it simply offers no evidence.
+   */
+  vincular?(movimientoId: string, reciboId: string): Promise<void>
 }
 
 const BUCKET = 'receipts'
@@ -105,6 +111,11 @@ export function fuenteDeFacturasDeSupabase(
           tipo: i.kind,
         })),
       }
+    },
+
+    async vincular(movimientoId, reciboId) {
+      const { error } = await sb.from('transactions').update({ receipt_id: reciboId }).eq('id', movimientoId)
+      if (error) throw new Error(error.message)
     },
 
     async deudas() {

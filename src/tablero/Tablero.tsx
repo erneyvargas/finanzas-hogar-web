@@ -444,6 +444,7 @@ export function Tablero({
           cuentaInicial={inicio?.cuenta}
           comercioInicial={inicio?.comercio}
           fuente={movimientos}
+          facturas={facturas}
           ahora={ahora}
           alCerrar={cerrar}
           alDuplicar={duplicar}

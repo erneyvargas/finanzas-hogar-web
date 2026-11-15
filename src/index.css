@@ -941,3 +941,18 @@ button.fila-categoria:hover, button.fila-sub:hover { background: var(--fondo); }
 .subcategorias button.fila-sub { padding-left: 28px; min-height: 44px; }
 .visto { margin-left: auto; color: var(--marca); font-weight: 800; }
 .selector-categoria .vacio { padding: 16px 4px; }
+
+/* A new movement's receipt as evidence: a dashed drop target, then the chosen file. */
+.campo .etiqueta-de-campo { font-size: 13px; color: var(--grafito); font-weight: 600; }
+.campo label.adjuntar {
+  display: grid; gap: 2px; justify-items: start; cursor: pointer;
+  padding: 12px 14px; border: 1px dashed var(--borde); border-radius: 10px;
+  font-size: 15px; font-weight: 600; color: var(--tinta);
+}
+.campo label.adjuntar small { font-size: 12px; font-weight: 400; color: var(--grafito); }
+.campo label.adjuntar:focus-within { outline: 2px solid var(--tinta); outline-offset: 2px; }
+.adjunto-elegido {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 8px 8px 14px; border: 1px solid var(--regla); border-radius: 10px;
+}
+.adjunto-nombre { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
