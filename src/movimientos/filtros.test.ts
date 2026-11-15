@@ -107,8 +107,11 @@ describe('choosing days', () => {
     expect(tocarDia(uno, '2026-11-08')).toEqual({ desde: '2026-11-08', hasta: '2026-11-14' })
   })
 
-  it('tapping the only chosen day clears it; a tap on a range starts again', () => {
-    expect(tocarDia({ desde: '2026-11-08', hasta: '2026-11-08' }, '2026-11-08')).toBeNull()
+  it('tapping the only chosen day keeps it (its chip clears it); a tap on a range starts again', () => {
+    expect(tocarDia({ desde: '2026-11-08', hasta: '2026-11-08' }, '2026-11-08')).toEqual({
+      desde: '2026-11-08',
+      hasta: '2026-11-08',
+    })
     expect(tocarDia({ desde: '2026-11-08', hasta: '2026-11-14' }, '2026-11-20')).toEqual({
       desde: '2026-11-20',
       hasta: '2026-11-20',

@@ -95,12 +95,13 @@ export interface Rango {
 
 /**
  * A tap on a calendar day: the first picks that day, a second one makes
- * the range, tapping the only chosen day clears it, and a tap on a range
- * starts again from that day.
+ * the range, tapping the only chosen day keeps it (its chip clears it,
+ * so nothing goes away by surprise), and a tap on a range starts again
+ * from that day.
  */
 export function tocarDia(rango: Rango | null, dia: string): Rango | null {
   if (rango && rango.desde === rango.hasta) {
-    if (dia === rango.desde) return null
+    if (dia === rango.desde) return rango
     return dia < rango.desde ? { desde: dia, hasta: rango.desde } : { desde: rango.desde, hasta: dia }
   }
   return { desde: dia, hasta: dia }

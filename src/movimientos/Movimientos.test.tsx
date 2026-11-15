@@ -435,22 +435,70 @@ describe('the filter panel', () => {
 
     const despues = await screen.findByRole('region', { name: 'Movimientos de octubre' })
     expect(within(despues).getByRole('checkbox', { name: 'Erney' })).toBeChecked()
-    expect(within(despues).getByText('Erney · 14 al 20 oct')).toBeInTheDocument()
+    const activos = within(despues).getByRole('group', { name: 'Filtros activos' })
+    expect(within(activos).getByRole('button', { name: 'Quitar 14 al 20 oct' })).toBeInTheDocument()
+    expect(within(activos).getByRole('button', { name: 'Quitar Erney' })).toBeInTheDocument()
     expect(comercios(despues)).toEqual(['Frisby'])
   })
 
-  it('says what is filtered and clears it all at once', async () => {
+  it('shows each active filter as a chip above the list, and Limpiar todo clears them all', async () => {
     const lista = await abrir()
 
     await userEvent.click(within(lista).getByRole('checkbox', { name: 'Hogar' }))
     await userEvent.click(within(lista).getByRole('button', { name: '14 de octubre' }))
     await userEvent.click(within(lista).getByRole('button', { name: '27 de octubre' }))
-    expect(within(lista).getByText('Hogar · 14 al 27 oct')).toBeInTheDocument()
+    const activos = within(lista).getByRole('group', { name: 'Filtros activos' })
+    expect(within(activos).getByRole('button', { name: 'Quitar 14 al 27 oct' })).toBeInTheDocument()
+    expect(within(activos).getByRole('button', { name: 'Quitar Hogar' })).toBeInTheDocument()
 
-    await userEvent.click(within(lista).getByRole('button', { name: 'Quitar filtros' }))
+    await userEvent.click(within(activos).getByRole('button', { name: 'Limpiar todo' }))
 
     expect(within(lista).getAllByRole('listitem')).toHaveLength(5)
-    expect(within(lista).queryByRole('button', { name: 'Quitar filtros' })).toBeNull()
+    expect(within(lista).queryByRole('group', { name: 'Filtros activos' })).toBeNull()
+  })
+
+  it('a chip ✕ removes only its filter; a category chip reads Rubro › Categoría', async () => {
+    const lista = await abrir()
+    await desplegar(lista, 'Hogar')
+    await userEvent.click(within(lista).getByRole('checkbox', { name: 'Servicios' }))
+    await userEvent.click(within(lista).getByRole('button', { name: '14 de octubre' }))
+    const activos = within(lista).getByRole('group', { name: 'Filtros activos' })
+
+    await userEvent.click(within(activos).getByRole('button', { name: 'Quitar 14 oct' }))
+
+    expect(within(activos).queryByRole('button', { name: 'Quitar 14 oct' })).toBeNull()
+    expect(within(activos).getByRole('button', { name: 'Quitar Hogar › Servicios' })).toBeInTheDocument()
+    expect(comercios(lista)).toEqual(['Factura de luz'])
+  })
+
+  it('a partly checked rubro says how many of its categories are checked', async () => {
+    const lista = await abrir()
+    await desplegar(lista, 'Hogar')
+    await userEvent.click(within(lista).getByRole('checkbox', { name: 'Servicios' }))
+
+    expect(within(lista).getByRole('checkbox', { name: 'Hogar' })).toHaveAttribute('aria-checked', 'mixed')
+    expect(within(lista).getByText('1 de 2')).toBeInTheDocument()
+  })
+
+  it('while searching, says the search does not change what is checked', async () => {
+    const lista = await abrir()
+    await userEvent.click(within(lista).getByRole('checkbox', { name: 'Erney' }))
+    await userEvent.type(within(lista).getByRole('searchbox', { name: 'Buscar rubro o categoría' }), 'serv')
+
+    expect(within(lista).getByText('Solo busca en esta lista. Lo marcado sigue igual (1 rubro).')).toBeInTheDocument()
+  })
+
+  it('spend is a bar under the day and the chosen days a ring, never the same mark', async () => {
+    const lista = await abrir()
+    const dia = within(lista).getByRole('button', { name: '14 de octubre' })
+    expect(dia.querySelector('.gasto-del-dia')).not.toBeNull()
+
+    await userEvent.click(dia)
+
+    expect(dia).toHaveAttribute('aria-pressed', 'true')
+    expect(dia.className).not.toMatch(/tono-/)
+    expect(within(lista).getByText('gasto del día')).toBeInTheDocument()
+    expect(within(lista).getByText('elegido')).toBeInTheDocument()
   })
 })
 

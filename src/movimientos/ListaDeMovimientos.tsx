@@ -155,8 +155,20 @@ export function ListaDeMovimientos({
       totales.set(c.id, (totales.get(c.id) ?? 0) + l.fila.monto)
     }
   }
-  const nombres = [...seleccion].map((id) => porId.get(id)?.nombre).filter(Boolean)
-  const filtrado = [nombres.join(', '), rango ? textoDelRango(rango) : ''].filter(Boolean).join(' · ')
+  // One removable chip per active filter: the days, then each rubro or
+  // `Rubro › Categoría` checked.
+  const activos = [...seleccion].map((id) => {
+    const rubro = arbol.find((r) => r.id === id)
+    if (rubro) return { id, texto: rubro.nombre }
+    const padre = arbol.find((r) => r.categorias.some((c) => c.id === id))
+    const nombre = porId.get(id)?.nombre ?? ''
+    return { id, texto: padre ? `${padre.nombre} › ${nombre}` : nombre }
+  })
+  const sinFiltro = (id: string) => {
+    const nueva = new Set(seleccion)
+    nueva.delete(id)
+    setSeleccion(nueva)
+  }
   const total = (xs: Linea[], tipo: FilaDeMovimiento['tipo']) =>
     xs.filter((l) => l.fila.tipo === tipo).reduce((a, l) => a + l.fila.monto, 0)
 
@@ -183,6 +195,8 @@ export function ListaDeMovimientos({
             seleccion={seleccion}
             totales={totales}
             alAlternar={(id) => setSeleccion(alternar(seleccion, id, arbol))}
+            alQuitarDias={() => setRango(null)}
+            alQuitarSeleccion={() => setSeleccion(new Set())}
           />
           <div className="lista-filtrada">
           <div className="filtros">
@@ -219,9 +233,14 @@ export function ListaDeMovimientos({
               {recientesPrimero ? 'Más recientes primero' : 'Más antiguos primero'} <span aria-hidden="true">⇅</span>
             </button>
           </div>
-          {filtrado && (
-            <p className="nota filtrado">
-              <span>{filtrado}</span>
+          {(rango || activos.length > 0) && (
+            <div className="filtros-activos" role="group" aria-label="Filtros activos">
+              {rango && (
+                <Activo texto={textoDelRango(rango)} alQuitar={() => setRango(null)} />
+              )}
+              {activos.map((a) => (
+                <Activo key={a.id} texto={a.texto} alQuitar={() => sinFiltro(a.id)} />
+              ))}
               <button
                 type="button"
                 className="enlace"
@@ -230,9 +249,9 @@ export function ListaDeMovimientos({
                   setRango(null)
                 }}
               >
-                Quitar filtros
+                Limpiar todo
               </button>
-            </p>
+            </div>
           )}
           {visibles.length === 0 && <p className="nota vacio">Ningún movimiento coincide.</p>}
           {dias.map((d) => (
@@ -277,5 +296,17 @@ export function ListaDeMovimientos({
         </div>
       )}
     </section>
+  )
+}
+
+/** An active filter as a chip; its ✕ removes only that filter. */
+function Activo({ texto, alQuitar }: { texto: string; alQuitar: () => void }) {
+  return (
+    <span className="activo">
+      <span>{texto}</span>
+      <button type="button" aria-label={`Quitar ${texto}`} onClick={alQuitar}>
+        <span aria-hidden="true">✕</span>
+      </button>
+    </span>
   )
 }

@@ -338,21 +338,53 @@ button.fila:hover, button.fila:focus-visible { background: color-mix(in srgb, va
   margin: 0 0 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em;
   text-transform: uppercase; color: var(--grafito);
 }
-.calendario { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; margin-bottom: 20px; }
+.calendario { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px 0; margin-bottom: 6px; }
 .dia-semana { text-align: center; font-size: 11px; font-weight: 700; color: var(--grafito); padding-bottom: 2px; }
 button.dia-del-mes {
   aspect-ratio: 1; padding: 0; border-radius: 8px; font-size: 12px; font-weight: 600;
-  color: var(--tinta); background: transparent; border: 1px solid transparent;
+  color: var(--tinta); background: transparent; border: 1px solid transparent; position: relative;
 }
-button.dia-del-mes.tono-1 { background: color-mix(in srgb, var(--marca) 12%, transparent); }
-button.dia-del-mes.tono-2 { background: color-mix(in srgb, var(--marca) 24%, transparent); }
-button.dia-del-mes.tono-3 { background: color-mix(in srgb, var(--marca) 40%, transparent); }
-button.dia-del-mes.tono-4 { background: color-mix(in srgb, var(--marca) 58%, transparent); }
+/* Spend is a grey bar under the number; green is only for what is chosen. */
+.gasto-del-dia {
+  position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%);
+  height: 3px; border-radius: 2px; background: color-mix(in srgb, var(--grafito) 70%, transparent);
+}
+.gasto-del-dia.nivel-1 { width: 5px; }
+.gasto-del-dia.nivel-2 { width: 9px; }
+.gasto-del-dia.nivel-3 { width: 13px; }
+.gasto-del-dia.nivel-4 { width: 18px; background: var(--tinta); }
 button.dia-del-mes:hover { border-color: var(--marca); }
-button.dia-del-mes[aria-pressed='true'] { background: var(--marca); color: #fff; }
+/* The chosen days: a light band, with a ring on its two ends. */
+button.dia-del-mes[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--marca) 16%, transparent); color: var(--marca); font-weight: 800; border-radius: 0;
+}
+button.dia-del-mes.inicio { border-radius: 9px 0 0 9px; box-shadow: inset 0 0 0 2px var(--marca); }
+button.dia-del-mes.fin { border-radius: 0 9px 9px 0; box-shadow: inset 0 0 0 2px var(--marca); }
+button.dia-del-mes.inicio.fin { border-radius: 9px; }
+.leyenda-calendario { display: flex; gap: 12px; margin: 0 0 18px; font-size: 11px; color: var(--grafito); }
+.leyenda-calendario i { display: inline-block; vertical-align: middle; margin-right: 4px; }
+.muestra-gasto { width: 14px; height: 3px; border-radius: 2px; background: var(--tinta); }
+.muestra-elegido { width: 13px; height: 13px; border-radius: 4px; box-shadow: inset 0 0 0 2px var(--marca); background: color-mix(in srgb, var(--marca) 16%, transparent); }
+div.titulo-filtro { display: flex; justify-content: space-between; align-items: baseline; }
+div.titulo-filtro .enlace { text-transform: none; letter-spacing: 0; font-size: 12px; padding: 0; }
+.cuantas {
+  font-size: 11px; font-weight: 700; color: var(--marca); padding: 1px 7px; border-radius: 999px;
+  background: color-mix(in srgb, var(--marca) 12%, transparent); white-space: nowrap;
+}
+.aviso-busqueda { font-size: 12px; margin: 0 0 6px; padding: 5px 8px; border-radius: 8px; background: color-mix(in srgb, var(--grafito) 9%, transparent); }
+.filtros-activos { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 8px; }
+.activo {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 4px 0 10px; border-radius: 999px;
+  font-size: 13px; font-weight: 700; background: color-mix(in srgb, var(--marca) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--marca) 45%, transparent);
+}
+.activo button {
+  width: 20px; height: 20px; padding: 0; border-radius: 50%; font-size: 11px; line-height: 1;
+  background: color-mix(in srgb, var(--marca) 22%, transparent); color: var(--tinta);
+}
 /* Colombian holidays read in red, as on a printed calendar. */
 button.dia-del-mes.festivo { color: var(--alerta); }
-button.dia-del-mes.festivo[aria-pressed='true'] { color: #fff; }
+button.dia-del-mes.festivo[aria-pressed='true'] { color: var(--alerta); }
 .rubros { display: grid; gap: 2px; }
 .buscar-rubro {
   width: 100%; font: inherit; font-size: 14px; padding: 8px 10px; margin-bottom: 8px;
@@ -374,7 +406,6 @@ button.casilla .punto { margin-right: 0; }
 button.casilla[aria-checked='true'] .caja, button.casilla[aria-checked='mixed'] .caja { background: var(--marca); border-color: var(--marca); }
 .casilla-nombre { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .casilla-total { margin-left: auto; font-size: 13px; }
-.filtrado { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 4px; color: var(--tinta); font-weight: 600; }
 button.enlace { padding: 0; background: transparent; color: var(--marca); font-size: 14px; text-decoration: underline; }
 @media (max-width: 900px) {
   .lista-con-filtros { grid-template-columns: 1fr; }
