@@ -984,3 +984,13 @@ button.pildora .medallon .glifo { font-size: 18px; }
 .visor-de-factura .mesa { overflow: auto; place-items: start center; }
 .visor-de-factura .mesa img { max-height: none; }
 .visor-de-factura .mesa object { min-height: 100%; }
+
+/* A loan installment in the transfer form: capital and interest, as on the phone. */
+.reparto-de-cuota { display: grid; gap: 10px; }
+.barra-de-cuota { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--regla); }
+.barra-de-cuota .capital { background: var(--marca); }
+.barra-de-cuota .interes { background: var(--alerta); }
+.reparto-de-cuota .tramos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.reparto-de-cuota .tramos div { display: grid; gap: 2px; }
+.reparto-de-cuota .tramos span { font-size: 13px; color: var(--grafito); }
+.nota.centrada { text-align: center; }

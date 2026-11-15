@@ -8,7 +8,6 @@ import {
   errorDeTarjeta,
   esDeudaSaldada,
   libroDe,
-  MOTIVO_PRESTAMO,
   ordenar,
   patrimonio,
   puedeInvertir,
@@ -113,11 +112,10 @@ describe('transfers', () => {
     expect(puedeTransferir('voucher', 'cash')).toBe(false)
   })
 
-  it('lists the destinations, a loan disabled with its hint', () => {
+  it('lists the destinations, a loan among them: paying it is an installment (0049)', () => {
     const d = destinosPara(efectivo, [efectivo, nequi, tarjeta, prestamo, ahorros, viejo])
     expect(d.map((x) => x.cuenta.id)).toEqual(['Nequi', 'Visa', 'Libranza', 'Ahorros'])
-    expect(d.find((x) => x.cuenta.id === 'Libranza')?.motivo).toBe(MOTIVO_PRESTAMO)
-    expect(d.filter((x) => x.motivo)).toHaveLength(1)
+    expect(d.filter((x) => x.motivo)).toHaveLength(0)
     expect(destinosPara(ahorros, [ahorros, efectivo, tarjeta]).map((x) => x.cuenta.id)).toEqual(['Efectivo'])
   })
 

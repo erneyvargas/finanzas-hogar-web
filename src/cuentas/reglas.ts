@@ -220,18 +220,42 @@ export interface Destino {
   motivo?: string
 }
 
-export const MOTIVO_PRESTAMO = 'Un préstamo se paga desde Deudas'
-
 /**
- * The live accounts [origen] can send money to. A loan the matrix would
- * take is listed but disabled: paying it is a debt payment (0048); a
- * settled loan is left out.
+ * The live accounts [origen] can send money to. A loan is one of them:
+ * paying it records an installment (0049), as the phone's Transferir
+ * does; a settled loan is left out.
  */
 export function destinosPara(origen: CuentaConSaldo, cuentas: CuentaConSaldo[]): Destino[] {
   return cuentas
     .filter((c) => !c.archivada && c.id !== origen.id && puedeTransferir(origen.tipo, c.tipo))
     .filter((c) => !(c.tipo === 'liability' && esDeudaSaldada(c)))
-    .map((c) => (c.tipo === 'liability' ? { cuenta: c, motivo: MOTIVO_PRESTAMO } : { cuenta: c }))
+    .map((c) => ({ cuenta: c }))
+}
+
+/** `reparto_de_cuota` (0049): how an installment to a loan splits, before paying it. */
+export interface RepartoDeCuota {
+  saldo: number
+  /** The month's interest still unpaid. */
+  interesDelMes: number
+  interes: number
+  capital: number
+  saldoDespues: number
+  /** The amount does not cover the month's interest: the server rejects it. */
+  insuficiente: boolean
+}
+
+export function leerReparto(r: unknown): RepartoDeCuota | null {
+  if (!r || typeof r !== 'object') return null
+  const o = r as Record<string, unknown>
+  const n = (k: string) => Number(o[k])
+  return {
+    saldo: n('saldo'),
+    interesDelMes: n('interes_del_mes'),
+    interes: n('interes'),
+    capital: n('capital'),
+    saldoDespues: n('saldo_despues'),
+    insuficiente: o.insuficiente === true,
+  }
 }
 
 /** The accounts a transfer can leave from: live, and with somewhere to go. */
@@ -264,9 +288,10 @@ export const puedeInvertir = (origen: CuentaConSaldo, destino: CuentaConSaldo) =
 export const gmfDe = (monto: number) => (monto > 0 ? Math.round(monto * 0.004) : 0)
 
 /** What each account is left with after the transfer; the source also pays its 4x1000. */
-export function vistaPrevia(origen: CuentaConSaldo, destino: CuentaConSaldo, monto: number) {
+/** Both balances after the transfer; a loan receives only the installment's [capital]. */
+export function vistaPrevia(origen: CuentaConSaldo, destino: CuentaConSaldo, monto: number, capital = monto) {
   const gmf = origen.cobraGmf && origen.categoriaGmf ? gmfDe(monto) : 0
-  return { origen: origen.saldo - monto - gmf, destino: destino.saldo + monto, gmf }
+  return { origen: origen.saldo - monto - gmf, destino: destino.saldo + capital, gmf }
 }
 
 /** Which actions an account offers, by the rules of the phone and of 0048. */

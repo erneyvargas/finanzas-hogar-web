@@ -19,6 +19,8 @@ import {
   origenesConSaldo,
   puedeInvertir,
   vistaPrevia,
+  leerReparto,
+  type RepartoDeCuota,
   type CuentaConSaldo,
   type DatosDeCuentas,
   type MovimientoDeCuenta,
@@ -151,7 +153,7 @@ export function PanelDeCuenta({
       {vista.v === 'foto' && (
         <Foto {...comun} c={cuenta!} base={deCuenta(cuenta!)} fuente={fuente} setGuardando={setGuardando} alGuardar={alGuardar} />
       )}
-      {vista.v === 'transferir' && <Transferir {...comun} datos={datos} vista={vista} base={base} />}
+      {vista.v === 'transferir' && <Transferir {...comun} datos={datos} vista={vista} base={base} fuente={fuente} />}
     </aside>
   )
 }
@@ -724,7 +726,13 @@ function Transferir({
   guardando,
   correr,
   volver,
-}: Comun & { datos: DatosDeCuentas; vista: { origen?: string; desde?: string }; base: Record<string, unknown> }) {
+  fuente,
+}: Comun & {
+  datos: DatosDeCuentas
+  vista: { origen?: string; desde?: string }
+  base: Record<string, unknown>
+  fuente: FuenteDeCuentas
+}) {
   const origenes = origenesConSaldo(datos.cuentas)
   const primero = (o: CuentaConSaldo | undefined) => (o ? destinosPara(o, datos.cuentas).find((d) => !d.motivo)?.cuenta.id ?? '' : '')
   const [origenId, setOrigenId] = useState(() => origenInicial(origenes, vista.origen)?.id ?? '')
@@ -743,7 +751,35 @@ function Transferir({
   const [id] = useState(() => crypto.randomUUID())
   const monto = leerMonto(montoTexto)
   const hayMonto = Number.isFinite(monto) && monto > 0
-  const previa = origen && destino && hayMonto ? vistaPrevia(origen, destino, monto) : null
+  // A loan destination is an installment, as on the phone: its split is
+  // previewed while typing and it is paid with pagar_cuota_de_prestamo.
+  const esCuota = destino?.tipo === 'liability'
+  const [reparto, setReparto] = useState<{ clave: string; r: RepartoDeCuota } | null>(null)
+  const clave = `${destinoId}|${monto}`
+  useEffect(() => {
+    if (!esCuota || !hayMonto) return
+    let vivo = true
+    const t = window.setTimeout(() => {
+      fuente
+        .ejecutar('reparto_de_cuota', { ...base, p_destino_id: destinoId, p_amount: monto })
+        .then((r) => {
+          const leido = leerReparto(r)
+          if (vivo && leido) setReparto({ clave, r: leido })
+        })
+        .catch(() => {
+          // No preview is not worth an error: saving still answers.
+        })
+    }, 250)
+    return () => {
+      vivo = false
+      window.clearTimeout(t)
+    }
+    // base is rebuilt each render; the household does not change here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [esCuota, hayMonto, destinoId, monto, clave, fuente])
+  const partida = esCuota && hayMonto && reparto?.clave === clave ? reparto.r : null
+  const previa =
+    origen && destino && hayMonto && (!esCuota || partida) ? vistaPrevia(origen, destino, monto, partida?.capital) : null
 
   if (!origen) return <p className="nota">No tienes cuentas entre las que transferir.</p>
 
@@ -755,13 +791,18 @@ function Transferir({
         if (!hayMonto) return setError('Una transferencia en cero no mueve nada')
         if (!destino) return setError('Elige a qué cuenta va la plata')
         void correr(
-          [['registrar_transferencia', { ...base, p_origen_id: origen.id, p_destino_id: destino.id, p_amount: monto, p_id: id }]],
+          [
+            [
+              esCuota ? 'pagar_cuota_de_prestamo' : 'registrar_transferencia',
+              { ...base, p_origen_id: origen.id, p_destino_id: destino.id, p_amount: monto, p_id: id },
+            ],
+          ],
           vista.desde ? { v: 'detalle', id: vista.desde } : undefined,
         )
       }}
     >
       <div className="cabecera-monto">
-        <label htmlFor="t-monto">Monto</label>
+        <label htmlFor="t-monto">{esCuota ? 'Cuota del préstamo' : 'Monto'}</label>
         <div className="monto">
           <span aria-hidden="true">$</span>
           <input
@@ -812,6 +853,32 @@ function Transferir({
           alElegir={setDestinoId}
         />
       </div>
+      {esCuota &&
+        (partida ? (
+          <div className="reparto-de-cuota" role="group" aria-label="Cómo se parte la cuota">
+            <div className="barra-de-cuota" aria-hidden="true">
+              <span className="capital" style={{ flexGrow: Math.max(partida.capital, 0) }} />
+              <span className="interes" style={{ flexGrow: partida.interes }} />
+            </div>
+            <div className="tramos num">
+              <div>
+                <span>Capital</span>
+                <b>{dinero(partida.capital)}</b>
+              </div>
+              <div>
+                <span>Intereses</span>
+                <b>{dinero(partida.interes)}</b>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="nota centrada">La cuota se parte en capital, que baja la deuda, e intereses, que son gasto.</p>
+        ))}
+      {partida?.insuficiente && (
+        <Aviso
+          texto={`Este abono no cubre los intereses del mes. La deuda subiría ${dinero(partida.interesDelMes - monto)}.`}
+        />
+      )}
       {previa && destino && (
         <div className="antes-despues num" aria-label="Cómo quedan">
           <div>
@@ -826,7 +893,10 @@ function Transferir({
         </div>
       )}
       <Aviso texto={error} />
-      <Pie texto={hayMonto ? `Transferir ${dinero(monto)}` : 'Transferir'} guardando={guardando} volver={volver} conVolver={!!vista.desde} />
+      <Pie
+        texto={
+          esCuota ? (hayMonto ? `Pagar cuota ${dinero(monto)}` : 'Pagar cuota') : hayMonto ? `Transferir ${dinero(monto)}` : 'Transferir'
+        } guardando={guardando} volver={volver} conVolver={!!vista.desde} />
     </form>
   )
 }
