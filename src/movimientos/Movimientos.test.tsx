@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { ProveedorDeSesion, type ClienteDeAuth } from '../auth/sesion'
+import { idDelRubroDeAjuste } from '../tablero/calculo'
 import { Tablero } from '../tablero/Tablero'
 import type { FuenteDelTablero } from '../tablero/fuente'
 import type { FuenteDeMovimientos } from './fuente'
@@ -75,8 +76,9 @@ async function registrarGasto() {
   await userEvent.click(await screen.findByRole('button', { name: '+ Registrar' }))
   const p = panel()
   await userEvent.type(within(p).getByLabelText('Valor'), '12.000')
-  await userEvent.type(within(p).getByLabelText('Categoría'), 'fruta')
-  await userEvent.click(within(p).getByRole('option', { name: 'Hogar › Mercado › Frutas y verduras' }))
+  await userEvent.click(within(p).getByRole('button', { name: 'Más' }))
+  await userEvent.type(within(p).getByRole('searchbox', { name: 'Buscar categoría' }), 'fruta')
+  await userEvent.click(within(p).getByRole('button', { name: /^Frutas y verduras.*Hogar › Mercado/ }))
   await userEvent.type(within(p).getByLabelText('Comercio'), 'Fruver')
   return p
 }
@@ -547,17 +549,6 @@ describe('registering a movement', () => {
     expect(within(p).getByRole('button', { name: 'Guardar ingreso · $14.500' })).toBeInTheDocument()
   })
 
-  it('shows the chosen category as leaf and path, and Cambiar opens the search', async () => {
-    montar(movimientos())
-    const p = await registrarGasto()
-
-    const elegida = within(p).getByRole('button', { name: /Frutas y verduras.*Hogar › Mercado.*Cambiar/ })
-    expect(within(p).queryByLabelText('Categoría')).not.toBeInTheDocument()
-    await userEvent.click(elegida)
-
-    expect(within(p).getByLabelText('Categoría')).toHaveFocus()
-  })
-
   it('offers the accounts that accept the kind, the most used first, with its balance', async () => {
     montar(movimientos())
     await userEvent.click(await screen.findByRole('button', { name: '+ Registrar' }))
@@ -880,7 +871,8 @@ describe('correcting a movement', () => {
     const copia = panel()
     expect(within(copia).getByRole('heading', { name: 'Duplicar movimiento' })).toBeInTheDocument()
     expect(within(copia).getByLabelText('Valor')).toHaveValue('5.000')
-    expect(within(copia).getByRole('button', { name: /Frutas y verduras.*Hogar › Mercado/ })).toBeInTheDocument()
+    expect(within(copia).getByRole('button', { name: 'Frutas y verduras, de Hogar' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(copia).getByText('Mercado › Frutas y verduras')).toBeInTheDocument()
     expect(within(copia).getByRole('group', { name: 'Sale de' })).toHaveTextContent('Master Card BBVA')
     expect(within(copia).getByLabelText('Fecha')).toHaveTextContent('Hoy, 28 oct 2026')
     expect(within(copia).getByLabelText('Comercio')).toHaveValue('Aguacate')
@@ -935,7 +927,8 @@ describe('correcting a movement', () => {
 
     expect(within(p).getByRole('heading', { name: 'Corregir movimiento' })).toBeInTheDocument()
     expect(within(p).getByLabelText('Valor')).toHaveValue('5.000')
-    expect(within(p).getByRole('button', { name: /Frutas y verduras.*Hogar › Mercado/ })).toBeInTheDocument()
+    expect(within(p).getByRole('button', { name: 'Frutas y verduras, de Hogar' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(p).getByText('Mercado › Frutas y verduras')).toBeInTheDocument()
     expect(within(p).getByRole('group', { name: 'Sale de' })).toHaveTextContent('Master Card BBVA')
     expect(within(p).getByLabelText('Fecha')).toHaveTextContent('24 oct 2026')
     expect(within(p).getByLabelText('Comercio')).toHaveValue('Aguacate')
@@ -982,5 +975,224 @@ describe('correcting a movement', () => {
     await userEvent.keyboard('{Escape}')
 
     await waitFor(() => expect(registrar).toHaveFocus())
+  })
+})
+
+describe('choosing the category', () => {
+  const sub = (id: string, nombre: string, padreId: string, extra: Partial<DatosDeMovimientos['categorias'][number]> = {}) => ({
+    id, nombre, tipo: 'expense', nivel: 'subcategory', padreId, color: null, viva: true, ...extra,
+  })
+  const ajuste = idDelRubroDeAjuste('h1')
+  const conArbol: DatosDeMovimientos = {
+    ...datos,
+    categorias: [
+      ...datos.categorias.filter((c) => c.id !== 'sueldo'),
+      { id: 'servicios', nombre: 'Servicios', tipo: 'expense', nivel: 'category', padreId: 'hogar', color: null, viva: true, orden: 2 },
+      // sort_order, not the name, orders the leaves.
+      sub('luz', 'Luz', 'servicios', { orden: 1 }),
+      sub('agua', 'Agua', 'servicios', { orden: 2 }),
+      { id: 'auto', nombre: 'Auto', tipo: 'expense', nivel: 'rubro', padreId: null, color: 'marino', viva: true, orden: 1 },
+      { id: 'gasolina-c', nombre: 'Gasolina', tipo: 'expense', nivel: 'category', padreId: 'auto', color: null, viva: true },
+      sub('gasolina', 'General', 'gasolina-c'),
+      { id: 'viejo', nombre: 'Viejo', tipo: 'expense', nivel: 'rubro', padreId: null, color: null, viva: false },
+      { id: 'viejo-c', nombre: 'Cosas', tipo: 'expense', nivel: 'category', padreId: 'viejo', color: null, viva: true },
+      sub('viejo-s', 'Algo', 'viejo-c'),
+      { id: ajuste, nombre: 'Ajustes', tipo: 'expense', nivel: 'rubro', padreId: null, color: null, viva: true },
+      { id: 'aj-c', nombre: 'Ajuste de saldo', tipo: 'expense', nivel: 'category', padreId: ajuste, color: null, viva: true },
+      sub('aj-s', 'General', 'aj-c'),
+      { id: 'nomina-c', nombre: 'Nómina', tipo: 'income', nivel: 'category', padreId: 'ing', color: null, viva: true },
+      { ...sub('sueldo', 'Sueldo', 'nomina-c'), tipo: 'income' },
+    ],
+  }
+
+  async function abrirPanel(cargados: DatosDeMovimientos = conArbol, ejecutar?: FuenteDeMovimientos['ejecutar']) {
+    const m = movimientos(ejecutar, cargados)
+    montar(m)
+    await userEvent.click(await screen.findByRole('button', { name: '+ Registrar' }))
+    return { p: panel(), m }
+  }
+  const selector = (p: HTMLElement) => within(p).getByRole('region', { name: 'Todas las categorías' })
+  const abrirMas = async (p: HTMLElement) => {
+    await userEvent.click(within(p).getByRole('button', { name: 'Más' }))
+    return selector(p)
+  }
+
+  it('asks ¿En qué fue? with the most used as shortcuts, then Más, and the short path below', async () => {
+    const { p } = await abrirPanel()
+    const atajos = within(p).getByRole('group', { name: '¿En qué fue?' })
+
+    // One use each: the tie keeps the tree's order (sort_order, then name).
+    expect(within(atajos).getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual([
+      'Aseo, de Hogar',
+      'Frutas y verduras, de Hogar',
+      'Más',
+    ])
+    expect(within(p).getByText('Toca una, o «Más» para ver todas')).toBeInTheDocument()
+
+    await userEvent.click(within(atajos).getByRole('button', { name: 'Aseo, de Hogar' }))
+
+    expect(within(atajos).getByRole('button', { name: 'Aseo, de Hogar' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(p).getByText('Mercado › Aseo')).toBeInTheDocument()
+  })
+
+  it('with no history, shows the first leaf of each rubro', async () => {
+    const { p } = await abrirPanel({ ...conArbol, movimientos: [] })
+    const atajos = within(p).getByRole('group', { name: '¿En qué fue?' })
+    expect(within(atajos).getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual([
+      'Aseo, de Hogar',
+      'Gasolina, de Auto',
+      'Más',
+    ])
+  })
+
+  it('Más opens the picker on the first rubro; the pills switch rubro; archived and adjustment rubros never show', async () => {
+    const { p } = await abrirPanel()
+    const s = await abrirMas(p)
+
+    expect(within(s).getByRole('searchbox', { name: 'Buscar categoría' })).toBeInTheDocument()
+    const pills = within(s).getByRole('group', { name: 'Rubros' })
+    expect(within(pills).getAllByRole('button').map((b) => b.textContent)).toEqual(['Hogar', 'Auto'])
+    expect(within(pills).getByRole('button', { name: 'Hogar' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(s).getByRole('heading', { name: 'Hogar · 4 opciones' })).toBeInTheDocument()
+    expect(within(s).getByRole('button', { name: /^Mercado.*2 subcategorías/ })).toHaveAttribute('aria-expanded', 'false')
+    expect(within(s).getByRole('button', { name: /^Servicios.*2 subcategorías/ })).toBeInTheDocument()
+
+    await userEvent.click(within(pills).getByRole('button', { name: 'Auto' }))
+
+    expect(within(pills).getByRole('button', { name: 'Auto' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(s).getByRole('heading', { name: 'Auto · 1 opción' })).toBeInTheDocument()
+    expect(within(s).getByRole('button', { name: 'Gasolina' })).not.toHaveAttribute('aria-expanded')
+    expect(within(s).queryByRole('button', { name: /Mercado/ })).toBeNull()
+  })
+
+  it('a category opens into its subcategories, one open at a time, in sort_order', async () => {
+    const { p } = await abrirPanel()
+    const s = await abrirMas(p)
+    const mercado = within(s).getByRole('button', { name: /^Mercado/ })
+    const servicios = within(s).getByRole('button', { name: /^Servicios/ })
+
+    await userEvent.click(mercado)
+    expect(mercado).toHaveAttribute('aria-expanded', 'true')
+    expect(within(s).getByRole('button', { name: 'Aseo' })).toBeInTheDocument()
+
+    await userEvent.click(servicios)
+    expect(mercado).toHaveAttribute('aria-expanded', 'false')
+    expect(within(s).queryByRole('button', { name: 'Aseo' })).toBeNull()
+    const hojas = within(s).getAllByRole('button').filter((b) => ['Luz', 'Agua'].includes(b.textContent ?? ''))
+    expect(hojas.map((b) => b.textContent)).toEqual(['Luz', 'Agua'])
+
+    await userEvent.click(servicios)
+    expect(servicios).toHaveAttribute('aria-expanded', 'false')
+    expect(within(s).queryByRole('button', { name: 'Luz' })).toBeNull()
+  })
+
+  it('picking a subcategory closes the picker, puts it first among the shortcuts and saves it', async () => {
+    const { p, m } = await abrirPanel()
+    const s = await abrirMas(p)
+    await userEvent.click(within(s).getByRole('button', { name: /^Servicios/ }))
+
+    await userEvent.click(within(s).getByRole('button', { name: 'Agua' }))
+
+    expect(within(p).queryByRole('region', { name: 'Todas las categorías' })).toBeNull()
+    const atajos = within(p).getByRole('group', { name: '¿En qué fue?' })
+    expect(within(atajos).getAllByRole('button')[0]).toHaveAccessibleName('Agua, de Hogar')
+    expect(within(atajos).getAllByRole('button')[0]).toHaveAttribute('aria-pressed', 'true')
+    expect(within(p).getByText('Servicios › Agua')).toBeInTheDocument()
+
+    await userEvent.type(within(p).getByLabelText('Valor'), '30000')
+    await userEvent.click(guardar(p))
+    expect(m.ejecutar).toHaveBeenCalledWith('registrar_movimiento', {
+      p_household_id: 'h1',
+      p_account_id: 'efe',
+      p_kind: 'expense',
+      p_amount: 30000,
+      p_category_id: 'agua',
+      p_occurred_at: '2026-10-28T15:30:00-05:00',
+      p_note: null,
+      p_merchant_name: null,
+      p_guardar_igual: false,
+      p_id: expect.stringMatching(/^[0-9a-f-]{36}$/),
+    })
+  })
+
+  it('a category whose only leaf is General is chosen in one tap, and reads Rubro › Categoría', async () => {
+    const { p, m } = await abrirPanel()
+    const s = await abrirMas(p)
+    await userEvent.click(within(within(s).getByRole('group', { name: 'Rubros' })).getByRole('button', { name: 'Auto' }))
+
+    await userEvent.click(within(s).getByRole('button', { name: 'Gasolina' }))
+
+    expect(within(p).queryByRole('region', { name: 'Todas las categorías' })).toBeNull()
+    expect(within(p).getByText('Auto › Gasolina')).toBeInTheDocument()
+    await userEvent.type(within(p).getByLabelText('Valor'), '50000')
+    await userEvent.click(guardar(p))
+    expect(m.ejecutar).toHaveBeenCalledWith('registrar_movimiento', expect.objectContaining({ p_category_id: 'gasolina' }))
+  })
+
+  it('the search lists matches flat across rubros, without pills, and says when none match', async () => {
+    const { p } = await abrirPanel()
+    const s = await abrirMas(p)
+    const buscar = within(s).getByRole('searchbox', { name: 'Buscar categoría' })
+
+    await userEvent.type(buscar, 'GASOLÍNA')
+    expect(within(s).queryByRole('group', { name: 'Rubros' })).toBeNull()
+    expect(within(s).getByRole('button', { name: /^Gasolina.*Auto$/ })).toBeInTheDocument()
+
+    await userEvent.clear(buscar)
+    await userEvent.type(buscar, 'merc')
+    expect(within(s).getByRole('button', { name: /^Frutas y verduras.*Hogar › Mercado/ })).toBeInTheDocument()
+    expect(within(s).getByRole('button', { name: /^Aseo.*Hogar › Mercado/ })).toBeInTheDocument()
+
+    await userEvent.type(buscar, 'zzz')
+    expect(
+      within(s).getByText('No hay categorías que coincidan. Puedes crearla en Secciones › Categorías.'),
+    ).toBeInTheDocument()
+  })
+
+  it('opens on the chosen category, with its check', async () => {
+    const { p } = await abrirPanel()
+    await userEvent.click(within(p).getByRole('button', { name: 'Aseo, de Hogar' }))
+    const s = await abrirMas(p)
+
+    expect(within(s).getByRole('button', { name: /^Mercado/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(within(s).getByRole('button', { name: 'Aseo' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(s).getByRole('button', { name: 'Frutas y verduras' })).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('a correction whose category was archived still shows it as chosen', async () => {
+    const archivada: DatosDeMovimientos = {
+      ...datos,
+      categorias: datos.categorias.map((c) => (c.id === 'mercado' ? { ...c, viva: false } : c)),
+    }
+    montar(movimientos(undefined, archivada))
+    const lista = await screen.findByRole('region', { name: 'Movimientos de octubre' })
+    await userEvent.click(await within(lista).findByRole('button', { name: /^(?!Más acciones).*Aguacate/ }))
+
+    expect(within(panel()).getByText('Mercado › Frutas y verduras')).toBeInTheDocument()
+    expect(within(panel()).queryByRole('button', { name: 'Frutas y verduras, de Hogar' })).toBeNull()
+  })
+
+  it('Escape closes the picker and leaves the panel open', async () => {
+    const { p } = await abrirPanel()
+    await abrirMas(p)
+    await userEvent.click(within(p).getByRole('searchbox', { name: 'Buscar categoría' }))
+
+    await userEvent.keyboard('{Escape}')
+
+    expect(within(p).queryByRole('region', { name: 'Todas las categorías' })).toBeNull()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('an income asks ¿De dónde viene?, offers income categories and clears an expense one', async () => {
+    const { p } = await abrirPanel()
+    await userEvent.click(within(p).getByRole('button', { name: 'Aseo, de Hogar' }))
+
+    await userEvent.click(within(p).getByRole('button', { name: 'Ingreso' }))
+
+    const atajos = within(p).getByRole('group', { name: '¿De dónde viene?' })
+    expect(within(atajos).getByRole('button', { name: 'Sueldo, de Ingresos' })).toHaveAttribute('aria-pressed', 'false')
+    expect(within(p).getByText('Toca una, o «Más» para ver todas')).toBeInTheDocument()
+    const s = await abrirMas(p)
+    expect(within(within(s).getByRole('group', { name: 'Rubros' })).getAllByRole('button').map((b) => b.textContent)).toEqual(['Ingresos'])
   })
 })
