@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { colorDe, dinero, miles } from '../core/formato'
-import { diaDe } from '../tablero/calculo'
+import { dinero, miles } from '../core/formato'
+import { diaDe, idDelRubroDeAjuste } from '../tablero/calculo'
 import { CampoConSugerencias } from './CampoConSugerencias'
+import { opcionesDeCategoria, usosPorCategoria } from './categorias'
 import { CampoDeFecha } from './CampoDeFecha'
 import { historialDeTextos, sugerir } from './historial'
 import type { FuenteDeMovimientos } from './fuente'
 import { Cara } from './ListaDeMovimientos'
+import { CampoDeCategoria } from './SelectorDeCategoria'
 import {
   ErrorDelServidor,
   MENSAJE_GENERICO,
   cambiosDe,
-  categoriasPara,
   cuentasPara,
   fechaParaServidor,
   leerMonto,
@@ -28,9 +29,6 @@ function agrupar(texto: string): string {
   const digitos = texto.replace(/\D/g, '')
   return digitos ? miles(Number(digitos)) : ''
 }
-
-const hojaDe = (ruta: string) => ruta.split(' › ').pop() ?? ruta
-const padresDe = (ruta: string) => ruta.split(' › ').slice(0, -1).join(' › ')
 
 /** `Guardar gasto · $14.500`, without the amount until there is one. */
 function textoDeGuardar(tipo: Tipo, monto: number): string {
@@ -86,7 +84,7 @@ export function Panel({
   copia?: FilaDeMovimiento | null
   /** A new movement's category, already chosen. */
   categoriaInicial?: string
-  /** A new movement's category search, already typed (its options show). */
+  /** A new movement's category search, already typed (the picker opens on it). */
   busquedaInicial?: string
   /** A new movement's amount, account and merchant, already filled (Pagar in Por vencer). */
   montoInicial?: number
@@ -113,9 +111,6 @@ export function Panel({
     desde ? miles(desde.monto) : montoInicial && montoInicial > 0 ? miles(montoInicial) : '',
   )
   const [categoriaId, setCategoriaId] = useState(desde?.categoriaId ?? categoriaInicial ?? '')
-  const [busqueda, setBusqueda] = useState(desde ? '' : busquedaInicial)
-  /** The search box shows while there is no category yet, or after Cambiar. */
-  const [buscando, setBuscando] = useState(false)
   const [cuentaId, setCuentaId] = useState(
     desde?.cuentaId ??
       (cuentaInicial && datos.cuentas.some((c) => c.id === cuentaInicial) ? cuentaInicial : inicial(desde?.tipo ?? 'expense')),
@@ -167,15 +162,19 @@ export function Panel({
   const chips = usadas.filter((id) => id !== cuentaId).slice(0, 3)
   const cuenta = datos.cuentas.find((c) => c.id === cuentaId)
 
-  const opciones = useMemo(() => {
-    const q = busqueda.trim().toLocaleLowerCase('es')
-    if (!q) return []
-    return categoriasPara(tipo, datos.categorias)
-      .map((c) => ({ id: c.id, ...rutaDeCategoria(c.id, datos.categorias) }))
-      .filter((c) => c.texto.toLocaleLowerCase('es').includes(q))
-      .slice(0, 8)
-  }, [busqueda, tipo, datos.categorias])
-  const elegida = categoriaId ? rutaDeCategoria(categoriaId, datos.categorias) : null
+  const opcionesPara = (t: Tipo) => opcionesDeCategoria(t, datos.categorias, idDelRubroDeAjuste(datos.hogarId))
+  const opciones = useMemo(
+    () => opcionesDeCategoria(tipo, datos.categorias, idDelRubroDeAjuste(datos.hogarId)),
+    [tipo, datos.categorias, datos.hogarId],
+  )
+  const usos = useMemo(
+    () => usosPorCategoria(datos.historial ?? datos.movimientos, tipo),
+    [datos.historial, datos.movimientos, tipo],
+  )
+  // A chosen category no longer offered (archived, being corrected) still shows its last two levels.
+  const rutaDeRespaldo = categoriaId
+    ? rutaDeCategoria(categoriaId, datos.categorias).texto.split(' › ').slice(-2).join(' › ')
+    : null
 
   // What this household already wrote for this kind, to suggest.
   const historial = useMemo(
@@ -200,7 +199,7 @@ export function Panel({
   function cambiarTipo(t: Tipo) {
     if (t === tipo) return
     setTipo(t)
-    if (!categoriasPara(t, datos.categorias).some((c) => c.id === categoriaId)) setCategoriaId('')
+    if (!opcionesPara(t).some((o) => o.id === categoriaId)) setCategoriaId('')
     setCuentaId(inicial(t))
     setOtra(false)
     setError(null)
@@ -341,61 +340,15 @@ export function Panel({
           </div>
         </div>
 
-        <div className="campo">
-          {elegida && !buscando ? (
-            <>
-              <span className="etiqueta">Categoría</span>
-              <button
-                type="button"
-                className="categoria-elegida"
-                onClick={() => setBuscando(true)}
-              >
-                <span className="punto" style={{ background: colorDe(elegida.color) }} />
-                <span className="categoria-texto">
-                  <b>{hojaDe(elegida.texto)}</b>
-                  <span className="apagado">{padresDe(elegida.texto)}</span>
-                </span>
-                <span className="cambiar">Cambiar</span>
-              </button>
-            </>
-          ) : (
-            <>
-              <label htmlFor="p-categoria">Categoría</label>
-              <input
-                id="p-categoria"
-                placeholder="Buscar categoría…"
-                autoComplete="off"
-                autoFocus={buscando}
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                onBlur={() => {
-                  if (!busqueda.trim()) setBuscando(false)
-                }}
-              />
-            </>
-          )}
-          {opciones.length > 0 && (
-            <ul className="sugerencias" role="listbox" aria-label="Categorías">
-              {opciones.map((o) => (
-                <li
-                  key={o.id}
-                  role="option"
-                  aria-selected={o.id === categoriaId}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => {
-                    setCategoriaId(o.id)
-                    setBusqueda('')
-                    setBuscando(false)
-                  }}
-                >
-                  <span className="punto" style={{ background: colorDe(o.color) }} />
-                  {o.texto}
-                </li>
-              ))}
-            </ul>
-          )}
-          {busqueda.trim() && opciones.length === 0 && <span className="nota">Ninguna categoría coincide.</span>}
-        </div>
+        <CampoDeCategoria
+          tipo={tipo}
+          opciones={opciones}
+          usos={usos}
+          categoriaId={categoriaId}
+          rutaDeRespaldo={rutaDeRespaldo}
+          busquedaInicial={desde ? '' : busquedaInicial}
+          alElegir={setCategoriaId}
+        />
 
         <fieldset className="campo cuenta">
           <legend>{tipo === 'expense' ? 'Sale de' : 'Entra a'}</legend>

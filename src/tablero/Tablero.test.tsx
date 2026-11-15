@@ -382,7 +382,8 @@ describe('the Por vencer tab', () => {
     ],
     categorias: [
       { id: 'hogar', nombre: 'Hogar', tipo: 'expense', nivel: 'rubro', padreId: null, color: null, viva: true },
-      { id: 'c-internet', nombre: 'Internet', tipo: 'expense', nivel: 'subcategory', padreId: 'hogar', color: null, viva: true },
+      { id: 'servicios', nombre: 'Servicios', tipo: 'expense', nivel: 'category', padreId: 'hogar', color: null, viva: true },
+      { id: 'c-internet', nombre: 'Internet', tipo: 'expense', nivel: 'subcategory', padreId: 'servicios', color: null, viva: true },
     ],
     movimientos: [],
   }
@@ -490,7 +491,8 @@ describe('the Por vencer tab', () => {
     const panel = screen.getByRole('dialog', { name: 'Registrar movimiento' })
     expect(within(panel).getByLabelText('Valor')).toHaveValue('101.000')
     expect(within(panel).getByLabelText('Comercio')).toHaveValue('Internet')
-    expect(within(panel).getByText('Hogar')).toBeInTheDocument()
+    expect(within(panel).getByRole('button', { name: 'Internet, de Hogar' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(panel).getByText('Servicios › Internet')).toBeInTheDocument()
     expect(within(panel).getByRole('group', { name: 'Sale de' })).toHaveTextContent('Nómina')
   })
 

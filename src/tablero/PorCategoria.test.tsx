@@ -132,8 +132,10 @@ describe('the Por categoría card', () => {
 
     await userEvent.click(within(t).getByRole('button', { name: 'Añadir gasto' }))
     const panel = screen.getByRole('dialog')
-    expect(within(panel).getByLabelText('Categoría')).toHaveValue('Transporte')
-    await userEvent.click(within(panel).getByRole('option', { name: /Taxi/ }))
+    const selector = within(panel).getByRole('region', { name: 'Todas las categorías' })
+    expect(within(selector).getByRole('searchbox', { name: 'Buscar categoría' })).toHaveValue('Transporte')
+    expect(within(selector).getByRole('button', { name: /^Bus.*Hogar › Transporte/ })).toBeInTheDocument()
+    await userEvent.click(within(selector).getByRole('button', { name: /^Taxi.*Hogar › Transporte/ }))
     await userEvent.type(within(panel).getByLabelText('Valor'), '8000')
     await userEvent.click(within(panel).getByRole('button', { name: /^Guardar gasto/ }))
 
@@ -154,6 +156,9 @@ describe('the Por categoría card', () => {
     await userEvent.click(within(t).getByRole('button', { name: /^Mercado/ }))
     await userEvent.click(within(t).getByRole('button', { name: 'Añadir gasto' }))
 
-    expect(within(screen.getByRole('dialog')).getByRole('button', { name: /Frutas.*Hogar › Mercado/ })).toBeInTheDocument()
+    const panel = screen.getByRole('dialog')
+    expect(within(panel).getByRole('button', { name: 'Frutas, de Hogar' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(panel).getByText('Mercado › Frutas')).toBeInTheDocument()
+    expect(within(panel).queryByRole('region', { name: 'Todas las categorías' })).toBeNull()
   })
 })
