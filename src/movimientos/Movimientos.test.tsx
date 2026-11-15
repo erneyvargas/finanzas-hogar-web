@@ -339,6 +339,50 @@ describe('the filter panel', () => {
     expect(within(lista).getByRole('checkbox', { name: 'Hogar' })).toHaveAttribute('aria-checked', 'mixed')
   })
 
+  it('the search box narrows the rubros and opens the ones whose categories match', async () => {
+    const lista = await abrir()
+    const panel = within(lista).getByRole('group', { name: 'Rubros y categorías' })
+
+    await userEvent.type(within(lista).getByRole('searchbox', { name: 'Buscar rubro o categoría' }), 'servi')
+
+    expect(within(panel).getByRole('checkbox', { name: 'Servicios' })).toBeInTheDocument()
+    expect(within(panel).getByRole('checkbox', { name: 'Hogar' })).toBeInTheDocument()
+    expect(within(panel).queryByRole('checkbox', { name: 'Erney' })).toBeNull()
+    // The search only narrows the panel, never the movements.
+    expect(comercios(lista)).toHaveLength(conRubros.movimientos.length)
+  })
+
+  it('says so when no rubro or category matches, and Escape clears the search', async () => {
+    const lista = await abrir()
+    const buscar = within(lista).getByRole('searchbox', { name: 'Buscar rubro o categoría' })
+
+    await userEvent.type(buscar, 'xyz')
+    expect(within(lista).getByText('Sin resultados para «xyz»')).toBeInTheDocument()
+
+    await userEvent.type(buscar, '{Escape}')
+    expect(buscar).toHaveValue('')
+    expect(within(lista).getByRole('checkbox', { name: 'Erney' })).toBeInTheDocument()
+    expect(within(lista).queryByRole('checkbox', { name: 'Servicios' })).toBeNull()
+  })
+
+  it('a checked category hidden by the search stays checked', async () => {
+    const lista = await abrir()
+    await userEvent.click(within(lista).getByRole('checkbox', { name: 'Erney' }))
+
+    await userEvent.type(within(lista).getByRole('searchbox', { name: 'Buscar rubro o categoría' }), 'servi')
+
+    expect(comercios(lista)).toEqual(['Frisby'])
+  })
+
+  it('marks Colombian holidays on the calendar, with their name', async () => {
+    const lista = await abrir()
+
+    const festivo = within(lista).getByRole('button', { name: '12 de octubre, festivo: Día de la Raza' })
+    expect(festivo).toHaveClass('festivo')
+    expect(festivo.title).toContain('Día de la Raza')
+    expect(within(lista).getByRole('button', { name: '13 de octubre' })).not.toHaveClass('festivo')
+  })
+
   it('two taps on the calendar choose the days between them', async () => {
     const lista = await abrir()
 
@@ -609,6 +653,65 @@ describe('correcting a movement', () => {
     expect(within(p).queryByRole('grid')).toBeNull()
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(fecha).toHaveTextContent('Hoy, 28 oct 2026')
+  })
+
+  it('Duplicar opens a new movement with the same fields and today as its date', async () => {
+    const m = movimientos()
+    const p = await abrirAguacate(m)
+
+    await userEvent.click(within(p).getByRole('button', { name: 'Duplicar' }))
+
+    const copia = panel()
+    expect(within(copia).getByRole('heading', { name: 'Duplicar movimiento' })).toBeInTheDocument()
+    expect(within(copia).getByLabelText('Valor')).toHaveValue('5.000')
+    expect(within(copia).getByRole('button', { name: /Frutas y verduras.*Hogar › Mercado/ })).toBeInTheDocument()
+    expect(within(copia).getByRole('group', { name: 'Sale de' })).toHaveTextContent('Master Card BBVA')
+    expect(within(copia).getByLabelText('Fecha')).toHaveTextContent('Hoy, 28 oct 2026')
+    expect(within(copia).getByLabelText('Comercio')).toHaveValue('Aguacate')
+    expect(within(copia).queryByRole('button', { name: 'Borrar' })).toBeNull()
+    expect(m.ejecutar).not.toHaveBeenCalled()
+  })
+
+  it('the duplicate saves as a new movement on the date chosen, and leaves the original alone', async () => {
+    const m = movimientos()
+    const p = await abrirAguacate(m)
+    await userEvent.click(within(p).getByRole('button', { name: 'Duplicar' }))
+    const copia = panel()
+    await userEvent.click(within(copia).getByLabelText('Fecha'))
+    await userEvent.click(within(copia).getByRole('button', { name: /26 de octubre de 2026/ }))
+
+    await userEvent.click(guardar(copia))
+
+    expect(m.ejecutar).toHaveBeenCalledTimes(1)
+    expect(m.ejecutar).toHaveBeenCalledWith('registrar_movimiento', {
+      p_household_id: 'h1',
+      p_account_id: 'tc',
+      p_kind: 'expense',
+      p_amount: 5000,
+      p_category_id: 'frutas',
+      p_occurred_at: '2026-10-26T15:30:00-05:00',
+      p_note: null,
+      p_merchant_name: 'Aguacate',
+      p_guardar_igual: false,
+      p_id: expect.stringMatching(/^[0-9a-f-]{36}$/),
+    })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('a new movement has no Duplicar button', async () => {
+    montar(movimientos())
+    const p = await registrarGasto()
+    expect(within(p).queryByRole('button', { name: 'Duplicar' })).toBeNull()
+  })
+
+  it('the date calendar marks Colombian holidays, with their name', async () => {
+    montar(movimientos())
+    const p = await registrarGasto()
+    await userEvent.click(within(p).getByLabelText('Fecha'))
+
+    const festivo = within(p).getByRole('button', { name: /12 de octubre de 2026.*festivo: Día de la Raza/ })
+    expect(festivo.closest('td')).toHaveClass('festivo')
+    expect(within(p).getByRole('button', { name: /13 de octubre de 2026/ }).closest('td')).not.toHaveClass('festivo')
   })
 
   it('opens the panel filled, titled Corregir movimiento', async () => {

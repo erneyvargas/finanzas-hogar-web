@@ -59,41 +59,50 @@ function aplicar(m: FilaDeMovimiento, { funcion, params }: Llamada): FilaDeMovim
 
 /**
  * The side panel (option A): registers a movement, or corrects
- * [original] when given. Every write is a server function; its
+ * [original] when given. A registration from [copia] (Duplicar) starts
+ * with that movement's fields and today as its date. Every write is a server function; its
  * rejections are shown here and the panel stays open. [alCerrar] says
  * whether something was saved, so the page reloads.
  */
 export function Panel({
   datos,
   original,
+  copia = null,
   fuente,
   ahora,
   alCerrar,
+  alDuplicar,
 }: {
   datos: DatosDeMovimientos
   original: FilaDeMovimiento | null
+  /** The movement a new registration copies; ignored while correcting. */
+  copia?: FilaDeMovimiento | null
   fuente: FuenteDeMovimientos
   ahora: () => Date
   alCerrar: (guardado: boolean) => void
+  /** Offers Duplicar while correcting; gets the movement as it now stands. */
+  alDuplicar?: (m: FilaDeMovimiento) => void
 }) {
   const corrigiendo = original !== null
+  // What fills the fields: the movement being corrected, or the one copied.
+  const desde = original ?? copia
   const inicial = (t: Tipo) => {
     const ofrecidas = cuentasPara(t, datos.cuentas)
     return masUsadas(datos.movimientos, t, ofrecidas)[0] ?? ofrecidas[0]?.id ?? ''
   }
 
   const [base, setBase] = useState(original)
-  const [tipo, setTipo] = useState<Tipo>(original?.tipo ?? 'expense')
-  const [montoTexto, setMontoTexto] = useState(original ? miles(original.monto) : '')
-  const [categoriaId, setCategoriaId] = useState(original?.categoriaId ?? '')
+  const [tipo, setTipo] = useState<Tipo>(desde?.tipo ?? 'expense')
+  const [montoTexto, setMontoTexto] = useState(desde ? miles(desde.monto) : '')
+  const [categoriaId, setCategoriaId] = useState(desde?.categoriaId ?? '')
   const [busqueda, setBusqueda] = useState('')
   /** The search box shows while there is no category yet, or after Cambiar. */
   const [buscando, setBuscando] = useState(false)
-  const [cuentaId, setCuentaId] = useState(original?.cuentaId ?? inicial('expense'))
+  const [cuentaId, setCuentaId] = useState(desde?.cuentaId ?? inicial(desde?.tipo ?? 'expense'))
   const [otra, setOtra] = useState(false)
   const [dia, setDia] = useState(original ? diaDe(original.fecha) : diaDe(ahora()))
-  const [comercio, setComercio] = useState(original?.comercio ?? '')
-  const [nota, setNota] = useState(original?.nota ?? '')
+  const [comercio, setComercio] = useState(desde?.comercio ?? '')
+  const [nota, setNota] = useState(desde?.nota ?? '')
   const [saldos, setSaldos] = useState<Record<string, number | null>>({})
   const [error, setError] = useState<ErrorDelServidor | null>(null)
   const [guardando, setGuardando] = useState(false)
@@ -130,9 +139,9 @@ export function Panel({
   const ofrecidas = useMemo(() => {
     const deTipo = cuentasPara(tipo, datos.cuentas)
     // A correction keeps showing its account even if it no longer qualifies.
-    const actual = datos.cuentas.find((c) => c.id === original?.cuentaId)
+    const actual = datos.cuentas.find((c) => c.id === desde?.cuentaId)
     return actual && !deTipo.includes(actual) ? [...deTipo, actual] : deTipo
-  }, [tipo, datos.cuentas, original])
+  }, [tipo, datos.cuentas, desde])
   const usadas = masUsadas(datos.movimientos, tipo, ofrecidas)
   const chips = usadas.filter((id) => id !== cuentaId).slice(0, 3)
   const cuenta = datos.cuentas.find((c) => c.id === cuentaId)
@@ -256,7 +265,7 @@ export function Panel({
     }
   }
 
-  const titulo = corrigiendo ? 'Corregir movimiento' : 'Registrar movimiento'
+  const titulo = corrigiendo ? 'Corregir movimiento' : copia ? 'Duplicar movimiento' : 'Registrar movimiento'
   const saldo = cuentaId ? saldos[cuentaId] : undefined
 
   return (
@@ -465,6 +474,11 @@ export function Panel({
             <button type="submit" className="guardar" disabled={guardando}>
               {corrigiendo ? 'Guardar cambios' : textoDeGuardar(tipo, leerMonto(montoTexto))}
             </button>
+            {corrigiendo && alDuplicar && base && (
+              <button type="button" className="secundario" disabled={guardando} onClick={() => alDuplicar(base)}>
+                Duplicar
+              </button>
+            )}
             {corrigiendo && (
               <button type="button" className="secundario" disabled={guardando} onClick={() => setBorrando(true)}>
                 Borrar

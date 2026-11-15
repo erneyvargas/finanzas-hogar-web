@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import { festivoDe } from '../core/festivos'
 import { colorDe, dinero, MESES } from '../core/formato'
-import { dentroDelRango, type Rango, type RubroDelArbol } from './filtros'
+import { buscarEnArbol, dentroDelRango, type Rango, type RubroDelArbol } from './filtros'
 
 const DIAS_CORTOS = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
 
@@ -51,6 +52,10 @@ export function FiltrosDelMes({
     else nuevos.add(id)
     setAbiertos(nuevos)
   }
+  // The search only narrows this panel; the selection and the list stay.
+  const [busqueda, setBusqueda] = useState('')
+  const buscando = busqueda.trim() !== ''
+  const visibles = buscarEnArbol(arbol, busqueda)
 
   return (
     <aside className="filtros-del-mes">
@@ -71,16 +76,19 @@ export function FiltrosDelMes({
           const enPrevia = !elegido && previa !== null && dentroDelRango(previa, dia)
           // Five shades, so a quiet day and a heavy one read apart.
           const tono = gasto > 0 && mayor > 0 ? Math.max(1, Math.round((gasto / mayor) * 4)) : 0
+          const festivo = festivoDe(dia)
+          const nombre = `${i + 1} de ${MESES[m - 1]}`
+          const titulo = [festivo, gasto > 0 ? dinero(gasto) : null].filter(Boolean).join(' · ')
           return (
             <button
               key={dia}
               type="button"
-              className={`dia-del-mes tono-${tono}`}
-              aria-label={`${i + 1} de ${MESES[m - 1]}`}
+              className={`dia-del-mes tono-${tono}${festivo ? ' festivo' : ''}`}
+              aria-label={festivo ? `${nombre}, festivo: ${festivo}` : nombre}
               aria-pressed={elegido}
               data-previa={enPrevia || undefined}
               onMouseEnter={() => setSobre(dia)}
-              title={gasto > 0 ? dinero(gasto) : undefined}
+              title={titulo || undefined}
               onClick={() => alTocarDia(dia)}
             >
               {i + 1}
@@ -90,11 +98,29 @@ export function FiltrosDelMes({
       </div>
 
       <p className="titulo-filtro" id="t-rubros">Rubros y categorías</p>
+      <input
+        type="search"
+        className="buscar-rubro"
+        placeholder="Buscar rubro o categoría"
+        aria-label="Buscar rubro o categoría"
+        value={busqueda}
+        onChange={(e) => setBusqueda(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') setBusqueda('')
+        }}
+      />
       <div role="group" aria-labelledby="t-rubros" className="rubros">
-        {arbol.map((r) => {
-          const marcadas = r.categorias.filter((c) => seleccion.has(c.id)).length
+        {buscando && visibles.length === 0 && (
+          <p className="nota sin-resultados">Sin resultados para «{busqueda.trim()}»</p>
+        )}
+        {visibles.map((r) => {
+          // The rubro's state reads all its categories, also the hidden ones.
+          const completo = arbol.find((x) => x.id === r.id) ?? r
+          const marcadas = completo.categorias.filter((c) => seleccion.has(c.id)).length
           const estado = seleccion.has(r.id) ? 'true' : marcadas > 0 ? 'mixed' : 'false'
-          const abierto = abiertos.has(r.id)
+          // While searching, a rubro kept for its categories shows them.
+          const porSusCategorias = buscando && r !== arbol.find((x) => x.id === r.id)
+          const abierto = abiertos.has(r.id) || porSusCategorias
           return (
             <div key={r.id} className="rubro">
               <div className="rubro-cabeza">

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { alternar, arbolDeGastos, dentroDelRango, pasaLaSeleccion, tocarDia, type Rango } from './filtros'
+import { alternar, arbolDeGastos, buscarEnArbol, dentroDelRango, pasaLaSeleccion, tocarDia, type Rango } from './filtros'
 import type { CategoriaDeMovimiento } from './reglas'
 
 const cat = (id: string, nivel: string, padreId: string | null, tipo = 'expense'): CategoriaDeMovimiento => ({
@@ -29,6 +29,36 @@ describe('the expense tree', () => {
       ['hogar', ['mercado', 'servicios']],
       ['erney', ['comida']],
     ])
+  })
+})
+
+describe('searching the tree', () => {
+  const arbol = arbolDeGastos(categorias).map((r) => ({
+    ...r,
+    nombre: r.id === 'hogar' ? 'Hogar' : 'Erney',
+    categorias: r.categorias.map((c) => ({ ...c, nombre: c.id === 'servicios' ? 'Servicios públicos' : c.id })),
+  }))
+  const forma = (texto: string) => buscarEnArbol(arbol, texto).map((r) => [r.id, r.categorias.map((c) => c.id)])
+
+  it('keeps the whole tree for an empty or blank text', () => {
+    expect(buscarEnArbol(arbol, '')).toBe(arbol)
+    expect(buscarEnArbol(arbol, '   ')).toBe(arbol)
+  })
+
+  it('a rubro that matches keeps all its categories', () => {
+    expect(forma('hog')).toEqual([['hogar', ['mercado', 'servicios']]])
+  })
+
+  it('a category that matches keeps its rubro with only the matching categories', () => {
+    expect(forma('públicos')).toEqual([['hogar', ['servicios']]])
+  })
+
+  it('ignores case and accents', () => {
+    expect(forma('PUBLICOS')).toEqual([['hogar', ['servicios']]])
+  })
+
+  it('returns nothing when nothing matches', () => {
+    expect(forma('xyz')).toEqual([])
   })
 })
 
