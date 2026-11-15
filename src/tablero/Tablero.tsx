@@ -16,7 +16,7 @@ import { PorCategoria } from './PorCategoria'
 import { Cuentas } from '../cuentas/Cuentas'
 import type { FuenteDeCuentas } from '../cuentas/fuente'
 import { PanelDeCuenta, type VistaDeCuenta } from '../cuentas/PanelDeCuenta'
-import type { DatosDeCuentas } from '../cuentas/reglas'
+import { origenesConSaldo, puedeTransferir, type DatosDeCuentas } from '../cuentas/reglas'
 import { PorVencer } from '../porvencer/PorVencer'
 import type { FuenteDePorVencer } from '../porvencer/fuente'
 import { porPagarEn30Dias, vencimientos, type DatosDePorVencer, type Vencimiento } from '../porvencer/reglas'
@@ -204,6 +204,23 @@ export function Tablero({
   }
   /** Pagar in Por vencer: a new expense with the bill's amount, category, account and name. */
   const pagar = (v: Vencimiento) => {
+    // A card or a debt rule is paid with a transfer into it, as on the phone.
+    if (v.destinoId) {
+      if (!cuentas || !datosDeCuentas) return
+      // The rule's (or principal) account when it covers the amount; else the
+      // one with the most money that can reach the destination.
+      const destino = datosDeCuentas.cuentas.find((c) => c.id === v.destinoId)
+      const posibles = destino
+        ? origenesConSaldo(datosDeCuentas.cuentas).filter((c) => puedeTransferir(c.tipo, destino.tipo))
+        : []
+      const pedida = posibles.find((c) => c.id === v.cuentaId)
+      const origen =
+        pedida && pedida.saldo >= v.monto
+          ? pedida
+          : posibles.reduce<(typeof posibles)[number] | undefined>((max, c) => (!max || c.saldo > max.saldo ? c : max), undefined)
+      abrirCuentas({ v: 'transferir', origen: origen?.id ?? v.cuentaId ?? undefined, destino: v.destinoId, monto: v.monto })
+      return
+    }
     abrir(null)
     setInicio({
       categoria: v.categoriaId ?? undefined,
@@ -421,7 +438,12 @@ export function Tablero({
         {verPorVencer && errorPorVencer && <Fallo texto={errorPorVencer} alReintentar={reintentar} />}
         {verPorVencer && !errorPorVencer && !datosPorVencer && <p className="cargando">Cargando vencimientos…</p>}
         {verPorVencer && !errorPorVencer && datosPorVencer && (
-          <PorVencer datos={datosPorVencer} hoy={diaDeHoy} alPagar={movimientos && lista ? pagar : undefined} />
+          <PorVencer
+            datos={datosPorVencer}
+            hoy={diaDeHoy}
+            alPagar={movimientos && lista ? pagar : undefined}
+            puedeTransferir={!!cuentas && !!datosDeCuentas}
+          />
         )}
         {verCuentas && !errorDeCuentas && datosDeCuentas && (
           <Cuentas
