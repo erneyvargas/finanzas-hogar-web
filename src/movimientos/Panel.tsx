@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { colorDe, dinero, miles } from '../core/formato'
 import { diaDe } from '../tablero/calculo'
+import { CampoConSugerencias } from './CampoConSugerencias'
 import { CampoDeFecha } from './CampoDeFecha'
+import { historialDeTextos, sugerir } from './historial'
 import type { FuenteDeMovimientos } from './fuente'
 import { Cara } from './ListaDeMovimientos'
 import {
@@ -162,6 +164,12 @@ export function Panel({
       .slice(0, 8)
   }, [busqueda, tipo, datos.categorias])
   const elegida = categoriaId ? rutaDeCategoria(categoriaId, datos.categorias) : null
+
+  // What this household already wrote for this kind, to suggest.
+  const historial = useMemo(
+    () => historialDeTextos((datos.historial ?? datos.movimientos).filter((m) => m.tipo === tipo)),
+    [datos.historial, datos.movimientos, tipo],
+  )
 
   useEffect(() => {
     if (!cuentaId || cuentaId in saldos) return
@@ -433,25 +441,27 @@ export function Panel({
           </div>
           <div className="campo">
             <label htmlFor="p-comercio">Comercio</label>
-            <input
+            <CampoConSugerencias
               id="p-comercio"
-              autoComplete="off"
-              value={comercio}
+              valor={comercio}
+              alCambiar={setComercio}
+              sugerencias={sugerir(historial.comercios, comercio, categoriaId)}
+              nombreDeLista="Sugerencias de comercio"
               disabled={corrigiendo}
               title={corrigiendo ? 'El comercio no se corrige desde aquí' : undefined}
-              onChange={(e) => setComercio(e.target.value)}
             />
           </div>
         </div>
 
         <div className="campo">
           <label htmlFor="p-nota">Observaciones</label>
-          <input
+          <CampoConSugerencias
             id="p-nota"
-            autoComplete="off"
+            valor={nota}
+            alCambiar={setNota}
+            sugerencias={sugerir(historial.notas, nota, categoriaId)}
+            nombreDeLista="Sugerencias de observaciones"
             placeholder="Opcional"
-            value={nota}
-            onChange={(e) => setNota(e.target.value)}
           />
         </div>
 

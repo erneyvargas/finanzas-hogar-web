@@ -19,6 +19,8 @@ export function FiltrosDelMes({
   seleccion,
   totales,
   alAlternar,
+  alQuitarDias,
+  alQuitarSeleccion,
 }: {
   mes: string
   gastoPorDia: Map<string, number>
@@ -28,6 +30,8 @@ export function FiltrosDelMes({
   seleccion: Set<string>
   totales: Map<string, number>
   alAlternar: (id: string) => void
+  alQuitarDias: () => void
+  alQuitarSeleccion: () => void
 }) {
   const [a, m] = mes.split('-').map(Number)
   const diasDelMes = new Date(Date.UTC(a, m, 0)).getUTCDate()
@@ -56,10 +60,26 @@ export function FiltrosDelMes({
   const [busqueda, setBusqueda] = useState('')
   const buscando = busqueda.trim() !== ''
   const visibles = buscarEnArbol(arbol, busqueda)
+  const rubrosMarcados = arbol.filter((r) => seleccion.has(r.id)).length
+  const categoriasMarcadas = seleccion.size - rubrosMarcados
+  const marcado = [
+    rubrosMarcados ? `${rubrosMarcados} ${rubrosMarcados === 1 ? 'rubro' : 'rubros'}` : '',
+    categoriasMarcadas ? `${categoriasMarcadas} ${categoriasMarcadas === 1 ? 'categoría' : 'categorías'}` : '',
+  ].filter(Boolean).join(' y ')
+  const avisoDeBusqueda = marcado
+    ? `Solo busca en esta lista. Lo marcado sigue igual (${marcado}).`
+    : 'Solo busca en esta lista; no marca nada.'
 
   return (
     <aside className="filtros-del-mes">
-      <p className="titulo-filtro" aria-hidden="true">Días</p>
+      <div className="titulo-filtro">
+        <span aria-hidden="true">Días</span>
+        {rango && (
+          <button type="button" className="enlace" onClick={alQuitarDias}>
+            Quitar días
+          </button>
+        )}
+      </div>
       <div className="calendario" role="group" aria-label="Días del mes" onMouseLeave={() => setSobre(null)}>
         {DIAS_CORTOS.map((d, i) => (
           <span key={i} className="dia-semana" aria-hidden="true">
@@ -74,8 +94,11 @@ export function FiltrosDelMes({
           const gasto = gastoPorDia.get(dia) ?? 0
           const elegido = rango !== null && dentroDelRango(rango, dia)
           const enPrevia = !elegido && previa !== null && dentroDelRango(previa, dia)
-          // Five shades, so a quiet day and a heavy one read apart.
+          // Four bar widths, so a quiet day and a heavy one read apart. The
+          // bar is grey: green is only for what is chosen.
           const tono = gasto > 0 && mayor > 0 ? Math.max(1, Math.round((gasto / mayor) * 4)) : 0
+          const inicio = elegido && rango !== null && dia === rango.desde
+          const fin = elegido && rango !== null && dia === rango.hasta
           const festivo = festivoDe(dia)
           const nombre = `${i + 1} de ${MESES[m - 1]}`
           const titulo = [festivo, gasto > 0 ? dinero(gasto) : null].filter(Boolean).join(' · ')
@@ -83,7 +106,7 @@ export function FiltrosDelMes({
             <button
               key={dia}
               type="button"
-              className={`dia-del-mes tono-${tono}${festivo ? ' festivo' : ''}`}
+              className={`dia-del-mes${festivo ? ' festivo' : ''}${inicio ? ' inicio' : ''}${fin ? ' fin' : ''}`}
               aria-label={festivo ? `${nombre}, festivo: ${festivo}` : nombre}
               aria-pressed={elegido}
               data-previa={enPrevia || undefined}
@@ -92,12 +115,30 @@ export function FiltrosDelMes({
               onClick={() => alTocarDia(dia)}
             >
               {i + 1}
+              {tono > 0 && <span className={`gasto-del-dia nivel-${tono}`} aria-hidden="true" />}
             </button>
           )
         })}
       </div>
+      <p className="leyenda-calendario" aria-hidden="true">
+        <span>
+          <i className="muestra-gasto" />
+          gasto del día
+        </span>
+        <span>
+          <i className="muestra-elegido" />
+          elegido
+        </span>
+      </p>
 
-      <p className="titulo-filtro" id="t-rubros">Rubros y categorías</p>
+      <div className="titulo-filtro">
+        <span id="t-rubros">Rubros y categorías</span>
+        {seleccion.size > 0 && (
+          <button type="button" className="enlace" onClick={alQuitarSeleccion}>
+            Quitar
+          </button>
+        )}
+      </div>
       <input
         type="search"
         className="buscar-rubro"
@@ -110,6 +151,7 @@ export function FiltrosDelMes({
         }}
       />
       <div role="group" aria-labelledby="t-rubros" className="rubros">
+        {buscando && <p className="nota aviso-busqueda">{avisoDeBusqueda}</p>}
         {buscando && visibles.length === 0 && (
           <p className="nota sin-resultados">Sin resultados para «{busqueda.trim()}»</p>
         )}
@@ -126,6 +168,7 @@ export function FiltrosDelMes({
               <div className="rubro-cabeza">
                 <Casilla
                   nombre={r.nombre}
+                  cuantas={estado === 'mixed' ? `${marcadas} de ${completo.categorias.length}` : undefined}
                   estado={estado}
                   total={totales.get(r.id) ?? 0}
                   color={colorDe(r.color)}
@@ -162,12 +205,15 @@ export function FiltrosDelMes({
 
 function Casilla({
   nombre,
+  cuantas,
   estado,
   total,
   color,
   alAlternar,
 }: {
   nombre: string
+  /** `1 de 8` for a partly checked rubro. */
+  cuantas?: string
   estado: 'true' | 'false' | 'mixed'
   total: number
   color?: string
@@ -187,6 +233,7 @@ function Casilla({
       </span>
       {color && <span className="punto" style={{ background: color }} />}
       <span className="casilla-nombre">{nombre}</span>
+      {cuantas && <span className="cuantas">{cuantas}</span>}
       <span className="num casilla-total">{total > 0 ? dinero(total) : ''}</span>
     </button>
   )

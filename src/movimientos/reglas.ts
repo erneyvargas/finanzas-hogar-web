@@ -51,6 +51,19 @@ export interface DatosDeMovimientos {
   movimientos: FilaDeMovimiento[]
   cuentas: Cuenta[]
   categorias: CategoriaDeMovimiento[]
+  /**
+   * The household's last movements (any month), for merchant and note
+   * suggestions; without it, the month's movements are used.
+   */
+  historial?: TextoDelHistorial[]
+}
+
+export interface TextoDelHistorial {
+  tipo: Tipo
+  comercio: string | null
+  nota: string | null
+  categoriaId: string | null
+  fecha: string
 }
 
 export type FuncionDelServidor =

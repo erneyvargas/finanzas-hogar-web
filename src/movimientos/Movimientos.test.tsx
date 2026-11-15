@@ -435,22 +435,70 @@ describe('the filter panel', () => {
 
     const despues = await screen.findByRole('region', { name: 'Movimientos de octubre' })
     expect(within(despues).getByRole('checkbox', { name: 'Erney' })).toBeChecked()
-    expect(within(despues).getByText('Erney · 14 al 20 oct')).toBeInTheDocument()
+    const activos = within(despues).getByRole('group', { name: 'Filtros activos' })
+    expect(within(activos).getByRole('button', { name: 'Quitar 14 al 20 oct' })).toBeInTheDocument()
+    expect(within(activos).getByRole('button', { name: 'Quitar Erney' })).toBeInTheDocument()
     expect(comercios(despues)).toEqual(['Frisby'])
   })
 
-  it('says what is filtered and clears it all at once', async () => {
+  it('shows each active filter as a chip above the list, and Limpiar todo clears them all', async () => {
     const lista = await abrir()
 
     await userEvent.click(within(lista).getByRole('checkbox', { name: 'Hogar' }))
     await userEvent.click(within(lista).getByRole('button', { name: '14 de octubre' }))
     await userEvent.click(within(lista).getByRole('button', { name: '27 de octubre' }))
-    expect(within(lista).getByText('Hogar · 14 al 27 oct')).toBeInTheDocument()
+    const activos = within(lista).getByRole('group', { name: 'Filtros activos' })
+    expect(within(activos).getByRole('button', { name: 'Quitar 14 al 27 oct' })).toBeInTheDocument()
+    expect(within(activos).getByRole('button', { name: 'Quitar Hogar' })).toBeInTheDocument()
 
-    await userEvent.click(within(lista).getByRole('button', { name: 'Quitar filtros' }))
+    await userEvent.click(within(activos).getByRole('button', { name: 'Limpiar todo' }))
 
     expect(within(lista).getAllByRole('listitem')).toHaveLength(5)
-    expect(within(lista).queryByRole('button', { name: 'Quitar filtros' })).toBeNull()
+    expect(within(lista).queryByRole('group', { name: 'Filtros activos' })).toBeNull()
+  })
+
+  it('a chip ✕ removes only its filter; a category chip reads Rubro › Categoría', async () => {
+    const lista = await abrir()
+    await desplegar(lista, 'Hogar')
+    await userEvent.click(within(lista).getByRole('checkbox', { name: 'Servicios' }))
+    await userEvent.click(within(lista).getByRole('button', { name: '14 de octubre' }))
+    const activos = within(lista).getByRole('group', { name: 'Filtros activos' })
+
+    await userEvent.click(within(activos).getByRole('button', { name: 'Quitar 14 oct' }))
+
+    expect(within(activos).queryByRole('button', { name: 'Quitar 14 oct' })).toBeNull()
+    expect(within(activos).getByRole('button', { name: 'Quitar Hogar › Servicios' })).toBeInTheDocument()
+    expect(comercios(lista)).toEqual(['Factura de luz'])
+  })
+
+  it('a partly checked rubro says how many of its categories are checked', async () => {
+    const lista = await abrir()
+    await desplegar(lista, 'Hogar')
+    await userEvent.click(within(lista).getByRole('checkbox', { name: 'Servicios' }))
+
+    expect(within(lista).getByRole('checkbox', { name: 'Hogar' })).toHaveAttribute('aria-checked', 'mixed')
+    expect(within(lista).getByText('1 de 2')).toBeInTheDocument()
+  })
+
+  it('while searching, says the search does not change what is checked', async () => {
+    const lista = await abrir()
+    await userEvent.click(within(lista).getByRole('checkbox', { name: 'Erney' }))
+    await userEvent.type(within(lista).getByRole('searchbox', { name: 'Buscar rubro o categoría' }), 'serv')
+
+    expect(within(lista).getByText('Solo busca en esta lista. Lo marcado sigue igual (1 rubro).')).toBeInTheDocument()
+  })
+
+  it('spend is a bar under the day and the chosen days a ring, never the same mark', async () => {
+    const lista = await abrir()
+    const dia = within(lista).getByRole('button', { name: '14 de octubre' })
+    expect(dia.querySelector('.gasto-del-dia')).not.toBeNull()
+
+    await userEvent.click(dia)
+
+    expect(dia).toHaveAttribute('aria-pressed', 'true')
+    expect(dia.className).not.toMatch(/tono-/)
+    expect(within(lista).getByText('gasto del día')).toBeInTheDocument()
+    expect(within(lista).getByText('elegido')).toBeInTheDocument()
   })
 })
 
@@ -632,11 +680,116 @@ describe('closing the panel', () => {
   })
 })
 
+describe('autocomplete in the panel', () => {
+  const conTextos: DatosDeMovimientos = {
+    ...datos,
+    movimientos: [
+      ...datos.movimientos,
+      { id: 'm9', tipo: 'expense', monto: 350000, fecha: '2026-10-05T15:00:00Z', cuentaId: 'efe', categoriaId: 'aseo', rubroId: 'hogar', comercio: 'Jardín Infantil', nota: 'Pensión jardín', },
+    ],
+  }
+
+  it('suggests merchants and notes already used; picking one fills the field', async () => {
+    montar(movimientos(undefined, conTextos))
+    const p = await registrarGasto()
+
+    await userEvent.clear(within(p).getByLabelText('Comercio'))
+    await userEvent.type(within(p).getByLabelText('Comercio'), 'jar')
+    await userEvent.click(within(p).getByRole('option', { name: 'Jardín Infantil' }))
+    expect(within(p).getByLabelText('Comercio')).toHaveValue('Jardín Infantil')
+
+    await userEvent.type(within(p).getByLabelText('Observaciones'), 'pens')
+    await userEvent.keyboard('{ArrowDown}{Enter}')
+    expect(within(p).getByLabelText('Observaciones')).toHaveValue('Pensión jardín')
+    expect(within(p).queryByRole('listbox', { name: 'Sugerencias de observaciones' })).toBeNull()
+  })
+
+  it('Escape hides the suggestions without closing the panel', async () => {
+    montar(movimientos(undefined, conTextos))
+    const p = await registrarGasto()
+    await userEvent.type(within(p).getByLabelText('Observaciones'), 'pens')
+    expect(within(p).getByRole('listbox', { name: 'Sugerencias de observaciones' })).toBeInTheDocument()
+
+    await userEvent.keyboard('{Escape}')
+
+    expect(within(p).queryByRole('listbox', { name: 'Sugerencias de observaciones' })).toBeNull()
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+})
+
+describe('the row menu', () => {
+  const menuDe = async (comercio: RegExp) => {
+    const lista = await screen.findByRole('region', { name: 'Movimientos de octubre' })
+    await userEvent.click(await within(lista).findByRole('button', { name: new RegExp(`Más acciones de ${comercio.source}`) }))
+    return screen.getByRole('menu')
+  }
+
+  it('the three dots offer Duplicar and Borrar; Duplicar opens the copy dated today', async () => {
+    const m = movimientos()
+    montar(m)
+    const menu = await menuDe(/Aguacate/)
+
+    expect(within(menu).getAllByRole('menuitem').map((b) => b.textContent)).toEqual(['Duplicar', 'Borrar'])
+    await userEvent.click(within(menu).getByRole('menuitem', { name: 'Duplicar' }))
+
+    const p = panel()
+    expect(within(p).getByRole('heading', { name: 'Duplicar movimiento' })).toBeInTheDocument()
+    expect(within(p).getByLabelText('Comercio')).toHaveValue('Aguacate')
+    expect(within(p).getByLabelText('Fecha')).toHaveTextContent('Hoy, 28 oct 2026')
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it('Borrar asks first, then deletes through borrar_movimiento and reloads', async () => {
+    const m = movimientos()
+    montar(m)
+    const menu = await menuDe(/Aguacate/)
+
+    await userEvent.click(within(menu).getByRole('menuitem', { name: 'Borrar' }))
+    expect(m.ejecutar).not.toHaveBeenCalled()
+    expect(within(menu).getByText('¿Borrar este movimiento?')).toBeInTheDocument()
+    await userEvent.click(within(menu).getByRole('button', { name: 'Sí, borrar' }))
+
+    expect(m.ejecutar).toHaveBeenCalledWith('borrar_movimiento', { p_id: 'm1' })
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+    await waitFor(() => expect(m.cargar).toHaveBeenCalledTimes(2))
+  })
+
+  it('Cancelar, Escape or a click outside close the menu without deleting', async () => {
+    const m = movimientos()
+    montar(m)
+    let menu = await menuDe(/Aguacate/)
+    await userEvent.click(within(menu).getByRole('menuitem', { name: 'Borrar' }))
+    await userEvent.click(within(menu).getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByRole('menu')).toBeNull()
+
+    menu = await menuDe(/Aguacate/)
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('menu')).toBeNull()
+
+    await menuDe(/Aguacate/)
+    await userEvent.click(document.body)
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(m.ejecutar).not.toHaveBeenCalled()
+  })
+
+  it('a rejected delete says why and keeps the menu open', async () => {
+    const m = movimientos(vi.fn(async () => {
+      throw new ErrorDelServidor('Ese movimiento ya no existe', 'movimiento_no_encontrado')
+    }))
+    montar(m)
+    const menu = await menuDe(/Aguacate/)
+    await userEvent.click(within(menu).getByRole('menuitem', { name: 'Borrar' }))
+    await userEvent.click(within(menu).getByRole('button', { name: 'Sí, borrar' }))
+
+    expect(await within(menu).findByRole('alert')).toHaveTextContent('Ese movimiento ya no existe')
+  })
+})
+
 describe('correcting a movement', () => {
   async function abrirAguacate(m: FuenteDeMovimientos) {
     montar(m)
     const lista = await screen.findByRole('region', { name: 'Movimientos de octubre' })
-    await userEvent.click(await within(lista).findByRole('button', { name: /Aguacate/ }))
+    await userEvent.click(await within(lista).findByRole('button', { name: /^(?!Más acciones).*Aguacate/ }))
     return panel()
   }
 

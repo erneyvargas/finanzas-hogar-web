@@ -47,7 +47,7 @@ export function fuenteDeMovimientosDeSupabase(
     async cargar(mes) {
       const hogarId = await hogar()
       const { desde, hasta } = limitesDelMes(mes)
-      const [movs, cuentas, cats] = await Promise.all([
+      const [movs, cuentas, usados, cats] = await Promise.all([
         todas((a, b) =>
           sb
             .from('transactions')
@@ -69,6 +69,19 @@ export function fuenteDeMovimientosDeSupabase(
             .order('name')
             .range(a, b),
         ),
+        // The last 1000 movements, as the phone's suggestions read them;
+        // the app-written 4x1000 is not a text to suggest.
+        sb
+          .from('transactions')
+          .select('kind, merchant_name, note, category_id, occurred_at')
+          .eq('household_id', hogarId)
+          .is('deleted_at', null)
+          .not('voided', 'is', true)
+          .is('gmf_of', null)
+          .in('kind', ['expense', 'income'])
+          .order('occurred_at', { ascending: false })
+          .limit(1000)
+          .then(({ data }) => data ?? []),
         todas((a, b) =>
           sb
             .from('categories')
@@ -94,6 +107,13 @@ export function fuenteDeMovimientosDeSupabase(
           rubroId: m.rubro_id,
           comercio: m.merchant_name,
           nota: m.note,
+        })),
+        historial: usados.map((u) => ({
+          tipo: u.kind as Tipo,
+          comercio: u.merchant_name,
+          nota: u.note,
+          categoriaId: u.category_id,
+          fecha: u.occurred_at,
         })),
         cuentas: cuentas.map((c) => ({
           id: c.id,

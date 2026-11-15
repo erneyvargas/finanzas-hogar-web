@@ -3,6 +3,7 @@ import { colorDe, dinero, MESES, nombreDelMes } from '../core/formato'
 import { diaDe } from '../tablero/calculo'
 import { alternar, arbolDeGastos, dentroDelRango, pasaLaSeleccion, plano, textoDelRango, tocarDia, type Rango } from './filtros'
 import { FiltrosDelMes } from './FiltrosDelMes'
+import { MenuDeFila } from './MenuDeFila'
 import { rutaDeCategoria, type DatosDeMovimientos, type FilaDeMovimiento } from './reglas'
 
 /**
@@ -76,10 +77,15 @@ export function ListaDeMovimientos({
   mes,
   datos,
   alElegir,
+  alDuplicar,
+  alBorrar,
 }: {
   mes: string
   datos: DatosDeMovimientos
   alElegir: (m: FilaDeMovimiento) => void
+  /** With both, each row gets the ⋮ menu. */
+  alDuplicar?: (m: FilaDeMovimiento) => void
+  alBorrar?: (m: FilaDeMovimiento) => Promise<void>
 }) {
   const [busqueda, setBusqueda] = useState('')
   const [filtro, setFiltro] = useState<Filtro>('todos')
@@ -149,8 +155,20 @@ export function ListaDeMovimientos({
       totales.set(c.id, (totales.get(c.id) ?? 0) + l.fila.monto)
     }
   }
-  const nombres = [...seleccion].map((id) => porId.get(id)?.nombre).filter(Boolean)
-  const filtrado = [nombres.join(', '), rango ? textoDelRango(rango) : ''].filter(Boolean).join(' · ')
+  // One removable chip per active filter: the days, then each rubro or
+  // `Rubro › Categoría` checked.
+  const activos = [...seleccion].map((id) => {
+    const rubro = arbol.find((r) => r.id === id)
+    if (rubro) return { id, texto: rubro.nombre }
+    const padre = arbol.find((r) => r.categorias.some((c) => c.id === id))
+    const nombre = porId.get(id)?.nombre ?? ''
+    return { id, texto: padre ? `${padre.nombre} › ${nombre}` : nombre }
+  })
+  const sinFiltro = (id: string) => {
+    const nueva = new Set(seleccion)
+    nueva.delete(id)
+    setSeleccion(nueva)
+  }
   const total = (xs: Linea[], tipo: FilaDeMovimiento['tipo']) =>
     xs.filter((l) => l.fila.tipo === tipo).reduce((a, l) => a + l.fila.monto, 0)
 
@@ -177,6 +195,8 @@ export function ListaDeMovimientos({
             seleccion={seleccion}
             totales={totales}
             alAlternar={(id) => setSeleccion(alternar(seleccion, id, arbol))}
+            alQuitarDias={() => setRango(null)}
+            alQuitarSeleccion={() => setSeleccion(new Set())}
           />
           <div className="lista-filtrada">
           <div className="filtros">
@@ -213,9 +233,14 @@ export function ListaDeMovimientos({
               {recientesPrimero ? 'Más recientes primero' : 'Más antiguos primero'} <span aria-hidden="true">⇅</span>
             </button>
           </div>
-          {filtrado && (
-            <p className="nota filtrado">
-              <span>{filtrado}</span>
+          {(rango || activos.length > 0) && (
+            <div className="filtros-activos" role="group" aria-label="Filtros activos">
+              {rango && (
+                <Activo texto={textoDelRango(rango)} alQuitar={() => setRango(null)} />
+              )}
+              {activos.map((a) => (
+                <Activo key={a.id} texto={a.texto} alQuitar={() => sinFiltro(a.id)} />
+              ))}
               <button
                 type="button"
                 className="enlace"
@@ -224,9 +249,9 @@ export function ListaDeMovimientos({
                   setRango(null)
                 }}
               >
-                Quitar filtros
+                Limpiar todo
               </button>
-            </p>
+            </div>
           )}
           {visibles.length === 0 && <p className="nota vacio">Ningún movimiento coincide.</p>}
           {dias.map((d) => (
@@ -237,7 +262,7 @@ export function ListaDeMovimientos({
               </h3>
               <ul>
                 {d.lineas.map((l) => (
-                  <li key={l.fila.id}>
+                  <li key={l.fila.id} className={alDuplicar && alBorrar ? 'con-menu' : undefined}>
                     <button className="fila" onClick={() => alElegir(l.fila)}>
                       <Cara nombre={l.rubro?.nombre ?? ''} foto={l.rubro?.foto} clase="cara-de-rubro" />
                       <span className="fila-texto">
@@ -255,6 +280,13 @@ export function ListaDeMovimientos({
                         </span>
                       </span>
                     </button>
+                    {alDuplicar && alBorrar && (
+                      <MenuDeFila
+                        titulo={l.titulo}
+                        alDuplicar={() => alDuplicar(l.fila)}
+                        alBorrar={() => alBorrar(l.fila)}
+                      />
+                    )}
                   </li>
                 ))}
               </ul>
@@ -264,5 +296,17 @@ export function ListaDeMovimientos({
         </div>
       )}
     </section>
+  )
+}
+
+/** An active filter as a chip; its ✕ removes only that filter. */
+function Activo({ texto, alQuitar }: { texto: string; alQuitar: () => void }) {
+  return (
+    <span className="activo">
+      <span>{texto}</span>
+      <button type="button" aria-label={`Quitar ${texto}`} onClick={alQuitar}>
+        <span aria-hidden="true">✕</span>
+      </button>
+    </span>
   )
 }

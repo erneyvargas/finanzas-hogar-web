@@ -148,6 +148,12 @@ export function Tablero({
     if (inicio && idNuevo) setAnadido({ id: idNuevo })
     setInicio(null)
   }
+  /** Deletes from the row menu; a rejection goes back to the menu to show. */
+  const borrarDesdeLaLista = async (m: FilaDeMovimiento) => {
+    if (!movimientos) return
+    await movimientos.ejecutar('borrar_movimiento', { p_id: m.id })
+    setRecarga((n) => n + 1)
+  }
   const deshacer = async (id: string) => {
     if (!movimientos) return
     try {
@@ -261,7 +267,13 @@ export function Tablero({
         )}
         {verLista && errorDeLista && <Fallo texto={errorDeLista} alReintentar={reintentar} />}
         {verLista && !errorDeLista && listaDelMes && !esqueleto && (
-          <ListaDeMovimientos mes={mes} datos={listaDelMes} alElegir={abrir} />
+          <ListaDeMovimientos
+            mes={mes}
+            datos={listaDelMes}
+            alElegir={abrir}
+            alDuplicar={duplicar}
+            alBorrar={borrarDesdeLaLista}
+          />
         )}
       </main>
 
