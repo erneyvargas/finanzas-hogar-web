@@ -1,0 +1,8 @@
+«Por vencer» tab in finanzas-hogar-web: bills coming due, ported from Moxen «Vencimientos» (moxen.cl/recursos/vencimientos), design proposal 1 «El mes en círculos».
+Branch: feat/por-vencer. Delivery: direct to main after checks. Runner: `npx vitest run <files>`.
+
+## Specs
+
+- S1 User: "en la web quiero propuestas para ver las facturas que estan proximas a vencer revisa moxen" → mockups https://claude.ai/artifact/WiMreoKGzdK2wU9MiEJXyn → "1".
+- S2 Read-only data: active, live recurring rules (recurring_rules: name, kind expense, estimated_amount, day_of_month, next_due_date, reminder_days_before, account_id, category_id) and credit cards with due_day (accounts type credit_card: owed = −saldo_por_capital, «Paga el día N»); paid this month = a live expense in the rule's category (or a transfer to the card) in the current Bogotá month. No server writes.
+- S3 UI: a 4th tab «Por vencer» with a count badge of unpaid items due in the next 30 days. A month calendar (Monday first, holidays from core/festivos) with one circle per item on its due day, sized by amount (sqrt scale), outline when paid, dashed when the date is unknown, today outlined; hover/focus a circle highlights its row. Header total «Falta pagar en {mes}» with a toggle «{Mes} | 30 días» and a rolling total (reuse core/ui/Cifra), plus «quedarían $X en {cuenta}». A weeks bar marking the heaviest week. A list sorted by due date: name, amount, «{día} · faltan N días» (red at ≤ reminder_days_before), account, «Pagar» that opens the existing «+ Registrar» panel prefilled (amount, category, account, comercio = rule name); paid items grouped as «Ya pagados». Reduced motion: instant.
