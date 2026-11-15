@@ -3,8 +3,8 @@ import { limitesDelMes } from '../tablero/calculo'
 import { todas } from '../tablero/datos'
 import { traducirError, type DatosDeMovimientos, type FuncionDelServidor, type Tipo } from './reglas'
 
-/** What `ejecutar` can call: the movements' functions, plus the receipt one (migration 0046). */
-export type FuncionQueSeEjecuta = FuncionDelServidor | 'registrar_movimiento_de_factura'
+/** What `ejecutar` can call: the movements' functions, plus the receipt ones (migrations 0046 and 0047). */
+export type FuncionQueSeEjecuta = FuncionDelServidor | 'registrar_movimiento_de_factura' | 'registrar_nomina_de_factura'
 
 /**
  * Where the movements list and panel read and write; tests pass a fake.

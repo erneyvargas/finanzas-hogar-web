@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { extensionDe, medidaReducida, type LecturaDeFactura } from './reglas'
+import { extensionDe, medidaReducida, type DeudaAbierta, type LecturaDeFactura } from './reglas'
 
 /**
  * Where a receipt goes to be read; tests pass a fake. Same path as the
@@ -12,6 +12,12 @@ export interface FuenteDeFacturas {
   leer(id: string): Promise<void>
   /** The receipt row and its live items, by line. */
   consultar(id: string): Promise<LecturaDeFactura>
+  /**
+   * The live active debts the household owes (not those owed to it), by
+   * start date: what a payslip deduction can pay. Optional so a source
+   * without it simply offers no debts.
+   */
+  deudas?(): Promise<DeudaAbierta[]>
 }
 
 const BUCKET = 'receipts'
@@ -77,7 +83,7 @@ export function fuenteDeFacturasDeSupabase(
         sb.from('receipts').select('status, ocr_raw, qr_parsed, error_message').eq('id', id).single(),
         sb
           .from('receipt_items')
-          .select('line_no, description, quantity, total, suggested_category_id')
+          .select('line_no, description, quantity, total, suggested_category_id, kind')
           .eq('receipt_id', id)
           .is('deleted_at', null)
           .order('line_no'),
@@ -96,8 +102,28 @@ export function fuenteDeFacturasDeSupabase(
           cantidad: i.quantity == null ? null : Number(i.quantity),
           total: i.total == null ? null : Number(i.total),
           categoriaSugerida: i.suggested_category_id,
+          tipo: i.kind,
         })),
       }
+    },
+
+    async deudas() {
+      const hogarId = await hogar()
+      const { data, error } = await sb
+        .from('debts')
+        .select('id, name, installments_total, installments_paid')
+        .eq('household_id', hogarId)
+        .is('deleted_at', null)
+        .eq('status', 'active')
+        .neq('direction', 'owed_to_me')
+        .order('start_date')
+      if (error) throw new Error(error.message)
+      return (data ?? []).map((d) => ({
+        id: d.id,
+        nombre: d.name,
+        cuotasRestantes:
+          d.installments_total == null ? null : Math.max(0, d.installments_total - (d.installments_paid ?? 0)),
+      }))
     },
   }
 }

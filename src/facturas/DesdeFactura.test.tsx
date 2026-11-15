@@ -342,3 +342,233 @@ describe('registering an expense from a receipt', () => {
     expect(alCerrar).toHaveBeenCalledWith(false)
   })
 })
+
+const datosDeNomina: DatosDeMovimientos = {
+  ...datos,
+  categorias: [
+    { id: 'erney', nombre: 'Erney', tipo: 'income', nivel: 'rubro', padreId: null, color: 'selva', viva: true },
+    { id: 'mct', nombre: 'Salario MCT', tipo: 'income', nivel: 'category', padreId: 'erney', color: null, viva: true },
+    { id: 'sueldo', nombre: 'Sueldo', tipo: 'income', nivel: 'subcategory', padreId: 'mct', color: null, viva: true },
+    { id: 'bono', nombre: 'Bono', tipo: 'income', nivel: 'subcategory', padreId: 'mct', color: null, viva: true },
+    { id: 'seg', nombre: 'Seguridad social', tipo: 'expense', nivel: 'rubro', padreId: null, color: 'laguna', viva: true },
+    { id: 'salud', nombre: 'Salud', tipo: 'expense', nivel: 'subcategory', padreId: 'seg', color: null, viva: true },
+    { id: 'pension', nombre: 'Pensión', tipo: 'expense', nivel: 'subcategory', padreId: 'seg', color: null, viva: true },
+    { id: 'coop', nombre: 'Cooperativa', tipo: 'expense', nivel: 'subcategory', padreId: 'seg', color: null, viva: true },
+  ],
+}
+
+const nomina = (cambios: Partial<LecturaDeFactura> = {}): LecturaDeFactura => ({
+  estado: 'parsed',
+  error: null,
+  ocr: { merchant_name: 'MCT S.A.S.', merchant_nit: '830004861', date: '2026-10-31', total: 3439988, account_id: 'aho' },
+  qr: null,
+  items: [
+    { linea: 1, descripcion: 'Salario', cantidad: null, total: 2771600, categoriaSugerida: 'sueldo', tipo: 'income' },
+    { linea: 2, descripcion: 'Beneficio Familia y Recreación', cantidad: null, total: 1500000, categoriaSugerida: 'bono', tipo: 'income' },
+    { linea: 3, descripcion: 'Salud Empleado', cantidad: null, total: 110900, categoriaSugerida: 'salud', tipo: 'expense' },
+    { linea: 4, descripcion: 'Pensión Empleado', cantidad: null, total: 110900, categoriaSugerida: 'pension', tipo: 'expense' },
+    { linea: 5, descripcion: 'Coomerpark', cantidad: null, total: 14750, categoriaSugerida: 'coop', tipo: 'expense' },
+    { linea: 6, descripcion: 'Libranza Colsubsidio', cantidad: null, total: 462562, categoriaSugerida: null, tipo: 'expense' },
+    { linea: 7, descripcion: 'Libranzas Davivienda', cantidad: null, total: 132500, categoriaSugerida: null, tipo: 'expense' },
+  ],
+  ...cambios,
+})
+
+const deudasAbiertas = [
+  { id: 'col', nombre: '  LIBRANZA  Colsubsídio', cuotasRestantes: 18 },
+  { id: 'dav', nombre: 'Crédito Davivienda', cuotasRestantes: null },
+  // Named like a line that already has a category: it must not take it.
+  { id: 'salud-d', nombre: 'Salud empleado', cuotasRestantes: 3 },
+]
+
+function nominas(lectura: LecturaDeFactura = nomina()): FuenteDeFacturas {
+  return facturas([lectura], { deudas: vi.fn(async () => deudasAbiertas) })
+}
+
+async function revisarNomina(f: FuenteDeFacturas = nominas(), m: FuenteDeMovimientos = movimientos()) {
+  const alCerrar = vi.fn()
+  render(<DesdeFactura datos={datosDeNomina} fuente={f} movimientos={m} ahora={ahora} alCerrar={alCerrar} pausa={async () => {}} />)
+  await subir()
+  await within(dialogo()).findByText('Comprobante de nómina')
+  return { alCerrar, f, m }
+}
+
+const ingresos = () => within(dialogo()).getByRole('region', { name: 'Ingresos' })
+const descuentos = () => within(dialogo()).getByRole('region', { name: 'Descuentos' })
+const barra = () => within(dialogo()).getByTestId('barra-neto')
+const guardarNomina = () => within(dialogo()).getByRole('button', { name: /^Guardar nómina/ })
+const categoriaDe = (descripcion: string) => within(dialogo()).getByLabelText(`Categoría de ${descripcion}`)
+
+describe('registering a payslip from a receipt', () => {
+  it('shows the income and the deductions in two tables, with the net that squares', async () => {
+    await revisarNomina()
+
+    expect(within(dialogo()).getByLabelText('Empleador')).toHaveValue('MCT S.A.S.')
+    expect(within(dialogo()).getByText('NIT 830004861')).toBeInTheDocument()
+    expect(within(dialogo()).getByLabelText('Fecha')).toHaveTextContent('31 oct 2026')
+    expect(within(ingresos()).getByText('$4.271.600')).toBeInTheDocument()
+    expect(within(ingresos()).getByText('Salario')).toBeInTheDocument()
+    expect(within(ingresos()).getByText('Beneficio Familia y Recreación')).toBeInTheDocument()
+    expect(within(descuentos()).getByText('$831.612')).toBeInTheDocument()
+    for (const d of ['Salud Empleado', 'Pensión Empleado', 'Coomerpark', 'Libranza Colsubsidio', 'Libranzas Davivienda']) {
+      expect(within(descuentos()).getByText(d)).toBeInTheDocument()
+    }
+    expect(barra()).toHaveTextContent('$4.271.600−$831.612=$3.439.988')
+    expect(barra()).toHaveTextContent('cuadra con el comprobante')
+    expect(categoriaDe('Salario')).toHaveValue('c:sueldo')
+    // The account the reading suggests takes income, so it comes picked.
+    expect(within(dialogo()).getByRole('button', { name: 'Ahorros' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(dialogo()).queryByLabelText('Total')).not.toBeInTheDocument()
+  })
+
+  it('assigns a deduction to the debt named like it, and offers only the open debts', async () => {
+    const { f } = await revisarNomina()
+
+    expect(f.deudas).toHaveBeenCalled()
+    const colsubsidio = categoriaDe('Libranza Colsubsidio')
+    expect(colsubsidio).toHaveValue('d:col')
+    expect(within(colsubsidio).getByRole('option', { name: 'LIBRANZA Colsubsídio · quedan 18 cuotas' })).toBeInTheDocument()
+    expect(within(colsubsidio).getByRole('option', { name: 'Crédito Davivienda' })).toBeInTheDocument()
+    expect(categoriaDe('Libranzas Davivienda')).toHaveValue('')
+    expect(categoriaDe('Salud Empleado')).toHaveValue('c:salud')
+    // Income lines never offer debts.
+    expect(within(categoriaDe('Salario')).queryByRole('option', { name: /Crédito Davivienda/ })).not.toBeInTheDocument()
+  })
+
+  it('moves a line between the tables with its switch, and the net follows', async () => {
+    await revisarNomina()
+
+    const tipo = within(dialogo()).getByRole('group', { name: 'Tipo de Beneficio Familia y Recreación' })
+    await userEvent.click(within(tipo).getByRole('button', { name: 'Desc.' }))
+
+    expect(within(descuentos()).getByText('Beneficio Familia y Recreación')).toBeInTheDocument()
+    expect(within(ingresos()).queryByText('Beneficio Familia y Recreación')).not.toBeInTheDocument()
+    expect(barra()).toHaveTextContent('$2.771.600−$2.331.612=$439.988')
+    expect(barra()).toHaveTextContent('$3.000.000 de menos · el comprobante dice $3.439.988')
+    // An income category does not fit a deduction: it is left to pick.
+    expect(categoriaDe('Beneficio Familia y Recreación')).toHaveValue('')
+    expect(guardarNomina()).toBeDisabled()
+
+    // The row now lives in the other table: find its switch again.
+    const otraVez = within(descuentos()).getByRole('group', { name: 'Tipo de Beneficio Familia y Recreación' })
+    await userEvent.click(within(otraVez).getByRole('button', { name: 'Ingreso' }))
+    expect(barra()).toHaveTextContent('cuadra con el comprobante')
+  })
+
+  it('blocks saving while the net does not square with the payslip', async () => {
+    const m = movimientos()
+    await revisarNomina(nominas(nomina({ ocr: { ...nomina().ocr, total: 3439000 } })), m)
+    await userEvent.selectOptions(categoriaDe('Libranzas Davivienda'), 'd:dav')
+
+    expect(barra()).toHaveTextContent('$988 de más · el comprobante dice $3.439.000')
+    expect(guardarNomina()).toBeDisabled()
+    expect(within(dialogo()).getByText('El neto no cuadra con el comprobante')).toBeInTheDocument()
+  })
+
+  it('blocks saving while a line has neither a category nor a debt', async () => {
+    await revisarNomina()
+
+    expect(guardarNomina()).toBeDisabled()
+    expect(within(dialogo()).getByText('Elige la categoría o la deuda de cada línea')).toBeInTheDocument()
+
+    await userEvent.selectOptions(categoriaDe('Libranzas Davivienda'), 'd:dav')
+    expect(guardarNomina()).toBeEnabled()
+  })
+
+  it('saves the income, the deductions and the debt payments with the net', async () => {
+    const m = movimientos()
+    const { f, alCerrar } = await revisarNomina(undefined, m)
+    await userEvent.selectOptions(categoriaDe('Libranzas Davivienda'), 'd:dav')
+    expect(within(dialogo()).getByText('Se guardará: 1 ingreso, 1 gasto y 2 abonos')).toBeInTheDocument()
+    expect(guardarNomina()).toHaveTextContent('Guardar nómina · neto $3.439.988')
+
+    await userEvent.click(guardarNomina())
+
+    const [funcion, params] = ejecutadoCon(m)
+    expect(funcion).toBe('registrar_nomina_de_factura')
+    expect(params).toEqual({
+      p_household_id: 'h1',
+      p_receipt_id: (f.subir as ReturnType<typeof vi.fn>).mock.calls[0][0],
+      p_account_id: 'aho',
+      p_occurred_at: '2026-10-31T15:30:00-05:00',
+      p_note: null,
+      p_merchant_name: 'MCT S.A.S.',
+      p_merchant_nit: '830004861',
+      p_ingresos: [
+        { category_id: 'sueldo', amount: 2771600, note: 'Salario' },
+        { category_id: 'bono', amount: 1500000, note: 'Beneficio Familia y Recreación' },
+      ],
+      p_gastos: [
+        { category_id: 'salud', amount: 110900, note: 'Salud Empleado' },
+        { category_id: 'pension', amount: 110900, note: 'Pensión Empleado' },
+        { category_id: 'coop', amount: 14750, note: 'Coomerpark' },
+      ],
+      p_abonos: [
+        { debt_id: 'col', amount: 462562 },
+        { debt_id: 'dav', amount: 132500 },
+      ],
+      p_neto: 3439988,
+      p_guardar_igual: false,
+      p_id: expect.any(String),
+    })
+    expect(alCerrar).toHaveBeenCalledWith(true)
+  })
+
+  it('needs an account that takes income', async () => {
+    await revisarNomina(nominas(nomina({ ocr: { ...nomina().ocr, account_id: null } })))
+    await userEvent.selectOptions(categoriaDe('Libranzas Davivienda'), 'd:dav')
+
+    expect(guardarNomina()).toBeDisabled()
+    expect(within(dialogo()).getByText('Elige la cuenta para poder guardar')).toBeInTheDocument()
+    await userEvent.click(within(dialogo()).getByRole('button', { name: 'Ahorros' }))
+    expect(guardarNomina()).toBeEnabled()
+  })
+
+  it('offers Guardar igual on a possible duplicate', async () => {
+    const m = movimientos(
+      vi
+        .fn()
+        .mockRejectedValueOnce(
+          new ErrorDelServidor('Ya hay un ingreso igual.', 'posible_duplicado', { movimientoId: 'x', fecha: '', comercio: null }),
+        )
+        .mockResolvedValueOnce(undefined),
+    )
+    const { alCerrar } = await revisarNomina(undefined, m)
+    await userEvent.selectOptions(categoriaDe('Libranzas Davivienda'), 'd:dav')
+
+    await userEvent.click(guardarNomina())
+    const aviso = await within(dialogo()).findByText('Ya hay un ingreso igual.')
+    await userEvent.click(within(aviso.closest('[role=alert]') as HTMLElement).getByRole('button', { name: 'Guardar igual' }))
+
+    expect(ejecutadoCon(m, 1)[0]).toBe('registrar_nomina_de_factura')
+    expect(ejecutadoCon(m, 1)[1].p_guardar_igual).toBe(true)
+    expect(alCerrar).toHaveBeenCalledWith(true)
+  })
+
+  it('sends the same id when a save is retried', async () => {
+    const m = movimientos(
+      vi.fn().mockRejectedValueOnce(new ErrorDelServidor(MENSAJE_GENERICO, null)).mockResolvedValueOnce(undefined),
+    )
+    await revisarNomina(undefined, m)
+    await userEvent.selectOptions(categoriaDe('Libranzas Davivienda'), 'd:dav')
+
+    await userEvent.click(guardarNomina())
+    expect(await within(dialogo()).findByText(MENSAJE_GENERICO)).toBeInTheDocument()
+    await userEvent.click(guardarNomina())
+
+    expect(ejecutadoCon(m, 1)[1].p_id).toBe(ejecutadoCon(m, 0)[1].p_id)
+  })
+
+  it('keeps a purchase receipt on the expense form', async () => {
+    const m = movimientos()
+    const compra = leida({ ocr: { ...leida().ocr, account_id: 'efe' } })
+    compra.items = compra.items.map((i) => ({ ...i, tipo: 'expense', categoriaSugerida: i.linea === 1 ? 'lacteos' : 'pan' }))
+    const f = facturas([compra], { deudas: vi.fn(async () => deudasAbiertas) })
+    await revisar(f, m)
+
+    expect(within(dialogo()).queryByText('Comprobante de nómina')).not.toBeInTheDocument()
+    expect(f.deudas).not.toHaveBeenCalled()
+    await userEvent.click(guardar())
+    expect(ejecutadoCon(m)[0]).toBe('registrar_movimiento_de_factura')
+  })
+})
