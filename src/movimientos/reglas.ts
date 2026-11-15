@@ -48,6 +48,14 @@ export interface FilaDeMovimiento {
   rubroId: string | null
   comercio: string | null
   nota: string | null
+  /** `receipt_id`: the receipt attached as evidence, when there is one. */
+  reciboId?: string | null
+}
+
+/** Where a stored receipt can be seen: a short-lived signed link, and whether it is a PDF. */
+export interface EnlaceDeFactura {
+  url: string
+  pdf: boolean
 }
 
 export interface DatosDeMovimientos {

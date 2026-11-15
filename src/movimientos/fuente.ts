@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { limitesDelMes } from '../tablero/calculo'
 import { todas } from '../tablero/datos'
-import { traducirError, type DatosDeMovimientos, type FuncionDelServidor, type Tipo } from './reglas'
+import { traducirError, type DatosDeMovimientos, type EnlaceDeFactura, type FuncionDelServidor, type Tipo } from './reglas'
 
 /** What `ejecutar` can call: the movements' functions, plus the receipt ones (migrations 0046 and 0047). */
 export type FuncionQueSeEjecuta = FuncionDelServidor | 'registrar_movimiento_de_factura' | 'registrar_nomina_de_factura'
@@ -17,6 +17,8 @@ export interface FuenteDeMovimientos {
   saldo(cuentaId: string): Promise<number | null>
   /** Calls a server function; rejects with an `ErrorDelServidor`. */
   ejecutar(funcion: FuncionQueSeEjecuta, params: Record<string, unknown>): Promise<void>
+  /** A signed link to a movement's receipt; optional so a source without it offers no «Ver factura». */
+  factura?(reciboId: string): Promise<EnlaceDeFactura>
 }
 
 /** The phone uploads account and category photos to this private bucket. */
@@ -51,7 +53,7 @@ export function fuenteDeMovimientosDeSupabase(
         todas((a, b) =>
           sb
             .from('transactions')
-            .select('id, kind, amount, occurred_at, account_id, category_id, rubro_id, merchant_name, note')
+            .select('id, kind, amount, occurred_at, account_id, category_id, rubro_id, merchant_name, note, receipt_id')
             .eq('household_id', hogarId)
             .is('deleted_at', null)
             .not('voided', 'is', true)
@@ -107,6 +109,7 @@ export function fuenteDeMovimientosDeSupabase(
           rubroId: m.rubro_id,
           comercio: m.merchant_name,
           nota: m.note,
+          reciboId: m.receipt_id ?? null,
         })),
         historial: usados.map((u) => ({
           tipo: u.kind as Tipo,
@@ -151,6 +154,14 @@ export function fuenteDeMovimientosDeSupabase(
         throw traducirError({})
       }
       if (respuesta.error) throw traducirError(respuesta.error)
+    },
+
+    async factura(reciboId) {
+      const { data, error } = await sb.from('receipts').select('storage_path').eq('id', reciboId).single()
+      if (error || !data?.storage_path) throw new Error(error?.message ?? 'Sin archivo')
+      const firmado = await sb.storage.from('receipts').createSignedUrl(data.storage_path, 60 * 10)
+      if (firmado.error) throw new Error(firmado.error.message)
+      return { url: firmado.data.signedUrl, pdf: data.storage_path.toLowerCase().endsWith('.pdf') }
     },
   }
 }

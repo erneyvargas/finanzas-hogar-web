@@ -976,3 +976,11 @@ button.pildora .medallon .glifo { font-size: 18px; }
 .insignia .glifo { font-size: 13px; }
 .selector-lista .punto.con-glifo { width: 26px; height: 26px; margin-right: 0; }
 .selector-lista .punto .glifo { font-size: 16px; }
+
+/* Ver factura: the receipt dialog, narrower than «Desde factura». */
+.visor-de-factura { width: min(760px, 100%); grid-template-rows: auto minmax(0, 1fr) auto; }
+.aviso-en-mesa { color: #fbfaf5; margin: 0; }
+/* A long receipt scrolls instead of being cut at the bottom. */
+.visor-de-factura .mesa { overflow: auto; place-items: start center; }
+.visor-de-factura .mesa img { max-height: none; }
+.visor-de-factura .mesa object { min-height: 100%; }

@@ -1312,3 +1312,63 @@ describe('a receipt as evidence of a new movement', () => {
     expect(within(p).queryByLabelText('Factura o comprobante')).toBeNull()
   })
 })
+
+describe('seeing the receipt of a movement', () => {
+  const conFactura: DatosDeMovimientos = {
+    ...datos,
+    movimientos: datos.movimientos.map((m) => (m.id === 'm1' ? { ...m, reciboId: 'r1' } : m)),
+  }
+  const menuDe = async (comercio: RegExp) => {
+    const lista = await screen.findByRole('region', { name: 'Movimientos de octubre' })
+    await userEvent.click(await within(lista).findByRole('button', { name: new RegExp(`Más acciones de ${comercio.source}`) }))
+    return screen.getByRole('menu')
+  }
+
+  it('the three dots offer Ver factura first when the movement has one, and it shows the photo', async () => {
+    const m = movimientos(undefined, conFactura)
+    m.factura = vi.fn(async () => ({ url: 'https://firmada/r1.jpg', pdf: false }))
+    montar(m)
+    const menu = await menuDe(/Aguacate/)
+
+    expect(within(menu).getAllByRole('menuitem').map((b) => b.textContent)).toEqual(['Ver factura', 'Duplicar', 'Borrar'])
+    await userEvent.click(within(menu).getByRole('menuitem', { name: 'Ver factura' }))
+
+    const visor = await screen.findByRole('dialog', { name: 'Factura de Aguacate' })
+    expect(m.factura).toHaveBeenCalledWith('r1')
+    expect(await within(visor).findByRole('img', { name: 'La foto de la factura' })).toHaveAttribute('src', 'https://firmada/r1.jpg')
+    expect(within(visor).getByRole('link', { name: 'Abrir en otra pestaña' })).toHaveAttribute('href', 'https://firmada/r1.jpg')
+
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Factura de Aguacate' })).toBeNull()
+  })
+
+  it('a PDF receipt shows in the PDF viewer', async () => {
+    const m = movimientos(undefined, conFactura)
+    m.factura = vi.fn(async () => ({ url: 'https://firmada/r1.pdf', pdf: true }))
+    montar(m)
+    await userEvent.click(within(await menuDe(/Aguacate/)).getByRole('menuitem', { name: 'Ver factura' }))
+
+    const visor = await screen.findByRole('dialog', { name: 'Factura de Aguacate' })
+    await waitFor(() => expect(visor.querySelector('object[type="application/pdf"]')).toHaveAttribute('data', 'https://firmada/r1.pdf'))
+  })
+
+  it('says so when the receipt cannot be opened, and ✕ closes', async () => {
+    const m = movimientos(undefined, conFactura)
+    m.factura = vi.fn(async () => Promise.reject(new Error('red')))
+    montar(m)
+    await userEvent.click(within(await menuDe(/Aguacate/)).getByRole('menuitem', { name: 'Ver factura' }))
+
+    const visor = await screen.findByRole('dialog', { name: 'Factura de Aguacate' })
+    expect(await within(visor).findByRole('alert')).toHaveTextContent('No se pudo abrir la factura. Intenta de nuevo.')
+    await userEvent.click(within(visor).getByRole('button', { name: 'Cerrar' }))
+    expect(screen.queryByRole('dialog', { name: 'Factura de Aguacate' })).toBeNull()
+  })
+
+  it('a movement without a receipt keeps only Duplicar and Borrar', async () => {
+    const m = movimientos(undefined, conFactura)
+    m.factura = vi.fn()
+    montar(m)
+    const menu = await menuDe(/Empresa/)
+    expect(within(menu).getAllByRole('menuitem').map((b) => b.textContent)).toEqual(['Duplicar', 'Borrar'])
+  })
+})
