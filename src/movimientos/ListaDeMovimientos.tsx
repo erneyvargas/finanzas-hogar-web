@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { festivoDe } from '../core/festivos'
 import { colorDe, dinero, MESES, nombreDelMes } from '../core/formato'
 import { diaDe } from '../tablero/calculo'
 import { alternar, arbolDeGastos, dentroDelRango, pasaLaSeleccion, plano, textoDelRango, tocarDia, type Rango } from './filtros'
@@ -31,6 +32,13 @@ export function Cara({ nombre, foto, clase = 'cara' }: { nombre: string; foto?: 
 const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
 
 /** `Martes 27 oct` for a `YYYY-MM-DD` day. */
+/** Saturday, Sunday or a Colombian holiday. */
+function esDiaNoHabil(dia: string) {
+  const [a, m, d] = dia.split('-').map(Number)
+  const semana = new Date(Date.UTC(a, m - 1, d)).getUTCDay()
+  return semana === 0 || semana === 6 || festivoDe(dia) !== undefined
+}
+
 function tituloDelDia(dia: string) {
   const [a, m, d] = dia.split('-').map(Number)
   return `${DIAS[new Date(Date.UTC(a, m - 1, d)).getUTCDay()]} ${d} ${MESES[m - 1].slice(0, 3)}`
@@ -255,9 +263,12 @@ export function ListaDeMovimientos({
           )}
           {visibles.length === 0 && <p className="nota vacio">Ningún movimiento coincide.</p>}
           {dias.map((d) => (
-            <div key={d.dia} className="dia">
+            <div key={d.dia} className={`dia${esDiaNoHabil(d.dia) ? ' no-habil' : ''}`}>
               <h3>
-                <span>{tituloDelDia(d.dia)}</span>
+                <span>
+                  {tituloDelDia(d.dia)}
+                  {festivoDe(d.dia) && <span className="festivo-nombre"> · {festivoDe(d.dia)}</span>}
+                </span>
                 <span className="num">{sumas(total(d.lineas, 'expense'), total(d.lineas, 'income'))}</span>
               </h3>
               <ul>

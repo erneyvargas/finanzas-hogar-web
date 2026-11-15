@@ -694,3 +694,7 @@ button.mas-acciones:hover, button.mas-acciones[aria-expanded='true'] { backgroun
 .menu-confirmar p { margin: 0; font-weight: 600; }
 .menu-botones { display: flex; gap: 6px; }
 .menu-botones button { padding: 8px 12px; font-size: 14px; }
+
+/* Days off (Saturday, Sunday, holidays) read apart in the list. */
+.dia.no-habil { background: color-mix(in srgb, var(--grafito) 7%, transparent); border-radius: 12px; padding: 0 8px 4px; margin: 0 -8px; }
+.festivo-nombre { color: var(--alerta); font-weight: 600; }
