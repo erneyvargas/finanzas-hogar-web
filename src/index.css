@@ -956,3 +956,23 @@ button.fila-categoria:hover, button.fila-sub:hover { background: var(--fondo); }
   padding: 8px 8px 8px 14px; border: 1px solid var(--regla); border-radius: 10px;
 }
 .adjunto-nombre { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Category glyphs (Material Symbols, as the phone): white ink on the level's color. */
+.glifo {
+  font-family: 'Material Symbols Outlined'; font-weight: normal; font-style: normal; line-height: 1;
+  letter-spacing: normal; text-transform: none; white-space: nowrap; direction: ltr;
+  font-feature-settings: 'liga'; -webkit-font-smoothing: antialiased; overflow: hidden;
+  font-size: 22px; width: 1em; height: 1em; display: inline-block; color: #fff;
+}
+.glifo::before { content: attr(data-glifo); }
+.con-glifo { display: inline-grid; place-items: center; }
+button.pildora .medallon .glifo { font-size: 18px; }
+/* The category badge on a shortcut's corner, cut out of the face by a ring of paper. */
+.atajo-cara { position: relative; display: inline-grid; }
+.insignia {
+  position: absolute; right: -4px; bottom: -4px; width: 20px; height: 20px; border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--papel);
+}
+.insignia .glifo { font-size: 13px; }
+.selector-lista .punto.con-glifo { width: 26px; height: 26px; margin-right: 0; }
+.selector-lista .punto .glifo { font-size: 16px; }

@@ -30,6 +30,8 @@ export interface CategoriaDeMovimiento {
   viva: boolean
   /** Signed link to its photo; only rubros usually have one. */
   foto?: string | null
+  /** `categories.icon`, a stored glyph name (see core/ui/glifos). */
+  icono?: string | null
   /** `categories.sort_order`; the picker lists each level by it. */
   orden?: number | null
 }
