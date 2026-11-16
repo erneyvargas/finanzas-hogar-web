@@ -60,6 +60,8 @@ export interface CategoriaDelMes {
   total: number
   /** The month before, up to the same day while the month runs. */
   anterior: number
+  /** Palette key of a rubro (only rubros have one). */
+  color?: string | null
 }
 
 export interface MesDeTendencia {
@@ -78,6 +80,8 @@ export interface ResumenDelMes {
   matriz: FilaDeMatriz[]
   /** Biggest first; only categories that spent this month. */
   porCategoria: CategoriaDelMes[]
+  /** The same by rubro, with its color: what the «Por rubro» card shows. */
+  porRubroDelMes: CategoriaDelMes[]
   meses: MesDeTendencia[]
 }
 
@@ -234,6 +238,24 @@ export function resumenDelMes(entrada: {
     const c = porCategoria.get(idDe(l))
     if (c) c.anterior += l.monto
   }
+  const rubroDe = (l: Linea) => l.rubroId ?? 'sin-rubro'
+  const porRubroDelMes = new Map<string, CategoriaDelMes>()
+  for (const l of delMes) {
+    const id = rubroDe(l)
+    const r = porRubroDelMes.get(id) ?? {
+      id,
+      nombre: (l.rubroId && cat.get(l.rubroId)?.nombre) || 'Sin rubro',
+      total: 0,
+      anterior: 0,
+      color: (l.rubroId && cat.get(l.rubroId)?.color) || null,
+    }
+    r.total += l.monto
+    porRubroDelMes.set(id, r)
+  }
+  for (const l of delAnterior) {
+    const r = porRubroDelMes.get(rubroDe(l))
+    if (r) r.anterior += l.monto
+  }
 
   return {
     gastado: sumar(delMes.map((l) => l.monto)),
@@ -250,6 +272,7 @@ export function resumenDelMes(entrada: {
       .sort((a, b) => b.total - a.total),
     matriz: [...filas.values()].sort((a, b) => b.total - a.total),
     porCategoria: [...porCategoria.values()].sort((a, b) => b.total - a.total),
+    porRubroDelMes: [...porRubroDelMes.values()].sort((a, b) => b.total - a.total),
     meses,
   }
 }

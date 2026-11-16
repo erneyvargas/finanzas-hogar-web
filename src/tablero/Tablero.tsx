@@ -248,7 +248,9 @@ export function Tablero({
    */
   const anadir = (categoriaId: string | null) => {
     const cats = lista?.datos.categorias ?? []
-    const hijas = cats.filter((c) => c.viva && c.nivel === 'subcategory' && c.padreId === categoriaId)
+    // The leaves under it: straight under a category, or under a rubro's categories.
+    const padres = new Set([categoriaId, ...cats.filter((c) => c.viva && c.padreId === categoriaId).map((c) => c.id)])
+    const hijas = cats.filter((c) => c.viva && c.nivel === 'subcategory' && padres.has(c.padreId))
     const nombre = cats.find((c) => c.id === categoriaId)?.nombre
     abrir(null)
     setInicio(hijas.length === 1 ? { categoria: hijas[0].id } : nombre ? { busqueda: nombre } : {})
@@ -789,7 +791,7 @@ function Contenido({
 
       <PorCategoria
         mes={mes}
-        categorias={r.porCategoria}
+        categorias={r.porRubroDelMes}
         filas={lista?.movimientos ?? null}
         categoriasDeMovimientos={lista?.categorias ?? []}
         alElegirMovimiento={alElegirMovimiento}
