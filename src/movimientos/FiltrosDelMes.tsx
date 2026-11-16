@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { festivoDe } from '../core/festivos'
+import { Ayuda } from '../core/ui/Ayuda'
 import { colorDe, dinero, MESES } from '../core/formato'
 import { buscarEnArbol, dentroDelRango, type Rango, type RubroDelArbol } from './filtros'
 
@@ -103,20 +104,20 @@ export function FiltrosDelMes({
           const nombre = `${i + 1} de ${MESES[m - 1]}`
           const titulo = [festivo, gasto > 0 ? dinero(gasto) : null].filter(Boolean).join(' · ')
           return (
-            <button
-              key={dia}
-              type="button"
-              className={`dia-del-mes${festivo ? ' festivo' : ''}${inicio ? ' inicio' : ''}${fin ? ' fin' : ''}`}
-              aria-label={festivo ? `${nombre}, festivo: ${festivo}` : nombre}
-              aria-pressed={elegido}
-              data-previa={enPrevia || undefined}
-              onMouseEnter={() => setSobre(dia)}
-              title={titulo || undefined}
-              onClick={() => alTocarDia(dia)}
-            >
-              {i + 1}
-              {tono > 0 && <span className={`gasto-del-dia nivel-${tono}`} aria-hidden="true" />}
-            </button>
+            <Ayuda key={dia} texto={titulo}>
+              <button
+                type="button"
+                className={`dia-del-mes${festivo ? ' festivo' : ''}${inicio ? ' inicio' : ''}${fin ? ' fin' : ''}`}
+                aria-label={festivo ? `${nombre}, festivo: ${festivo}` : nombre}
+                aria-pressed={elegido}
+                data-previa={enPrevia || undefined}
+                onMouseEnter={() => setSobre(dia)}
+                onClick={() => alTocarDia(dia)}
+              >
+                {i + 1}
+                {tono > 0 && <span className={`gasto-del-dia nivel-${tono}`} aria-hidden="true" />}
+              </button>
+            </Ayuda>
           )
         })}
       </div>

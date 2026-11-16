@@ -1,5 +1,6 @@
 // Ported from Gastos (Moxen, moxen.cl/recursos/gastos), used under the Moxen resource licence.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Ayuda } from './Ayuda'
 
 export interface ParteDelAnillo {
   id: string
@@ -199,20 +200,19 @@ export function Anillo({
         <circle className="anillo-pista" r={R} />
         <g className="anillo-segmentos">
           {partes.map((p, i) => (
-            <path
-              key={p.id}
-              ref={(el) => {
-                caminos.current[i] = el
-              }}
-              className="anillo-seg"
-              style={{ stroke: p.color }}
-              data-elegido={p.id === elegido || undefined}
-              onClick={() => alElegir(p.id)}
-              onPointerEnter={() => setSobre(p.id)}
-              onPointerLeave={() => setSobre((s) => (s === p.id ? null : s))}
-            >
-              <title>{p.nombre}</title>
-            </path>
+            <Ayuda key={p.id} texto={p.nombre}>
+              <path
+                ref={(el) => {
+                  caminos.current[i] = el
+                }}
+                className="anillo-seg"
+                style={{ stroke: p.color }}
+                data-elegido={p.id === elegido || undefined}
+                onClick={() => alElegir(p.id)}
+                onPointerEnter={() => setSobre(p.id)}
+                onPointerLeave={() => setSobre((s) => (s === p.id ? null : s))}
+              />
+            </Ayuda>
           ))}
         </g>
       </svg>

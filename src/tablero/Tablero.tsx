@@ -23,6 +23,7 @@ import { porPagarEn30Dias, vencimientos, type DatosDePorVencer, type Vencimiento
 import { PanelDeRegla } from '../recurrentes/PanelDeRegla'
 import { ErrorDelServidor } from '../movimientos/reglas'
 import { EsqueletoDeCuentas, EsqueletoPorVencer } from './esqueletos'
+import { Ayuda } from '../core/ui/Ayuda'
 
 const mesLargo = (mes: string) => {
   const n = nombreDelMes(mes)
@@ -831,6 +832,7 @@ function Contenido({
       <PorCategoria
         mes={mes}
         categorias={r.porRubroDelMes}
+        comparadoHasta={r.comparadoHasta}
         alAnadir={alAnadir}
         alElegirGrupo={setRubrosElegidos}
       />
@@ -933,17 +935,16 @@ function Tendencia({ r }: { r: ResumenDelMes }) {
               const h = (v / tope) * alto
               base -= h
               return (
-                <rect
-                  key={id}
-                  x={x}
-                  y={base}
-                  width={ancho * 0.64}
-                  height={h}
-                  fill={colorDe(rubroDe(id).color)}
-                  opacity={ultimo ? 1 : 0.55}
-                >
-                  <title>{`${rubroDe(id).nombre} · ${mesCorto(m.mes)}: ${dinero(v)}`}</title>
-                </rect>
+                <Ayuda key={id} texto={`${rubroDe(id).nombre} · ${mesCorto(m.mes)}: ${dinero(v)}`}>
+                  <rect
+                    x={x}
+                    y={base}
+                    width={ancho * 0.64}
+                    height={h}
+                    fill={colorDe(rubroDe(id).color)}
+                    opacity={ultimo ? 1 : 0.55}
+                  />
+                </Ayuda>
               )
             })}
             <text x={x + ancho * 0.32} y={H - pad.b + 16} textAnchor="middle" fontWeight={ultimo ? 700 : 400}>

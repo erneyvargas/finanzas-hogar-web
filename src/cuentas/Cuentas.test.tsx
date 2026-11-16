@@ -577,7 +577,11 @@ describe('transfers', () => {
     const p = await abrirTransferir()
     await elegir(p, 'De', 'Efectivo')
     await elegir(p, 'A', 'Nequi Karen')
-    await userEvent.click(within(p).getByRole('button', { name: 'Invertir' }))
+    const invertir = within(p).getByRole('button', { name: 'Invertir' })
+    expect(invertir).not.toHaveAttribute('title')
+    await userEvent.hover(invertir)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Invertir')
+    await userEvent.click(invertir)
     expect(selector(p, 'De')).toHaveTextContent('Nequi Karen')
     expect(selector(p, 'A')).toHaveTextContent('Efectivo')
 

@@ -8,6 +8,7 @@ import { ErrorDelServidor, MENSAJE_GENERICO, leerMonto } from '../movimientos/re
 import type { FuenteDeCuentas, FuncionDeCuentas } from './fuente'
 import { SelectorDeCuenta } from './SelectorDeCuenta'
 import { descargarExcel, filasParaExcel, nombreDelArchivo } from './excel'
+import { Ayuda } from '../core/ui/Ayuda'
 import {
   ESTILOS,
   ETIQUETA,
@@ -846,18 +847,19 @@ function Transferir({
         />
       </div>
       {destino && puedeInvertir(origen, destino) && origenes.some((o) => o.id === destino.id) && (
-        <button
-          type="button"
-          className="intercambio"
-          aria-label="Invertir"
-          title="Invertir"
-          onClick={() => {
-            setOrigenId(destino.id)
-            setDestinoId(origen.id)
-          }}
-        >
-          ⇅
-        </button>
+        <Ayuda texto="Invertir">
+          <button
+            type="button"
+            className="intercambio"
+            aria-label="Invertir"
+            onClick={() => {
+              setOrigenId(destino.id)
+              setDestinoId(origen.id)
+            }}
+          >
+            ⇅
+          </button>
+        </Ayuda>
       )}
       <div className="campo">
         <SelectorDeCuenta

@@ -1,4 +1,5 @@
 // Ported from Vencimientos (Moxen, moxen.cl/recursos/vencimientos), used under the Moxen resource licence.
+import { Ayuda } from './Ayuda'
 import { diasDelMes, huecoInicial } from './rejillaDelMes'
 
 /** A circle on a day: its size and color come from the page. */
@@ -52,18 +53,18 @@ export function CalendarioDeCirculos({
   etiqueta: string
 }) {
   const bola = (c: Circulo) => (
-    <button
-      key={c.id}
-      type="button"
-      className={`bola bola-${c.estilo}${c.pulso ? ` bola-pulso-${c.pulso}` : ''} ${encendido === c.id ? 'encendida' : ''}`}
-      style={{ ['--s' as string]: `${c.tamano}px`, ['--c' as string]: c.color }}
-      aria-label={c.etiqueta}
-      title={c.etiqueta}
-      onMouseEnter={() => alEncender?.(c.id)}
-      onMouseLeave={() => alEncender?.(null)}
-      onFocus={() => alEncender?.(c.id)}
-      onBlur={() => alEncender?.(null)}
-    />
+    <Ayuda key={c.id} texto={c.etiqueta}>
+      <button
+        type="button"
+        className={`bola bola-${c.estilo}${c.pulso ? ` bola-pulso-${c.pulso}` : ''} ${encendido === c.id ? 'encendida' : ''}`}
+        style={{ ['--s' as string]: `${c.tamano}px`, ['--c' as string]: c.color }}
+        aria-label={c.etiqueta}
+        onMouseEnter={() => alEncender?.(c.id)}
+        onMouseLeave={() => alEncender?.(null)}
+        onFocus={() => alEncender?.(c.id)}
+        onBlur={() => alEncender?.(null)}
+      />
+    </Ayuda>
   )
   const porDia = new Map<number, Circulo[]>()
   for (const c of circulos) porDia.set(c.dia, [...(porDia.get(c.dia) ?? []), c])
@@ -84,8 +85,10 @@ export function CalendarioDeCirculos({
           const festivo = festivos?.get(dia)
           const clases = ['cal-dia', dia === hoy && 'hoy', hoy !== undefined && dia < hoy && 'pasado', festivo && 'festivo']
           return (
-            <div key={dia} className={clases.filter(Boolean).join(' ')} data-dia={dia} title={festivo}>
-              <span className="cal-num">{dia}</span>
+            <div key={dia} className={clases.filter(Boolean).join(' ')} data-dia={dia}>
+              <Ayuda texto={festivo}>
+                <span className="cal-num">{dia}</span>
+              </Ayuda>
               <span className="cal-bolas">{(porDia.get(dia) ?? []).map(bola)}</span>
             </div>
           )

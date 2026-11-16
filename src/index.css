@@ -1234,3 +1234,24 @@ button.editar-regla { padding: 4px 10px; font-size: 13px; background: transparen
 .desglose-ingresos dd { margin: 0; font-weight: 700; }
 .desglose-ingresos .queda { border-bottom: 0; }
 .desglose-ingresos .queda dt, .desglose-ingresos .queda dd { color: var(--tinta); font-weight: 800; }
+
+/* The shared tooltip (src/core/ui/Ayuda.tsx), shown in a portal over everything. */
+.ayuda {
+  z-index: 1000;
+  max-width: min(260px, calc(100vw - 16px));
+  padding: 5px 10px;
+  border-radius: calc(var(--radio) / 2);
+  background: var(--tinta);
+  color: var(--papel);
+  font-family: 'Dosis', 'Segoe UI', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  pointer-events: none;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.18);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ayuda { transition: none !important; transform: none !important; }
+}
+/* A disabled field cannot be hovered; its wrapper shows the tooltip instead. */
+.con-sugerencias input:disabled { pointer-events: none; }
