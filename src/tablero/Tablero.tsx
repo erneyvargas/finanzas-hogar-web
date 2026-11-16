@@ -772,7 +772,27 @@ function Contenido({
             </>
           )}
         </p>
-      </section>
+              {r.gastado > 0 && (
+          <dl className="desglose-ingresos num">
+            <div>
+              <dt>Promedio por día</dt>
+              <dd>{dinero(r.promedioDiario ?? 0)}</dd>
+            </div>
+            {r.diaMasCaro && (
+              <div>
+                <dt>Día más caro</dt>
+                <dd>
+                  {r.diaMasCaro.dia} {mesCorto(mes).toLowerCase()} · {dinero(r.diaMasCaro.monto)}
+                </dd>
+              </div>
+            )}
+            <div>
+              <dt>Movimientos</dt>
+              <dd>{r.cuantosGastos ?? 0}</dd>
+            </div>
+          </dl>
+        )}
+</section>
 
       {/* Where «Por persona» was: it repeated the «Por rubro» card (the user's words:
           «este ya sobra ya que es lo mismo que dice en la grafica de abajo», then

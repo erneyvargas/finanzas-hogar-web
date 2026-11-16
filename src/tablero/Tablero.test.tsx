@@ -82,6 +82,14 @@ describe('the month dashboard', () => {
   })
 
   // The user's words: «el ttoltip debe mostrar es el nombre del rubro».
+  it('the spent card adds the daily average, the most expensive day and how many expenses', async () => {
+    montar(fuente())
+    const gastado = await screen.findByRole('region', { name: 'Gastado en octubre' })
+    expect(gastado).toHaveTextContent('Promedio por día')
+    expect(gastado).toHaveTextContent('Día más caro')
+    expect(gastado).toHaveTextContent('Movimientos')
+  })
+
   it('what is left subtracts the debt payments too', async () => {
     const base = fuente()
     const conAbono: FuenteDelTablero = {

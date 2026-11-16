@@ -78,6 +78,12 @@ export interface ResumenDelMes {
   ingresos: number
   /** Debt payments of the month (capital and interest): money that left, not an expense line. */
   abonos: number
+  /** Expense movements of the month (not parts). */
+  cuantosGastos?: number
+  /** Spent per day so far: up to today in a running month, else the whole month. */
+  promedioDiario?: number
+  /** The most expensive day of the month, as its day number and total. */
+  diaMasCaro?: { dia: number; monto: number } | null
   porRubro: TotalDeRubro[]
   matriz: FilaDeMatriz[]
   /** Biggest first; only categories that spent this month. */
@@ -222,6 +228,12 @@ export function resumenDelMes(entrada: {
       .map((m) => m.monto),
   )
 
+  const porDia = new Map<number, number>()
+  for (const l of delMes) porDia.set(l.dia, (porDia.get(l.dia) ?? 0) + l.monto)
+  const caro = [...porDia.entries()].sort((a, b) => b[1] - a[1])[0]
+  const diasContados = comparadoHasta ?? Number(new Date(Date.UTC(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)), 0)).getUTCDate())
+  const cuantosGastos = movimientos.filter((m) => m.tipo === 'expense' && !m.anulado && mesDe(m.fecha) === mes && m.rubroId !== ajuste).length
+
   const abonos = sumar(
     movimientos.filter((m) => m.tipo === 'debt_payment' && !m.anulado && mesDe(m.fecha) === mes).map((m) => m.monto),
   )
@@ -271,6 +283,9 @@ export function resumenDelMes(entrada: {
     comparadoHasta,
     ingresos,
     abonos,
+    cuantosGastos,
+    promedioDiario: diasContados > 0 ? Math.round(sumar(delMes.map((l) => l.monto)) / diasContados) : 0,
+    diaMasCaro: caro ? { dia: caro[0], monto: caro[1] } : null,
     porRubro: [...rubros.entries()]
       .map(([id, total]) => ({
         id,
