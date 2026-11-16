@@ -426,6 +426,31 @@ describe('the Por vencer tab', () => {
     return tab
   }
 
+  it('shows the shape of the tab while the bills load, then the bills', async () => {
+    let soltar: () => void = () => {}
+    const cargar = vi.fn<FuenteDePorVencer['cargar']>(() => new Promise((ok) => (soltar = () => ok(datosPv))))
+    window.localStorage.setItem('pestana-del-tablero', 'porvencer')
+    render(
+      <ProveedorDeSesion cliente={auth}>
+        <Tablero fuente={fuente()} porVencer={{ cargar }} mesInicial="2026-10" ahora={ahora} />
+      </ProveedorDeSesion>,
+    )
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Cargando vencimientos…')
+    expect(screen.getAllByRole('status')).toHaveLength(1)
+    const ocupado = document.querySelector('[aria-busy="true"]')!
+    expect(ocupado.querySelector('.por-vencer')).toHaveAttribute('aria-hidden', 'true')
+    // The calendar of November 2026: 6 empty cells before day 1, then 30 days.
+    expect(ocupado.querySelectorAll('.sk-dia')).toHaveLength(30)
+    expect(ocupado.querySelectorAll('.cal-dia.vacio')).toHaveLength(6)
+    expect(screen.queryByRole('group', { name: 'Calendario de noviembre' })).toBeNull()
+
+    soltar()
+    expect(await screen.findByRole('group', { name: 'Calendario de noviembre' })).toBeInTheDocument()
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull()
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
   it('is a fourth tab whose badge counts the unpaid items due in the next 30 days', async () => {
     const tab = await montarPv(movimientos())
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Resumen', 'Movimientos', 'Por vencer5'])

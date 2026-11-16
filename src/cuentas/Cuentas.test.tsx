@@ -626,6 +626,52 @@ describe('the tabs with accounts', () => {
   })
 })
 
+describe('loading shapes', () => {
+  it('the Cuentas tab shows the ledger shape while the accounts load, then the accounts', async () => {
+    let soltar: () => void = () => {}
+    const f = fuente()
+    f.cargar = vi.fn(() => new Promise<DatosDeCuentas>((ok) => (soltar = () => ok(datos))))
+    window.localStorage.setItem('pestana-del-tablero', 'cuentas')
+    render(
+      <ProveedorDeSesion cliente={auth}>
+        <Tablero fuente={tablero()} movimientos={movimientos()} cuentas={f} mesInicial="2026-10" ahora={ahora} />
+      </ProveedorDeSesion>,
+    )
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Cargando cuentas…')
+    expect(screen.getAllByRole('status')).toHaveLength(1)
+    const ocupado = document.querySelector('[aria-busy="true"]')!
+    expect(ocupado.querySelector('.cuentas')).toHaveAttribute('aria-hidden', 'true')
+    expect(ocupado.querySelectorAll('.sk-libro-fila').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('table', { name: 'Cuentas' })).toBeNull()
+
+    soltar()
+    expect(await screen.findByRole('table', { name: 'Cuentas' })).toBeInTheDocument()
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull()
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
+  it('the account panel shows movement rows while they load, then the movements', async () => {
+    let soltar: () => void = () => {}
+    const f = fuente()
+    const reales = f.movimientos
+    f.movimientos = vi.fn<FuenteDeCuentas['movimientos']>((id, mes) => new Promise((ok) => (soltar = () => ok(reales(id, mes)))))
+    await montar(f)
+
+    const p = await abrir('Nequi Karen')
+    expect(within(p).getByRole('status')).toHaveTextContent('Cargando movimientos de octubre…')
+    const filas = p.querySelector('[aria-busy="true"] ul.movs-de-cuenta')!
+    expect(filas).toHaveAttribute('aria-hidden', 'true')
+    expect(filas.querySelectorAll('li')).toHaveLength(4)
+    expect(within(p).queryByRole('list', { name: 'Movimientos de octubre' })).toBeNull()
+
+    soltar()
+    const lista = await within(p).findByRole('list', { name: 'Movimientos de octubre' })
+    expect(within(lista).getByText('Buseta')).toBeInTheDocument()
+    expect(p.querySelector('[aria-busy="true"]')).toBeNull()
+  })
+})
+
 describe('downloading an account to Excel', () => {
   it('Descargar Excel sends the month rows, the balance running back from the month end, and the file name', async () => {
     const f = fuente()

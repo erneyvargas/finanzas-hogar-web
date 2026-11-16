@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { dinero, miles, nombreDelMes } from '../core/formato'
 import { diaDe } from '../tablero/calculo'
+import { EsqueletoDeMovimientosDeCuenta } from '../tablero/esqueletos'
+import { useCargaVisible } from '../core/cargaVisible'
 import { Cara } from '../movimientos/ListaDeMovimientos'
 import { ErrorDelServidor, MENSAJE_GENERICO, leerMonto } from '../movimientos/reglas'
 import type { FuenteDeCuentas, FuncionDeCuentas } from './fuente'
@@ -230,6 +232,7 @@ function Detalle({
   const puedeSalir = origenesConSaldo(datos.cuentas).some((o) => o.id === c.id)
   const nombre = (id: string | null) => datos.cuentas.find((x) => x.id === id)?.nombre ?? 'otra cuenta'
   const filas = movs?.clave === clave ? movs.filas : null
+  const esqueleto = useCargaVisible(!fallo && !filas)
   // The month's movements as an .xlsx, the balance running back from the month's end.
   const [exportando, setExportando] = useState(false)
   const [falloExcel, setFalloExcel] = useState<string | null>(null)
@@ -329,9 +332,9 @@ function Detalle({
       <div>
         <h3 className="rotulo">Movimientos de {nombreDelMes(mes)}</h3>
         {fallo && <p className="error">No se pudieron cargar los movimientos.</p>}
-        {!fallo && !filas && <p className="nota">Cargando…</p>}
-        {filas && filas.length === 0 && <p className="nota">Sin movimientos este mes.</p>}
-        {filas && filas.length > 0 && (
+        {!fallo && esqueleto && <EsqueletoDeMovimientosDeCuenta mes={nombreDelMes(mes)} />}
+        {filas && !esqueleto && filas.length === 0 && <p className="nota">Sin movimientos este mes.</p>}
+        {filas && !esqueleto && filas.length > 0 && (
           <ul className="movs-de-cuenta" aria-label={`Movimientos de ${nombreDelMes(mes)}`}>
             {filas.map((m) => {
               const signo = signoDe(m, c.id)
