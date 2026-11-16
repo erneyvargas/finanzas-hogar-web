@@ -1255,3 +1255,75 @@ button.editar-regla { padding: 4px 10px; font-size: 13px; background: transparen
 }
 /* A disabled field cannot be hovered; its wrapper shows the tooltip instead. */
 .con-sugerencias input:disabled { pointer-events: none; }
+
+/* The «Deudas» tab: the plan to get out of debt (design B, «Línea de tiempo»). */
+.plan-deudas { display: grid; gap: 16px; }
+.pd-tarjetas { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.pd-fin .grande { font-size: 40px; }
+.pd-no-termina { font-size: 22px; font-weight: 700; line-height: 1.15; margin: 0 0 8px; color: var(--alerta); text-wrap: balance; }
+.pd-deslizador-fila { display: flex; align-items: center; gap: 12px; }
+.pd-deslizador { flex: 1; min-width: 0; accent-color: var(--marca); height: 24px; cursor: pointer; margin: 0; }
+.pd-monto { font-size: 18px; white-space: nowrap; }
+.pd-exacto { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 10px 0 8px; }
+.pd-campo {
+  font: inherit; font-weight: 700; width: 150px; padding: 8px 10px;
+  border-radius: 10px; border: 1px solid var(--borde); background: var(--papel); color: var(--tinta);
+}
+.pd-calculado { padding: 9px 12px; font-size: 14px; }
+.pd-conmutador { margin-left: 0; margin-bottom: 8px; flex-wrap: wrap; }
+.pd-conmutador button { display: inline-flex; align-items: center; gap: 6px; padding: 9px 12px; font-weight: 600; }
+.pd-chip {
+  font-size: 11px; font-weight: 700; border-radius: 99px; padding: 2px 7px;
+  background: color-mix(in srgb, var(--marca) 16%, var(--papel)); color: var(--marca);
+}
+.pd-conmutador button[aria-pressed='true'] .pd-chip { background: var(--marca); color: var(--papel); }
+.pd-diferencia { margin: 6px 0 0; font-weight: 600; color: var(--marca); }
+
+.pd-barras { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.pd-barra, .pd-eje { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr) 72px; gap: 12px; align-items: center; font-size: 14px; }
+.pd-nombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pd-pista { position: relative; display: block; height: 16px; border-radius: 99px; background: var(--fondo); overflow: hidden; }
+.pd-pista:focus-visible { outline: 2px solid var(--marca); outline-offset: 2px; }
+.pd-pista i { position: absolute; inset: 0 auto 0 0; border-radius: 99px; transition: width 0.25s ease-out; }
+.pd-pista i.no-cierra {
+  background-image: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--papel) 45%, transparent) 6px 12px) !important;
+  background-color: var(--alerta);
+}
+.pd-fin-mes { text-align: right; white-space: nowrap; }
+.pd-eje { margin-top: 6px; font-size: 12px; color: var(--grafito); }
+.pd-eje-anos { position: relative; height: 16px; }
+.pd-eje-anos span { position: absolute; top: 0; transform: translateX(-50%); font-variant-numeric: tabular-nums; }
+
+.pd-accion {
+  margin: 0; padding: 12px 14px; border-radius: 12px; font-weight: 600;
+  background: color-mix(in srgb, var(--marca) 10%, var(--papel)); border: 1px solid color-mix(in srgb, var(--marca) 25%, var(--papel));
+}
+.pd-ver { justify-self: start; }
+.pd-tabla { margin-top: 12px; font-variant-numeric: tabular-nums; }
+.pd-tabla th:nth-child(2), .pd-tabla td:nth-child(2) { text-align: left; }
+.pd-abrir { background: transparent; color: var(--tinta); padding: 2px 0; font-size: 14px; font-weight: 600; border-radius: 6px; }
+.pd-abrir::before { content: '▸'; display: inline-block; width: 14px; color: var(--grafito); transition: transform 0.15s; }
+.pd-abrir[aria-expanded='true']::before { transform: rotate(90deg); }
+.pd-fila-mes.abierta td { background: color-mix(in srgb, var(--marca) 8%, var(--papel)); }
+.pd-extra-a { color: var(--marca); font-weight: 600; }
+.pd-interes { color: var(--alerta); }
+.pd-fila-deuda td { background: var(--fondo); color: var(--grafito); font-size: 13px; }
+.pd-fila-deuda td:first-child { padding-left: 22px; }
+.pd-fila-deuda.con-extra td:first-child { color: var(--tinta); font-weight: 700; }
+.pd-aviso td { color: var(--marca); font-weight: 700; white-space: normal; text-align: left; }
+.pd-vacio h2 { color: var(--tinta); font-size: 20px; }
+
+@media (max-width: 900px) {
+  .pd-tarjetas { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  /* Phone: the name on its own line, the bar and its month under it. */
+  .pd-barra { grid-template-columns: minmax(0, 1fr) 72px; gap: 4px 10px; }
+  .pd-barra .pd-nombre { grid-column: 1 / -1; }
+  .pd-eje { grid-template-columns: minmax(0, 1fr) 72px; }
+  .pd-eje > span:first-child { display: none; }
+  .pd-fin .grande { font-size: 34px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pd-pista i, .pd-abrir::before { transition: none; }
+}

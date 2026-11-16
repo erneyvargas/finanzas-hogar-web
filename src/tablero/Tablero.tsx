@@ -22,7 +22,9 @@ import type { FuenteDePorVencer } from '../porvencer/fuente'
 import { porPagarEn30Dias, vencimientos, type DatosDePorVencer, type Vencimiento } from '../porvencer/reglas'
 import { PanelDeRegla } from '../recurrentes/PanelDeRegla'
 import { ErrorDelServidor } from '../movimientos/reglas'
-import { EsqueletoDeCuentas, EsqueletoPorVencer } from './esqueletos'
+import { EsqueletoDeCuentas, EsqueletoDelPlan, EsqueletoPorVencer } from './esqueletos'
+import { PlanDeDeudas } from '../deudas/PlanDeDeudas'
+import type { DatosDelPlan, FuenteDelPlan } from '../deudas/fuente'
 import { Ayuda } from '../core/ui/Ayuda'
 
 const mesLargo = (mes: string) => {
@@ -42,6 +44,7 @@ const mesCorto = (mes: string) => {
  * [facturas] too, «Desde factura» registers an expense from a receipt.
  * With [cuentas], the «Cuentas» tab: today's balances and the accounts'
  * own side panel. With [porVencer], the «Por vencer» tab: bills coming due.
+ * With [deudas], the «Deudas» tab: the plan to get out of debt.
  */
 export function Tablero({
   fuente,
@@ -49,6 +52,7 @@ export function Tablero({
   facturas,
   cuentas,
   porVencer,
+  deudas,
   mesInicial,
   ahora = () => new Date(),
 }: {
@@ -60,6 +64,8 @@ export function Tablero({
   cuentas?: FuenteDeCuentas
   /** Where the bills coming due are read; without it, no «Por vencer» tab. */
   porVencer?: FuenteDePorVencer
+  /** Where the debt plan is read; without it, no «Deudas» tab. */
+  deudas?: FuenteDelPlan
   /** Without it: the month open before an F5, else the current one. */
   mesInicial?: string
   /** The clock; tests fix it. */
@@ -111,6 +117,8 @@ export function Tablero({
   const [enCuentas, setEnCuentas] = useState<VistaDeCuenta | undefined>(undefined)
   const [datosPorVencer, setDatosPorVencer] = useState<DatosDePorVencer | null>(null)
   const [errorPorVencer, setErrorPorVencer] = useState<string | null>(null)
+  const [datosDelPlan, setDatosDelPlan] = useState<DatosDelPlan | null>(null)
+  const [errorDelPlan, setErrorDelPlan] = useState<string | null>(null)
   /** The recurring payment panel: `undefined` closed, `null` a new one, else the rule's id. */
   const [enRegla, setEnRegla] = useState<string | null | undefined>(undefined)
   /** The rule «Pagar» is paying: once its expense or installment is saved, it moves on. */
@@ -360,6 +368,7 @@ export function Tablero({
     setErrorDeLista(null)
     setErrorDeCuentas(null)
     setErrorPorVencer(null)
+    setErrorDelPlan(null)
     setRecarga((n) => n + 1)
   }
   // ← and → change the month, unless a field is typing or the panel is open.
@@ -391,13 +400,33 @@ export function Tablero({
     cambiarVistaDeCuentas(undefined)
   }
   // A tab whose source is missing is not offered; without either, no tabs.
-  const ofrecida = { resumen: true, movimientos: !!movimientos, cuentas: !!cuentas, porvencer: !!porVencer }
+  const ofrecida = { resumen: true, movimientos: !!movimientos, cuentas: !!cuentas, porvencer: !!porVencer, deudas: !!deudas }
   const pestanas = PESTANAS.filter((p) => ofrecida[p.id])
   const pestana = pestanas.some((p) => p.id === pestanaGuardadaAhora) ? pestanaGuardadaAhora : 'resumen'
   const verResumen = pestana === 'resumen'
   const verLista = pestana === 'movimientos'
   const verCuentas = pestana === 'cuentas'
   const verPorVencer = pestana === 'porvencer'
+  const verDeudas = pestana === 'deudas'
+  // The plan loads when its tab opens (and again on every visit, keeping
+  // the last plan on screen meanwhile): nothing else needs it.
+  useEffect(() => {
+    if (!deudas || !verDeudas) return
+    let vivo = true
+    setErrorDelPlan(null)
+    deudas
+      .cargar()
+      .then((d) => {
+        if (vivo) setDatosDelPlan(d)
+      })
+      .catch((e: Error) => {
+        if (vivo) setErrorDelPlan(`No se pudo cargar el plan de deudas. ${e.message}`)
+      })
+    return () => {
+      vivo = false
+    }
+  }, [deudas, verDeudas, recarga])
+  const esqueletoDelPlan = useCargaVisible(!!deudas && !errorDelPlan && !datosDelPlan)
   /** The badge: unpaid bills due in the next 30 days. */
   const porPagar = datosPorVencer ? porPagarEn30Dias(vencimientos(datosPorVencer, diaDeHoy), diaDeHoy).length : 0
 
@@ -526,6 +555,9 @@ export function Tablero({
             alEditarRegla={porVencer?.ejecutar && lista ? abrirRegla : undefined}
           />
         )}
+        {verDeudas && errorDelPlan && <Fallo texto={errorDelPlan} alReintentar={reintentar} />}
+        {verDeudas && !errorDelPlan && esqueletoDelPlan && <EsqueletoDelPlan />}
+        {verDeudas && !errorDelPlan && datosDelPlan && !esqueletoDelPlan && <PlanDeDeudas datos={datosDelPlan} mesUno={diaDeHoy.slice(0, 7)} />}
         {verCuentas && !errorDeCuentas && datosDeCuentas && !esqueletoDeCuentas && (
           <Cuentas
             datos={datosDeCuentas}
@@ -688,12 +720,13 @@ function Esqueleto({ mes, conResumen, conLista }: { mes: string; conResumen: boo
   )
 }
 
-type Pestana = 'resumen' | 'movimientos' | 'cuentas' | 'porvencer'
+type Pestana = 'resumen' | 'movimientos' | 'cuentas' | 'porvencer' | 'deudas'
 const PESTANAS: { id: Pestana; nombre: string }[] = [
   { id: 'resumen', nombre: 'Resumen' },
   { id: 'movimientos', nombre: 'Movimientos' },
   { id: 'cuentas', nombre: 'Cuentas' },
   { id: 'porvencer', nombre: 'Por vencer' },
+  { id: 'deudas', nombre: 'Deudas' },
 ]
 const CLAVE_DE_PESTANA = 'pestana-del-tablero'
 

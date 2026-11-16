@@ -1,6 +1,6 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProveedorDeSesion, type ClienteDeAuth } from '../auth/sesion'
 import { Tablero } from './Tablero'
 import type { FuenteDelTablero } from './fuente'
@@ -11,6 +11,8 @@ import type { FuenteDeCuentas } from '../cuentas/fuente'
 import type { CuentaConSaldo, DatosDeCuentas } from '../cuentas/reglas'
 import type { FuenteDePorVencer } from '../porvencer/fuente'
 import type { DatosDePorVencer } from '../porvencer/reglas'
+import type { FuenteDelPlan } from '../deudas/fuente'
+import type { DeudaDelPlan } from '../deudas/plan'
 
 const auth: ClienteDeAuth = {
   getSession: async () => ({ data: { session: { user: { email: 'erney@example.com' } } } }),
@@ -1009,5 +1011,191 @@ describe('the Por vencer tab', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'Resumen' }))
     expect(await screen.findByRole('region', { name: 'Gastado en octubre' })).toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Calendario de noviembre' })).not.toBeInTheDocument()
+  })
+})
+
+describe('the «Deudas» tab (design B, «Línea de tiempo»)', () => {
+  const deuda = (nombre: string, saldo: number, tasa: number, minimo = 0, cargo = 0): DeudaDelPlan => ({
+    id: nombre,
+    nombre,
+    saldo,
+    tasaMensual: tasa,
+    minimo,
+    cargoFijo: cargo,
+    capitaliza: false,
+  })
+  // The phone's reference set (test/plan_de_deudas_test.dart).
+  const referencia: DeudaDelPlan[] = [
+    deuda('Hipotecario', 124754493, 0.0088859305, 1286960, 70040),
+    deuda('Colsubsidio', 36642339, 0.0138955903, 882645, 42479),
+    deuda('Pertuz', 10805337, 0.0064340301, 606000),
+    deuda('Davivienda', 4366649, 0.0173939486, 259586, 5414),
+    { ...deuda('Terraza', 2970520, 0.03), capitaliza: true },
+    deuda('Don Ciro', 10000000, 0),
+    deuda('Jorge', 6000000, 0),
+    deuda('Reinaldo', 3000000, 0),
+    deuda('Brayan', 2800000, 0),
+    deuda('Baby shower', 100000, 0),
+  ]
+  const ahora = () => new Date('2026-11-15T15:00:00Z')
+  const plan = (deudas = referencia): FuenteDelPlan => ({ cargar: vi.fn(async () => ({ deudas, sobrante: 500000 })) })
+
+  beforeEach(() => window.localStorage.clear())
+
+  const vacio = plan([])
+  const montarPlan = async (f: FuenteDelPlan = plan()) => {
+    render(
+      <ProveedorDeSesion cliente={auth}>
+        <Tablero fuente={fuente()} deudas={f} mesInicial="2026-10" ahora={ahora} />
+      </ProveedorDeSesion>,
+    )
+    await userEvent.click(await screen.findByRole('tab', { name: 'Deudas' }))
+    await screen.findByRole('region', { name: f === vacio ? 'Plan de deudas' : 'Sin deudas en' })
+  }
+  const fin = () => screen.findByRole('region', { name: 'Sin deudas en' })
+
+  it('is a tab after the others, remembered in this browser', async () => {
+    window.localStorage.setItem('pestana-del-tablero', 'resumen')
+    render(
+      <ProveedorDeSesion cliente={auth}>
+        <Tablero fuente={fuente()} porVencer={{ cargar: vi.fn(async () => new Promise<never>(() => {})) }} deudas={plan()} mesInicial="2026-10" ahora={ahora} />
+      </ProveedorDeSesion>,
+    )
+    await userEvent.click(await screen.findByRole('tab', { name: 'Deudas' }))
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Resumen', 'Por vencer', 'Deudas'])
+    expect(screen.getByRole('tab', { name: 'Deudas' })).toHaveAttribute('aria-selected', 'true')
+    expect(window.localStorage.getItem('pestana-del-tablero')).toBe('deudas')
+  })
+
+  it('shows the shape of the tab while the plan loads, then the plan', async () => {
+    let soltar: () => void = () => {}
+    const cargar = vi.fn<FuenteDelPlan['cargar']>(() => new Promise((ok) => (soltar = () => ok({ deudas: referencia, sobrante: 500000 }))))
+    window.localStorage.setItem('pestana-del-tablero', 'deudas')
+    render(
+      <ProveedorDeSesion cliente={auth}>
+        <Tablero fuente={fuente()} deudas={{ cargar }} mesInicial="2026-10" ahora={ahora} />
+      </ProveedorDeSesion>,
+    )
+    expect(await screen.findByRole('status')).toHaveTextContent('Cargando el plan de deudas…')
+    expect(document.querySelector('[aria-busy="true"] .plan-deudas')).toHaveAttribute('aria-hidden', 'true')
+    soltar()
+    expect(await fin()).toBeInTheDocument()
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull()
+  })
+
+  it('the three cards: the debt-free month, the extra and the recommended strategy', async () => {
+    await montarPlan()
+    const tarjeta = await fin()
+    expect(tarjeta).toHaveTextContent('feb 2033')
+    expect(tarjeta).toHaveTextContent('76 meses · intereses $66,5 M')
+
+    const extra = screen.getByRole('region', { name: 'Abono extra cada mes' })
+    expect(extra.querySelector('.pd-monto')).toHaveTextContent('$500.000')
+    expect(extra).toHaveTextContent('Lo que sobra al mes según tus últimos 3 meses: $500.000')
+    expect(within(extra).getByRole('slider', { name: 'Abono extra cada mes' })).toHaveValue('500000')
+    expect(within(extra).getByRole('spinbutton', { name: 'Abono extra exacto' })).toHaveValue(500000)
+
+    const estrategia = screen.getByRole('region', { name: 'Estrategia' })
+    const avalancha = within(estrategia).getByRole('button', { name: /Avalancha/ })
+    expect(avalancha).toHaveAttribute('aria-pressed', 'true')
+    expect(avalancha).toHaveTextContent('Recomendada')
+    expect(within(estrategia).getByRole('button', { name: 'Bola de nieve' })).toHaveAttribute('aria-pressed', 'false')
+    expect(estrategia).toHaveTextContent('Avalancha: 5 meses antes y $18,9 M menos')
+  })
+
+  it('the slider and the exact field move the date; «Usar el calculado» brings the surplus back', async () => {
+    await montarPlan()
+    const extra = screen.getByRole('region', { name: 'Abono extra cada mes' })
+    fireEvent.change(within(extra).getByRole('slider'), { target: { value: '2000000' } })
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Sin deudas en' })).not.toHaveTextContent('feb 2033'))
+    expect(within(extra).getByText('$2.000.000')).toBeInTheDocument()
+    expect(window.localStorage.getItem('plan-de-deudas-extra')).toBe('2000000')
+
+    const campo = within(extra).getByRole('spinbutton', { name: 'Abono extra exacto' })
+    await userEvent.clear(campo)
+    await userEvent.type(campo, '0')
+    await waitFor(() => expect(within(extra).getByText('$0')).toBeInTheDocument())
+    expect(screen.getByRole('region', { name: 'Sin deudas en' })).not.toHaveTextContent('feb 2033')
+
+    await userEvent.click(within(extra).getByRole('button', { name: 'Usar el calculado' }))
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Sin deudas en' })).toHaveTextContent('feb 2033'))
+    expect(window.localStorage.getItem('plan-de-deudas-extra')).toBeNull()
+  })
+
+  it('an extra that cannot close every debt says so', async () => {
+    await montarPlan(plan([{ ...deuda('Terraza', 2800000, 0.03), capitaliza: true }]))
+    const extra = screen.getByRole('region', { name: 'Abono extra cada mes' })
+    const campo = within(extra).getByRole('spinbutton', { name: 'Abono extra exacto' })
+    await userEvent.clear(campo)
+    await userEvent.type(campo, '0')
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Sin deudas en' })).toHaveTextContent('Con este abono no se cierran todas las deudas'))
+  })
+
+  it('switching the strategy recomputes and is remembered', async () => {
+    await montarPlan()
+    await userEvent.click(screen.getByRole('button', { name: 'Bola de nieve' }))
+    expect(screen.getByRole('button', { name: 'Bola de nieve' })).toHaveAttribute('aria-pressed', 'true')
+    expect(await fin()).toHaveTextContent('81 meses · intereses $85,4 M')
+    expect(window.localStorage.getItem('plan-de-deudas-estrategia')).toBe('bola_de_nieve')
+    expect(screen.getByText(/Este mes: \$100\.000 extra a Baby shower y \$400\.000 a Brayan\./)).toBeInTheDocument()
+  })
+
+  it('a bar per debt up to its payoff month, the 0 % ones together, with a tooltip', async () => {
+    await montarPlan()
+    const linea = screen.getByRole('region', { name: 'Cuándo termina cada deuda' })
+    const filas = within(linea).getAllByRole('listitem')
+    expect(filas).toHaveLength(6)
+    expect(filas[0]).toHaveTextContent('Terraza')
+    expect(filas[0]).toHaveTextContent('3 % mes')
+    expect(filas[0]).toHaveTextContent('may 2027')
+    expect(filas[5]).toHaveTextContent('Don Ciro y 4 sin interés')
+    expect(filas[5]).toHaveTextContent('feb 2033')
+    // The time axis: one label per January; Nov 2026 is too close to January 2027 to get one.
+    expect([...linea.querySelectorAll('.pd-eje-anos span')].map((x) => x.textContent)).toEqual(['2027', '2028', '2029', '2030', '2031', '2032', '2033'])
+
+    const barra = within(filas[3]).getByRole('img')
+    await userEvent.hover(barra)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(/^Colsubsidio · termina abr 2029 · intereses \$[\d,]+ M$/)
+  })
+
+  it('says what to do this month and where the money goes after the first close', async () => {
+    await montarPlan()
+    expect(
+      screen.getByText('Este mes: $500.000 extra a Terraza. Cuando Terraza llegue a $0 en may 2027, ese dinero pasa a Davivienda.'),
+    ).toBeInTheDocument()
+  })
+
+  it('«Ver mes a mes» opens the table and a month opens one line per debt', async () => {
+    await montarPlan()
+    expect(screen.queryByRole('table')).toBeNull()
+    const ver = screen.getByRole('button', { name: 'Ver mes a mes' })
+    expect(ver).toHaveAttribute('aria-expanded', 'false')
+    await userEvent.click(ver)
+    const tabla = screen.getByRole('table', { name: 'Plan mes a mes' })
+    expect(within(tabla).getAllByRole('columnheader').map((c) => c.textContent)).toEqual(['Mes', 'Extra a', 'Pagas', 'Interés', 'Debes'])
+    expect(within(tabla).getByText('Terraza queda en $0 · el extra pasa a Davivienda')).toBeInTheDocument()
+    expect(within(tabla).getByText(/· ya no debes nada$/)).toBeInTheDocument()
+
+    const nov = within(tabla).getByRole('button', { name: 'nov 2026' })
+    await userEvent.click(nov)
+    expect(nov).toHaveAttribute('aria-expanded', 'true')
+    const terraza = within(tabla).getByText('+$500.000 extra').closest('tr')!
+    expect(terraza).toHaveTextContent('Terraza')
+    expect(within(tabla).getAllByText('Davivienda').length).toBeGreaterThan(0)
+  })
+
+  it('without debts: «No tienes deudas por pagar»', async () => {
+    await montarPlan(vacio)
+    expect(await screen.findByText('No tienes deudas por pagar')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Sin deudas en' })).toBeNull()
+  })
+
+  it('opens with the strategy and extra this browser remembers', async () => {
+    window.localStorage.setItem('plan-de-deudas-estrategia', 'bola_de_nieve')
+    window.localStorage.setItem('plan-de-deudas-extra', '1000000')
+    await montarPlan()
+    expect(screen.getByRole('button', { name: 'Bola de nieve' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(screen.getByRole('region', { name: 'Abono extra cada mes' })).getByText('$1.000.000')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Usar el calculado' })).toBeEnabled()
   })
 })
