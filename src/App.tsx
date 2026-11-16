@@ -2,6 +2,7 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Entrar } from './auth/Entrar'
 import { ProveedorDeSesion, useSesion, type ClienteDeAuth } from './auth/sesion'
 import { Tablero } from './tablero/Tablero'
+import { EsqueletoDeInicio } from './tablero/esqueletos'
 import type { FuenteDelTablero } from './tablero/fuente'
 import type { FuenteDeMovimientos } from './movimientos/fuente'
 import type { FuenteDeFacturas } from './facturas/fuente'
@@ -27,7 +28,7 @@ function Rutas({
 }) {
   const { usuario } = useSesion()
 
-  if (usuario === undefined) return <p className="cargando">Cargando…</p>
+  if (usuario === undefined) return <EsqueletoDeInicio />
   if (usuario === null) return <Entrar />
 
   return (

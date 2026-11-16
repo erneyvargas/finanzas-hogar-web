@@ -22,6 +22,7 @@ import type { FuenteDePorVencer } from '../porvencer/fuente'
 import { porPagarEn30Dias, vencimientos, type DatosDePorVencer, type Vencimiento } from '../porvencer/reglas'
 import { PanelDeRegla } from '../recurrentes/PanelDeRegla'
 import { ErrorDelServidor } from '../movimientos/reglas'
+import { EsqueletoDeCuentas, EsqueletoPorVencer } from './esqueletos'
 
 const mesLargo = (mes: string) => {
   const n = nombreDelMes(mes)
@@ -365,6 +366,8 @@ export function Tablero({
   // page (and the list's filters) until the new numbers arrive.
   const resumen = cargado?.mes === mes ? cargado.r : null
   const esqueleto = useCargaVisible(!error && !resumen)
+  const esqueletoDeCuentas = useCargaVisible(!!cuentas && !errorDeCuentas && !datosDeCuentas)
+  const esqueletoPorVencer = useCargaVisible(!!porVencer && !errorPorVencer && !datosPorVencer)
   const listaDelMes = lista?.mes === mes ? lista.datos : null
   const [pestanaGuardadaAhora, setPestana] = useState<Pestana>(pestanaGuardada)
   const elegirPestana = (p: Pestana) => {
@@ -465,7 +468,7 @@ export function Tablero({
           </div>
         )}
         {error && <Fallo texto={error} alReintentar={reintentar} />}
-        {!error && esqueleto && <Esqueleto mes={mes} conResumen={verResumen} conLista={verLista} />}
+        {!error && esqueleto && (verResumen || verLista) && <Esqueleto mes={mes} conResumen={verResumen} conLista={verLista} />}
         {verResumen && resumen && !esqueleto && (
           <Contenido
             mes={mes}
@@ -494,10 +497,12 @@ export function Tablero({
           />
         )}
         {verCuentas && errorDeCuentas && <Fallo texto={errorDeCuentas} alReintentar={reintentar} />}
-        {verCuentas && !errorDeCuentas && !datosDeCuentas && <p className="cargando">Cargando cuentas…</p>}
+        {verCuentas && !errorDeCuentas && esqueletoDeCuentas && <EsqueletoDeCuentas />}
         {verPorVencer && errorPorVencer && <Fallo texto={errorPorVencer} alReintentar={reintentar} />}
-        {verPorVencer && !errorPorVencer && !datosPorVencer && <p className="cargando">Cargando vencimientos…</p>}
-        {verPorVencer && !errorPorVencer && datosPorVencer && (
+        {verPorVencer && !errorPorVencer && esqueletoPorVencer && (
+          <EsqueletoPorVencer hoy={diaDeHoy} conReglas={!!porVencer?.ejecutar} />
+        )}
+        {verPorVencer && !errorPorVencer && datosPorVencer && !esqueletoPorVencer && (
           <PorVencer
             datos={datosPorVencer}
             hoy={diaDeHoy}
@@ -507,7 +512,7 @@ export function Tablero({
             alEditarRegla={porVencer?.ejecutar && lista ? abrirRegla : undefined}
           />
         )}
-        {verCuentas && !errorDeCuentas && datosDeCuentas && (
+        {verCuentas && !errorDeCuentas && datosDeCuentas && !esqueletoDeCuentas && (
           <Cuentas
             datos={datosDeCuentas}
             seleccionada={enCuentas && 'id' in enCuentas ? enCuentas.id : null}

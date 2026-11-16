@@ -293,6 +293,46 @@ button.google { background: var(--papel); color: var(--tinta); border: 1px solid
 }
 .esqueleto-alto { height: 287px; display: flex; flex-direction: column; }
 .esqueleto-alto > .skeleton:last-child:not(.skeleton--text) { flex: 1; height: auto !important; }
+
+/* Cuentas skeleton (src/tablero/esqueletos.tsx), measured at 1920/800/600/390px. */
+/* A column of bars: flex, so their line-box margins add up instead of collapsing. */
+.sk-ec { display: flex; flex-direction: column; align-items: flex-start; }
+.sk-cifra { height: 24px; margin-block: 4.5px; }
+.ecuacion .total .sk-cifra { height: 32px; margin-block: 5.5px; width: 175px; }
+.sk-ec1 .sk-cifra { width: 101px; }
+.sk-ec2 .sk-cifra { width: 120px; }
+.sk-libro-cab, .sk-libro-fila { display: grid; grid-template-columns: 32% 17% minmax(0, 1fr) 18%; align-items: center; border-bottom: 1px solid var(--regla); }
+.sk-libro-cab { height: 32px; }
+.sk-libro-fila { height: 55px; }
+.sk-libro-cuenta { display: flex; align-items: center; gap: 10px; padding-inline: 16px; min-width: 0; }
+.sk-libro-cuenta > .skeleton--text { flex: 0 1 auto; }
+.sk-cara { width: 30px; height: 30px; border-radius: 8px; flex: none; }
+.sk-libro-grupo { display: flex; align-items: center; height: 36px; padding: 0 16px; background: var(--fondo); border-bottom: 1px solid var(--regla); }
+@media (max-width: 640px) {
+  .sk-cifra { height: 19px; margin-block: 3.5px; }
+  .sk-ec1 .sk-cifra { width: 78px; }
+  .sk-ec2 .sk-cifra { width: 93px; }
+  .sk-libro-cab { display: none; }
+  .sk-libro-fila { grid-template-columns: minmax(0, 1fr) auto; height: 58px; padding-right: 12px; }
+  .sk-libro-cuenta { padding-inline: 12px 0; }
+  .sk-libro-fila > :nth-child(2), .sk-libro-fila > :nth-child(3) { display: none; }
+  .sk-libro-fila > :last-child { width: 70px !important; margin-inline: 0 !important; }
+  .sk-libro-grupo { height: 34px; padding: 0 12px; }
+}
+
+/* Por vencer skeleton: the summary block is as wide as the real one (184px). */
+.sk-pv-resumen { width: 184px; }
+.sk-conmutador { width: 146px; height: 35px; border-radius: 10px; margin-left: auto; }
+.sk-dia { aspect-ratio: 1 / 1; border-radius: 8px; }
+.lista-reglas li.sk-regla { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; padding: 10px; }
+
+/* App shell skeleton: the top bar's month selector and «Salir». */
+.sk-barra-mes { width: 191px; height: 38px; border-radius: 12px; }
+.sk-barra-salir { width: 60px; height: 43px; border-radius: 12px; }
+@media (max-width: 900px) {
+  .sk-barra-mes { order: 3; width: 181px; }
+  .sk-barra-salir { order: 2; }
+}
 .fallo { display: flex; align-items: center; gap: 12px; justify-content: space-between; flex-wrap: wrap; margin-bottom: 16px; }
 
 /* Movements by day (option A of the list proposals). */
