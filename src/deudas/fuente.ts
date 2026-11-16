@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { diaDe, idDelRubroDeAjuste, limitesDelMes, moverMes } from '../tablero/calculo'
+import { diaDe, esIngresoDisponible, idDelRubroDeAjuste, limitesDelMes, moverMes } from '../tablero/calculo'
 import { todas } from '../tablero/datos'
 import { deudasDelPlan, diferidosDelPlan, sobrante, type DeudaCruda, type DeudaDelPlan } from './plan'
 
@@ -60,7 +60,7 @@ export function fuenteDelPlanDeSupabase(sb: SupabaseClient, hogar: () => Promise
         todas((a, b) =>
           sb
             .from('transactions')
-            .select('kind, amount, rubro_id')
+            .select('kind, amount, rubro_id, cuenta:accounts!account_id(type)')
             .eq('household_id', hogarId)
             .is('deleted_at', null)
             .not('voided', 'is', true)
@@ -126,8 +126,10 @@ export function fuenteDelPlanDeSupabase(sb: SupabaseClient, hogar: () => Promise
       let gastos = 0
       for (const m of movimientos) {
         if (m.rubro_id === ajuste) continue
-        if (m.kind === 'income') ingresos += n(m.amount)
-        else gastos += n(m.amount)
+        if (m.kind === 'income') {
+          // Income into savings is owned, not available to pay debts.
+          if (esIngresoDisponible((m.cuenta as { type?: string } | null)?.type)) ingresos += n(m.amount)
+        } else gastos += n(m.amount)
       }
 
       return {

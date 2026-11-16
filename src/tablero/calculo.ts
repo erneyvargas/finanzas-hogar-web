@@ -33,7 +33,9 @@ export interface Movimiento {
  * The user's words: «No suma» (phone repo, odd/tasks/rendimiento-de-ahorros.md S4).
  */
 const CUENTAS_LIQUIDAS = new Set(['cash', 'debit', 'wallet', 'voucher'])
-const entraADisponible = (m: Movimiento) => !m.tipoDeCuenta || CUENTAS_LIQUIDAS.has(m.tipoDeCuenta)
+/** Whether an income into an account of [tipo] is available money; an unknown type counts. */
+export const esIngresoDisponible = (tipo: string | null | undefined) => !tipo || CUENTAS_LIQUIDAS.has(tipo)
+const entraADisponible = (m: Movimiento) => esIngresoDisponible(m.tipoDeCuenta)
 
 export interface Parte {
   movimientoId: string
