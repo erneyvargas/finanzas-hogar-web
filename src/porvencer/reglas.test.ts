@@ -58,6 +58,7 @@ const v = (x: Partial<Vencimiento>): Vencimiento => ({
   deuda: 0,
   destinoId: null,
   total: 0,
+  pagoId: null,
   ...x,
 })
 
@@ -305,3 +306,31 @@ describe('income rules', () => {
     expect(vs.map((x) => x.id)).toEqual(['r1'])
   })
 })
+
+describe('which movement paid a bill', () => {
+  it('a paid expense rule knows the nearest expense that paid it, a card its last payment', () => {
+    const vs = vencimientos(
+      datos({
+        reglas: [regla({})],
+        gastos: [
+          { id: 'lejos', categoriaId: 'c-internet', dia: '2026-11-09' },
+          { id: 'cerca', categoriaId: 'c-internet', dia: '2026-11-17' },
+        ],
+        tarjetas: [
+          {
+            id: 'bbva', nombre: 'BBVA', diaDePago: 15, deuda: 0,
+            extracto: { corte: '2026-10-28', vence: '2026-11-15', saldo: 100, minimo: 10, pagado: false },
+          },
+        ],
+        pagosATarjetas: [
+          { id: 'p1', haciaCuentaId: 'bbva', dia: '2026-11-03', monto: 5 },
+          { id: 'p2', haciaCuentaId: 'bbva', dia: '2026-11-10', monto: 10 },
+        ],
+      }),
+      '2026-11-20',
+    )
+    expect(vs.find((x) => x.id === 'r1')).toMatchObject({ pagado: true, pagoId: 'cerca' })
+    expect(vs.find((x) => x.id === 'bbva')).toMatchObject({ pagado: true, pagoId: 'p2' })
+  })
+})
+

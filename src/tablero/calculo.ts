@@ -83,6 +83,8 @@ export interface ResumenDelMes {
   /** The same by rubro, with its color: what the «Por rubro» card shows. */
   porRubroDelMes: CategoriaDelMes[]
   meses: MesDeTendencia[]
+  /** Name and color of every rubro in [meses], for the chart (also past months' rubros). */
+  rubros?: Record<string, { nombre: string; color: string | null }>
 }
 
 /** The phone app's namespace for the adjustment categories. */
@@ -274,5 +276,11 @@ export function resumenDelMes(entrada: {
     porCategoria: [...porCategoria.values()].sort((a, b) => b.total - a.total),
     porRubroDelMes: [...porRubroDelMes.values()].sort((a, b) => b.total - a.total),
     meses,
+    rubros: Object.fromEntries(
+      [...new Set(meses.flatMap((m) => Object.keys(m.porRubro)))].map((id) => [
+        id,
+        { nombre: cat.get(id)?.nombre ?? 'Sin rubro', color: cat.get(id)?.color ?? null },
+      ]),
+    ),
   }
 }

@@ -78,11 +78,11 @@ export interface DatosDePorVencer {
   /** Today's balance of each account that pays something. */
   saldos: Record<string, number>
   /** Live expenses from 10 days before this Bogotá month to its end, by day. */
-  gastos: { categoriaId: string | null; dia: string }[]
+  gastos: { id?: string; categoriaId: string | null; dia: string }[]
   /** Live transfers and debt payments into a card, by day. */
-  pagosATarjetas: { haciaCuentaId: string; dia: string; monto: number }[]
+  pagosATarjetas: { id?: string; haciaCuentaId: string; dia: string; monto: number }[]
   /** Live debt payments of the same window, by debt and day: they pay a debt rule. */
-  abonos?: { deudaId: string; dia: string }[]
+  abonos?: { id?: string; deudaId: string; dia: string }[]
   /** The household's debts, for a debt rule's panel. */
   deudas?: DeudaDeRegla[]
 }
@@ -115,6 +115,8 @@ export interface Vencimiento {
   destinoId: string | null
   /** A card's statement total still owed (after payments since the cut); 0 otherwise. */
   total: number
+  /** The movement that paid it (the nearest one; a card's last payment), when known. */
+  pagoId: string | null
 }
 
 /** How many days around the due date an expense in the category pays it. */
@@ -157,20 +159,16 @@ export function vencimientos(d: DatosDePorVencer, hoy: string): Vencimiento[] {
   const tope = limite30(hoy)
   const principal = d.cuentas.find((c) => c.principal)?.id ?? null
   const fuera: Vencimiento[] = []
-  const pagadaEl = (categoriaId: string | null, fecha: string | null) =>
-    categoriaId !== null &&
-    d.gastos.some(
-      (g) =>
-        g.categoriaId === categoriaId &&
-        (fecha === null ? g.dia.startsWith(mes) : Math.abs(diasEntre(fecha, g.dia)) <= DIAS_DE_HOLGURA),
-    )
-  const abonadaEl = (deudaId: string, fecha: string | null) =>
-    (d.abonos ?? []).some(
-      (a) =>
-        a.deudaId === deudaId &&
-        (fecha === null ? a.dia.startsWith(mes) : Math.abs(diasEntre(fecha, a.dia)) <= DIAS_DE_HOLGURA),
-    )
-  const base = { detalle: null, sinExtracto: false, deuda: 0, total: 0 }
+  // What paid it: the movement nearest to the due date within the slack.
+  const elMasCercano = <T extends { dia: string }>(lista: T[], fecha: string | null): T | undefined =>
+    lista
+      .filter((x) => (fecha === null ? x.dia.startsWith(mes) : Math.abs(diasEntre(fecha, x.dia)) <= DIAS_DE_HOLGURA))
+      .sort((a, b) => (fecha === null ? 0 : Math.abs(diasEntre(fecha, a.dia)) - Math.abs(diasEntre(fecha, b.dia))))[0]
+  const pagoDeGasto = (categoriaId: string | null, fecha: string | null) =>
+    categoriaId === null ? undefined : elMasCercano(d.gastos.filter((g) => g.categoriaId === categoriaId), fecha)
+  const pagoDeAbono = (deudaId: string, fecha: string | null) =>
+    elMasCercano((d.abonos ?? []).filter((a) => a.deudaId === deudaId), fecha)
+  const base = { detalle: null, sinExtracto: false, deuda: 0, total: 0, pagoId: null }
 
   for (const m of [mes, siguiente]) {
     const esteMes = m === mes
@@ -179,6 +177,7 @@ export function vencimientos(d: DatosDePorVencer, hoy: string): Vencimiento[] {
       if (r.tipo === 'income') continue
       const fecha = fechaDeRegla(r, m)
       if (fecha === undefined || (!esteMes && (fecha === null || fecha > tope))) continue
+      const pago = esteMes ? (r.deudaId ? pagoDeAbono(r.deudaId, fecha) : pagoDeGasto(r.categoriaId, fecha)) : undefined
       fuera.push({
         ...base,
         clave: `regla:${r.id}:${m}`,
@@ -191,7 +190,8 @@ export function vencimientos(d: DatosDePorVencer, hoy: string): Vencimiento[] {
         cuentaId: r.cuentaId,
         categoriaId: r.categoriaId,
         color: r.color,
-        pagado: esteMes && (r.deudaId ? abonadaEl(r.deudaId, fecha) : pagadaEl(r.categoriaId, fecha)),
+        pagado: pago !== undefined,
+        pagoId: pago?.id ?? null,
         destinoId: r.deudaId ? (r.destinoId ?? null) : null,
       })
     }
@@ -211,9 +211,9 @@ export function vencimientos(d: DatosDePorVencer, hoy: string): Vencimiento[] {
       const e = t.extracto
       if (e && e.vence.startsWith(m) && (esteMes || e.vence <= tope)) {
         // As the phone's abonadoAlExtracto: payments after the cut count for this statement.
-        const abonado = d.pagosATarjetas
-          .filter((p) => p.haciaCuentaId === t.id && p.dia > e.corte)
-          .reduce((a, p) => a + p.monto, 0)
+        const pagos = d.pagosATarjetas.filter((p) => p.haciaCuentaId === t.id && p.dia > e.corte)
+        const abonado = pagos.reduce((a, p) => a + p.monto, 0)
+        const ultimo = [...pagos].sort((a, b) => (a.dia < b.dia ? 1 : -1))[0]
         // The minimum is what is due; the statement total is shown beside it.
         const conMinimo = e.minimo > 0
         const monto = Math.max(0, (conMinimo ? e.minimo : e.saldo) - abonado)
@@ -224,6 +224,7 @@ export function vencimientos(d: DatosDePorVencer, hoy: string): Vencimiento[] {
           fecha: e.vence,
           detalle: conMinimo ? 'pago mínimo' : 'pago del extracto',
           pagado: e.pagado || monto <= 0,
+          pagoId: ultimo?.id ?? null,
         })
       } else if (esteMes) {
         fuera.push({

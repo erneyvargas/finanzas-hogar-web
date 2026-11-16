@@ -51,6 +51,7 @@ export function PorVencer({
   datos,
   hoy,
   alPagar,
+  alVerPago,
   puedeTransferir = false,
   alNuevaRegla,
   alEditarRegla,
@@ -59,6 +60,8 @@ export function PorVencer({
   /** Today in Bogotá, `YYYY-MM-DD`. */
   hoy: string
   alPagar?: (v: Vencimiento) => void
+  /** Opens what paid a paid item: its movement, or the account it went into. */
+  alVerPago?: (v: Vencimiento) => void
   /** Whether «Pagar» can open a transfer (cards and debt rules); without it they offer none. */
   puedeTransferir?: boolean
   /** Opens the panel for a new recurring payment; without it, none is offered. */
@@ -120,7 +123,13 @@ export function PorVencer({
     >
       <span className={`punto ${v.fecha === null ? 'rayado' : v.pagado || v.sinExtracto ? 'hueco' : ''}`} aria-hidden="true" />
       <span className="n">
-        <span className="nombre">{v.nombre}</span>
+        {v.pagado && alVerPago ? (
+          <button type="button" className="nombre ver-pago" aria-label={`Ver el pago de ${v.nombre}`} onClick={() => alVerPago(v)}>
+            {v.nombre}
+          </button>
+        ) : (
+          <span className="nombre">{v.nombre}</span>
+        )}
         {v.detalle && <small> {v.detalle}</small>}
         {v.tipo === 'tarjeta' && v.total > v.monto && <small className="total-tarjeta"> · total {dinero(v.total)}</small>}
       </span>

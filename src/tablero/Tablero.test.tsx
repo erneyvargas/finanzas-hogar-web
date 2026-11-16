@@ -72,15 +72,21 @@ describe('the month dashboard', () => {
     expect(within(gastado).getByText(/Sin gastos en septiembre hasta el día 5 para comparar/)).toBeInTheDocument()
   })
 
-  it('splits the month by person and shows the income left', async () => {
+  it('shows the income left, and no «Por persona» card: «Por rubro» already splits the month', async () => {
     montar(fuente())
 
-    const personas = await screen.findByRole('region', { name: 'Por persona' })
-    expect(within(personas).getByText('Karen')).toBeInTheDocument()
-    expect(within(personas).getByText('$23.000')).toBeInTheDocument()
-    const ingresos = screen.getByRole('region', { name: 'Ingresos del mes' })
+    const ingresos = await screen.findByRole('region', { name: 'Ingresos del mes' })
+    expect(screen.queryByRole('region', { name: 'Por persona' })).toBeNull()
     expect(within(ingresos).getByText('$100.000')).toBeInTheDocument()
     expect(within(ingresos).getByText('$72.000')).toBeInTheDocument()
+  })
+
+  // The user's words: «el ttoltip debe mostrar es el nombre del rubro».
+  it('the six-month chart names the rubro of each bar piece', async () => {
+    montar(fuente())
+    const grafico = await screen.findByRole('img', { name: 'Gasto de los últimos seis meses por persona' })
+    const titulos = [...grafico.querySelectorAll('title')].map((t) => t.textContent)
+    expect(titulos.some((t) => /^Karen · Oct: \$/.test(t ?? ''))).toBe(true)
   })
 
   it('crosses categories with persons in a table', async () => {
@@ -528,6 +534,39 @@ describe('the Por vencer tab', () => {
   it('marks the heaviest week', async () => {
     await montarPv()
     expect(screen.getByText('16–22 nov: $432.670, la más cargada')).toBeInTheDocument()
+  })
+
+  // The user's words: «cuando le de click quiero que me lleve al movimiento».
+  it('a paid bill opens the movement that paid it', async () => {
+    const conPago: DatosDePorVencer = {
+      ...datosPv,
+      gastos: [{ id: 'g-admin', categoriaId: 'c-admin', dia: '2026-11-02' }, { categoriaId: 'c-luz', dia: '2026-11-05' }],
+    }
+    const conMovimiento: DatosDeMovimientos = {
+      ...datosMov,
+      movimientos: [
+        { id: 'g-admin', tipo: 'expense', monto: 307656, fecha: '2026-11-02T15:00:00Z', cuentaId: 'nomina', categoriaId: 'c-internet', rubroId: 'hogar', comercio: 'Administración', nota: null },
+      ],
+    }
+    window.localStorage.setItem('pestana-del-tablero', 'porvencer')
+    render(
+      <ProveedorDeSesion cliente={auth}>
+        <Tablero
+          fuente={fuente()}
+          movimientos={{ cargar: vi.fn(async () => conMovimiento), saldo: vi.fn(async () => null), ejecutar: vi.fn(async () => {}) }}
+          porVencer={{ cargar: vi.fn(async () => conPago) }}
+          mesInicial="2026-11"
+          ahora={ahora}
+        />
+      </ProveedorDeSesion>,
+    )
+    const pagados = await screen.findByRole('list', { name: 'Ya pagados' })
+    const ver = await within(pagados).findByRole('button', { name: 'Ver el pago de Administración' })
+    await waitFor(() => expect(ver).toBeEnabled())
+    await userEvent.click(ver)
+
+    const panel = await screen.findByRole('dialog', { name: 'Corregir movimiento' })
+    expect(within(panel).getByLabelText('Valor')).toHaveValue('307.656')
   })
 
   it('lists the bills by due date, the close ones in red, and the paid ones apart', async () => {
