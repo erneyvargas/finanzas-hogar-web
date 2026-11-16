@@ -16,7 +16,7 @@ import { PorCategoria } from './PorCategoria'
 import { Cuentas } from '../cuentas/Cuentas'
 import type { FuenteDeCuentas } from '../cuentas/fuente'
 import { PanelDeCuenta, type VistaDeCuenta } from '../cuentas/PanelDeCuenta'
-import { origenesConSaldo, puedeTransferir, type DatosDeCuentas } from '../cuentas/reglas'
+import { disponibleHoy, origenesConSaldo, puedeTransferir, type DatosDeCuentas } from '../cuentas/reglas'
 import { PorVencer } from '../porvencer/PorVencer'
 import type { FuenteDePorVencer } from '../porvencer/fuente'
 import { porPagarEn30Dias, vencimientos, type DatosDePorVencer, type Vencimiento } from '../porvencer/reglas'
@@ -404,6 +404,30 @@ export function Tablero({
   const pestanas = PESTANAS.filter((p) => ofrecida[p.id])
   const pestana = pestanas.some((p) => p.id === pestanaGuardadaAhora) ? pestanaGuardadaAhora : 'resumen'
   const verResumen = pestana === 'resumen'
+
+  // While the month runs, the income card leads with the money in liquid
+  // accounts today (phone repo: «de verdad tengo 1400000»).
+  const [disponible, setDisponible] = useState<number | null>(null)
+  const mesDeHoy = diaDeHoy.slice(0, 7)
+  useEffect(() => {
+    if (!cuentas || !verResumen || mes !== mesDeHoy) {
+      setDisponible(null)
+      return
+    }
+    let vivo = true
+    cuentas
+      .cargar()
+      .then((d) => {
+        if (vivo) setDisponible(disponibleHoy(d.cuentas))
+      })
+      .catch(() => {
+        if (vivo) setDisponible(null)
+      })
+    return () => {
+      vivo = false
+    }
+  }, [cuentas, verResumen, mes, mesDeHoy, recarga])
+
   const verLista = pestana === 'movimientos'
   const verCuentas = pestana === 'cuentas'
   const verPorVencer = pestana === 'porvencer'
@@ -517,6 +541,7 @@ export function Tablero({
           <Contenido
             mes={mes}
             r={resumen}
+            disponible={disponible}
             alAnadir={movimientos && lista ? anadir : undefined}
           />
         )}
@@ -759,10 +784,13 @@ function diasDelMes(mes: string): number {
 function Contenido({
   mes,
   r,
+  disponible = null,
   alAnadir,
 }: {
   mes: string
   r: ResumenDelMes
+  /** The liquid balance today, only while the month runs. */
+  disponible?: number | null
   alAnadir?: (categoriaId: string | null) => void
 }) {
   const anterior =
@@ -841,7 +869,17 @@ function Contenido({
 
       <section className="tarjeta" aria-labelledby="t-ingresos">
         <h2 id="t-ingresos">Ingresos del mes</h2>
-        <p className="grande num">{dinero(r.ingresos)}</p>
+        {disponible != null ? (
+          <>
+            <p className="nota">Disponible hoy</p>
+            <p className="grande num">{disponible < 0 ? `−${dinero(-disponible)}` : dinero(disponible)}</p>
+            <p className="nota">
+              Entró <b className="num">{dinero(r.ingresos)}</b> este mes
+            </p>
+          </>
+        ) : (
+          <p className="grande num">{dinero(r.ingresos)}</p>
+        )}
         <p className="nota">
           {quedan >= 0 ? 'Te quedan ' : 'Gastaste de más '}
           <b className={`num ${quedan < 0 ? 'sube' : ''}`}>{dinero(Math.abs(quedan))}</b>
