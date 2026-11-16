@@ -38,7 +38,7 @@ export type VistaDeCuenta =
   | { v: 'detalle'; id: string }
   | { v: 'nueva' }
   | { v: 'transferir'; origen?: string; desde?: string; destino?: string; monto?: number }
-  | { v: 'editar' | 'ajustar' | 'tipo' | 'gmf' | 'estilo' | 'foto'; id: string }
+  | { v: 'editar' | 'ajustar' | 'tipo' | 'gmf' | 'tasa' | 'estilo' | 'foto'; id: string }
 
 const TITULOS: Record<Exclude<VistaDeCuenta['v'], 'detalle'>, string> = {
   nueva: 'Nueva cuenta',
@@ -47,6 +47,7 @@ const TITULOS: Record<Exclude<VistaDeCuenta['v'], 'detalle'>, string> = {
   ajustar: 'Ajustar saldo',
   tipo: 'Cambiar tipo',
   gmf: '4x1000',
+  tasa: 'Tasa de rendimiento',
   estilo: 'Estilo de tarjeta',
   foto: 'Foto',
 }
@@ -155,6 +156,7 @@ export function PanelDeCuenta({
       {vista.v === 'ajustar' && <Ajustar {...comun} c={cuenta!} base={deCuenta(cuenta!)} />}
       {vista.v === 'tipo' && <CambiarTipo {...comun} c={cuenta!} base={deCuenta(cuenta!)} />}
       {vista.v === 'gmf' && <Gmf {...comun} c={cuenta!} base={deCuenta(cuenta!)} datos={datos} />}
+      {vista.v === 'tasa' && <Tasa {...comun} c={cuenta!} base={deCuenta(cuenta!)} />}
       {vista.v === 'estilo' && <Estilo {...comun} c={cuenta!} base={deCuenta(cuenta!)} />}
       {vista.v === 'foto' && (
         <Foto {...comun} c={cuenta!} base={deCuenta(cuenta!)} fuente={fuente} setGuardando={setGuardando} alGuardar={alGuardar} />
@@ -301,6 +303,7 @@ function Detalle({
           )}
           {a.cambiarTipo && <button type="button" onClick={() => alIr({ v: 'tipo', id: c.id })}>Cambiar tipo</button>}
           {a.gmf && <button type="button" onClick={() => alIr({ v: 'gmf', id: c.id })}>4x1000</button>}
+          {a.tasa && <button type="button" onClick={() => alIr({ v: 'tasa', id: c.id })}>Tasa de rendimiento</button>}
           {a.estilo && <button type="button" onClick={() => alIr({ v: 'estilo', id: c.id })}>Estilo de tarjeta</button>}
           {a.foto && <button type="button" onClick={() => alIr({ v: 'foto', id: c.id })}>Foto</button>}
           {fuente.saldoAl && (
@@ -618,6 +621,40 @@ function Gmf({ c, base, datos, error, setError, guardando, correr, volver }: Com
       </div>
       <Aviso texto={error} />
       <Pie texto="Cobrar 4x1000" guardando={guardando} volver={volver} />
+    </form>
+  )
+}
+
+/** «9,35» → 0.0935; empty → null; undefined when it is not a valid rate. */
+function tasaDesdeTexto(texto: string): number | null | undefined {
+  const limpio = texto.replace('%', '').replace(',', '.').trim()
+  if (limpio === '') return null
+  const porcentaje = Number(limpio)
+  if (!Number.isFinite(porcentaje) || porcentaje < 0 || porcentaje >= 100) return undefined
+  return Math.round(porcentaje * 100) / 10000
+}
+
+function Tasa({ c, base, error, setError, guardando, correr, volver }: Comun & { c: CuentaConSaldo; base: Record<string, unknown> }) {
+  const [texto, setTexto] = useState(c.tasaAnual == null ? '' : String(Math.round(c.tasaAnual * 10000) / 100).replace('.', ','))
+  return (
+    <form
+      className="panel-cuerpo"
+      onSubmit={(e) => {
+        e.preventDefault()
+        const tasa = tasaDesdeTexto(texto)
+        if (tasa === undefined) return setError('Escribe la tasa como 9,35, entre 0% y 100%')
+        void correr([['cambiar_tasa_de_cuenta', { ...base, p_tasa: tasa }]], { v: 'detalle', id: c.id })
+      }}
+    >
+      <p className="nota">
+        Cada mes se suma a {c.nombre} lo que rindió. No cuenta como plata disponible hasta que la transfieras. Déjalo vacío si no rinde.
+      </p>
+      <div className="campo">
+        <label htmlFor="c-tasa">Tasa efectiva anual (%)</label>
+        <input id="c-tasa" inputMode="decimal" placeholder="9,35" value={texto} onChange={(e) => setTexto(e.target.value)} />
+      </div>
+      <Aviso texto={error} />
+      <Pie texto="Guardar tasa" guardando={guardando} volver={volver} />
     </form>
   )
 }

@@ -675,7 +675,7 @@ describe('the Por vencer tab', () => {
   describe('Pagar on a card or a debt installment opens Transferir', () => {
     const cuentaDe = (c: Partial<CuentaConSaldo> & Pick<CuentaConSaldo, 'id' | 'nombre' | 'tipo' | 'saldo'>): CuentaConSaldo => ({
       archivada: false, principal: false, foto: null, rutaDeFoto: null, cupo: null, diaDeCorte: null, diaDePago: null,
-      cobraGmf: false, categoriaGmf: null, estilo: null, ...c,
+      cobraGmf: false, categoriaGmf: null, estilo: null, tasaAnual: null, ...c,
     })
     const datosCuentas: DatosDeCuentas = {
       hogarId: 'h1',
@@ -978,8 +978,8 @@ describe('the Por vencer tab', () => {
       const datosCuentas: DatosDeCuentas = {
         hogarId: 'h1',
         cuentas: [
-          { id: 'nomina', nombre: 'Nómina', tipo: 'debit', saldo: 3_458_092, principal: true, archivada: false, foto: null, rutaDeFoto: null, cupo: null, diaDeCorte: null, diaDePago: null, cobraGmf: false, categoriaGmf: null, estilo: null },
-          { id: 'pertuz', nombre: 'Pertuz', tipo: 'liability', saldo: -10_268_859, principal: false, archivada: false, foto: null, rutaDeFoto: null, cupo: null, diaDeCorte: null, diaDePago: null, cobraGmf: false, categoriaGmf: null, estilo: null },
+          { id: 'nomina', nombre: 'Nómina', tipo: 'debit', saldo: 3_458_092, principal: true, archivada: false, foto: null, rutaDeFoto: null, cupo: null, diaDeCorte: null, diaDePago: null, cobraGmf: false, categoriaGmf: null, estilo: null, tasaAnual: null },
+          { id: 'pertuz', nombre: 'Pertuz', tipo: 'liability', saldo: -10_268_859, principal: false, archivada: false, foto: null, rutaDeFoto: null, cupo: null, diaDeCorte: null, diaDePago: null, cobraGmf: false, categoriaGmf: null, estilo: null, tasaAnual: null },
         ],
         deudas: [],
         categoriasDeGasto: [],

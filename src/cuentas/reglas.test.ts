@@ -28,6 +28,7 @@ const cuenta = (c: Partial<CuentaConSaldo> & Pick<CuentaConSaldo, 'id' | 'tipo' 
   cobraGmf: false,
   categoriaGmf: null,
   estilo: null,
+  tasaAnual: null,
   ...c,
 })
 

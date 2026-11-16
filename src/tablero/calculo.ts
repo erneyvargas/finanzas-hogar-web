@@ -22,7 +22,18 @@ export interface Movimiento {
   /** The level-2 category (`category_l2_id`). */
   categoriaId: string | null
   anulado: boolean
+  /** Type of the movement's account (`accounts.type`); absent when unknown. */
+  tipoDeCuenta?: string | null
 }
+
+/**
+ * An income counts as month income only when it lands in a liquid account.
+ * Income into savings, investments or receivables (the monthly yield the
+ * server writes into Nu) is owned money, not available until transferred.
+ * The user's words: «No suma» (phone repo, odd/tasks/rendimiento-de-ahorros.md S4).
+ */
+const CUENTAS_LIQUIDAS = new Set(['cash', 'debit', 'wallet', 'voucher'])
+const entraADisponible = (m: Movimiento) => !m.tipoDeCuenta || CUENTAS_LIQUIDAS.has(m.tipoDeCuenta)
 
 export interface Parte {
   movimientoId: string
@@ -223,7 +234,7 @@ export function resumenDelMes(entrada: {
 
   const ingresos = sumar(
     movimientos
-      .filter((m) => m.tipo === 'income' && !m.anulado && m.rubroId !== ajuste)
+      .filter((m) => m.tipo === 'income' && !m.anulado && m.rubroId !== ajuste && entraADisponible(m))
       .filter((m) => mesDe(m.fecha) === mes)
       .map((m) => m.monto),
   )
