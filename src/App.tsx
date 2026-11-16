@@ -8,6 +8,7 @@ import type { FuenteDeMovimientos } from './movimientos/fuente'
 import type { FuenteDeFacturas } from './facturas/fuente'
 import type { FuenteDeCuentas } from './cuentas/fuente'
 import type { FuenteDePorVencer } from './porvencer/fuente'
+import type { FuenteDelPlan } from './deudas/fuente'
 
 /**
  * Hash routes because GitHub Pages serves static files: a path like
@@ -19,12 +20,14 @@ function Rutas({
   facturas,
   cuentas,
   porVencer,
+  deudas,
 }: {
   fuente: FuenteDelTablero
   movimientos?: FuenteDeMovimientos
   facturas?: FuenteDeFacturas
   cuentas?: FuenteDeCuentas
   porVencer?: FuenteDePorVencer
+  deudas?: FuenteDelPlan
 }) {
   const { usuario } = useSesion()
 
@@ -33,7 +36,7 @@ function Rutas({
 
   return (
     <Routes>
-      <Route path="/" element={<Tablero fuente={fuente} movimientos={movimientos} facturas={facturas} cuentas={cuentas} porVencer={porVencer} />} />
+      <Route path="/" element={<Tablero fuente={fuente} movimientos={movimientos} facturas={facturas} cuentas={cuentas} porVencer={porVencer} deudas={deudas} />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
@@ -46,6 +49,7 @@ export function App({
   facturas,
   cuentas,
   porVencer,
+  deudas,
 }: {
   cliente: ClienteDeAuth
   fuente: FuenteDelTablero
@@ -53,11 +57,12 @@ export function App({
   facturas?: FuenteDeFacturas
   cuentas?: FuenteDeCuentas
   porVencer?: FuenteDePorVencer
+  deudas?: FuenteDelPlan
 }) {
   return (
     <ProveedorDeSesion cliente={cliente}>
       <HashRouter>
-        <Rutas fuente={fuente} movimientos={movimientos} facturas={facturas} cuentas={cuentas} porVencer={porVencer} />
+        <Rutas fuente={fuente} movimientos={movimientos} facturas={facturas} cuentas={cuentas} porVencer={porVencer} deudas={deudas} />
       </HashRouter>
     </ProveedorDeSesion>
   )

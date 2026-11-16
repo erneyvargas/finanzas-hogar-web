@@ -213,3 +213,56 @@ export function EsqueletoDeInicio() {
     </div>
   )
 }
+
+/**
+ * The «Deudas» tab: the three cards (the debt-free month, the extra with
+ * its slider, the strategy toggle), the timeline with one bar per debt,
+ * the line about this month and the «Ver mes a mes» button. It takes the
+ * tab's own classes, so its breakpoints stack it the same way.
+ */
+export function EsqueletoDelPlan() {
+  return (
+    <div aria-busy="true" className="sk-delay">
+      <p role="status" className="sk-sr">
+        Cargando el plan de deudas…
+      </p>
+      <div className="plan-deudas" aria-hidden="true">
+        <div className="pd-tarjetas">
+          <section className="tarjeta">
+            <Linea linea={19} ancho="45%" estilo={{ marginBottom: 10 }} />
+            <span className="skeleton" style={{ display: 'block', height: 40, width: '60%', marginBottom: 8 }} />
+            <Linea linea={19} ancho="70%" />
+          </section>
+          <section className="tarjeta">
+            <Linea linea={19} ancho="55%" estilo={{ marginBottom: 10 }} />
+            <span className="skeleton" style={{ display: 'block', height: 24, marginBottom: 10 }} />
+            <span className="skeleton" style={{ display: 'block', height: 40, width: '80%', marginBottom: 10 }} />
+            <Linea linea={19} ancho="90%" />
+          </section>
+          <section className="tarjeta">
+            <Linea linea={19} ancho="35%" estilo={{ marginBottom: 10 }} />
+            <span className="skeleton" style={{ display: 'block', height: 40, width: '85%', marginBottom: 10 }} />
+            <Linea linea={19} ancho="50%" />
+            <Linea linea={19} ancho="80%" />
+          </section>
+        </div>
+        <section className="tarjeta">
+          <Linea linea={19} ancho="30%" estilo={{ marginBottom: 10 }} />
+          <ul className="pd-barras">
+            {['60%', '45%', '70%', '55%', '65%', '50%'].map((w, i) => (
+              <li key={i} className="pd-barra">
+                <Linea linea={19} ancho={w} />
+                <span className="skeleton pd-pista" />
+                <Linea linea={19} ancho="60px" />
+              </li>
+            ))}
+          </ul>
+        </section>
+        <span className="skeleton" style={{ display: 'block', height: 44 }} />
+        <section className="tarjeta">
+          <span className="skeleton" style={{ display: 'block', height: 42, width: 150 }} />
+        </section>
+      </div>
+    </div>
+  )
+}
