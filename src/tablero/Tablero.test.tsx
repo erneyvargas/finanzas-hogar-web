@@ -78,10 +78,33 @@ describe('the month dashboard', () => {
     const ingresos = await screen.findByRole('region', { name: 'Ingresos del mes' })
     expect(screen.queryByRole('region', { name: 'Por persona' })).toBeNull()
     expect(within(ingresos).getByText('$100.000')).toBeInTheDocument()
-    expect(within(ingresos).getByText('$72.000')).toBeInTheDocument()
+    expect(ingresos).toHaveTextContent('Te quedan $72.000 después de los gastos')
   })
 
   // The user's words: «el ttoltip debe mostrar es el nombre del rubro».
+  it('what is left subtracts the debt payments too', async () => {
+    const base = fuente()
+    const conAbono: FuenteDelTablero = {
+      cargar: vi.fn(async (mes: string) => {
+        const r = await base.cargar(mes)
+        return {
+          ...r,
+          datos: {
+            ...r.datos,
+            movimientos: [
+              ...r.datos.movimientos,
+              { id: 'ab1', tipo: 'debt_payment', monto: 30000, fecha: '2026-10-10T15:00:00Z', rubroId: null, categoriaId: null, anulado: false },
+            ],
+          },
+        }
+      }),
+    }
+    montar(conAbono)
+    const ingresos = await screen.findByRole('region', { name: 'Ingresos del mes' })
+    expect(ingresos).toHaveTextContent('Te quedan $42.000 después de gastos y abonos a deudas')
+    expect(ingresos).toHaveTextContent('Abonos a deudas$30.000')
+  })
+
   it('the six-month chart names the rubro of each bar piece', async () => {
     montar(fuente())
     const grafico = await screen.findByRole('img', { name: 'Gasto de los últimos seis meses por persona' })

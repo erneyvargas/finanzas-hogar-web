@@ -76,6 +76,8 @@ export interface ResumenDelMes {
   /** Day of the month the comparison stops at, when the month is still running. */
   comparadoHasta: number | null
   ingresos: number
+  /** Debt payments of the month (capital and interest): money that left, not an expense line. */
+  abonos: number
   porRubro: TotalDeRubro[]
   matriz: FilaDeMatriz[]
   /** Biggest first; only categories that spent this month. */
@@ -220,6 +222,10 @@ export function resumenDelMes(entrada: {
       .map((m) => m.monto),
   )
 
+  const abonos = sumar(
+    movimientos.filter((m) => m.tipo === 'debt_payment' && !m.anulado && mesDe(m.fecha) === mes).map((m) => m.monto),
+  )
+
   const delAnterior = lineas
     .filter((l) => l.mes === moverMes(mes, -1))
     .filter((l) => comparadoHasta === null || l.dia <= comparadoHasta)
@@ -264,6 +270,7 @@ export function resumenDelMes(entrada: {
     gastadoAnterior: sumar(delAnterior.map((l) => l.monto)),
     comparadoHasta,
     ingresos,
+    abonos,
     porRubro: [...rubros.entries()]
       .map(([id, total]) => ({
         id,

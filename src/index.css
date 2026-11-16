@@ -1226,3 +1226,11 @@ button.editar-regla { padding: 4px 10px; font-size: 13px; background: transparen
 .lista-v button.ver-pago:hover { text-decoration-color: currentColor; }
 .lista-v button.ver-pago:focus-visible { outline: 2px solid var(--marca); outline-offset: 2px; border-radius: 4px; }
 
+
+/* Ingresos del mes: how the income was used. */
+.desglose-ingresos { margin: 16px 0 0; display: grid; gap: 6px; font-size: 15px; }
+.desglose-ingresos > div { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 6px; border-bottom: 1px solid var(--regla); }
+.desglose-ingresos dt { color: var(--grafito); }
+.desglose-ingresos dd { margin: 0; font-weight: 700; }
+.desglose-ingresos .queda { border-bottom: 0; }
+.desglose-ingresos .queda dt, .desglose-ingresos .queda dd { color: var(--tinta); font-weight: 800; }

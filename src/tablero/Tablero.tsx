@@ -735,7 +735,10 @@ function Contenido({
     nombreDelMes(moverMes(mes, -1)) +
     (r.comparadoHasta === null ? '' : ` hasta el día ${r.comparadoHasta}`)
   const cambio = r.gastadoAnterior > 0 ? (r.gastado - r.gastadoAnterior) / r.gastadoAnterior : null
-  const quedan = r.ingresos - r.gastado
+  // What is left: income minus expenses and debt payments (the user's words: «revisa
+  // este dato ya que no me queda todo eso»; the cuotas and abonos were left out).
+  const abonos = r.abonos ?? 0
+  const quedan = r.ingresos - r.gastado - abonos
   // Choosing a rubro in «Por rubro» narrows the table to it (the user's words:
   // «quiero quitar este y que al darle click me filtre»).
   const [rubrosElegidos, setRubrosElegidos] = useState<string[] | null>(null)
@@ -785,8 +788,24 @@ function Contenido({
         <p className="nota">
           {quedan >= 0 ? 'Te quedan ' : 'Gastaste de más '}
           <b className={`num ${quedan < 0 ? 'sube' : ''}`}>{dinero(Math.abs(quedan))}</b>
-          {quedan >= 0 ? ' después de los gastos' : ' sobre lo que entró'}
+          {quedan >= 0 ? (abonos > 0 ? ' después de gastos y abonos a deudas' : ' después de los gastos') : ' sobre lo que entró'}
         </p>
+        <dl className="desglose-ingresos num">
+          <div>
+            <dt>Gastos</dt>
+            <dd>{dinero(r.gastado)}</dd>
+          </div>
+          {abonos > 0 && (
+            <div>
+              <dt>Abonos a deudas</dt>
+              <dd>{dinero(abonos)}</dd>
+            </div>
+          )}
+          <div className="queda">
+            <dt>{quedan >= 0 ? 'Queda' : 'Falta'}</dt>
+            <dd>{dinero(Math.abs(quedan))}</dd>
+          </div>
+        </dl>
       </section>
 
       <PorCategoria
