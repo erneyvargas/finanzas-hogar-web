@@ -365,6 +365,52 @@ describe('registering from a receipt on the dashboard', () => {
   })
 })
 
+// Phone repo: «de verdad tengo 1400000», «debería afectar el saldo de
+// noviembre». The money in liquid accounts today carries every month.
+describe('available today', () => {
+  const cuenta = (id: string, tipo: CuentaConSaldo['tipo'], saldo: number, archivada = false): CuentaConSaldo => ({
+    id, nombre: id, tipo, saldo, archivada, principal: false, foto: null, rutaDeFoto: null, cupo: null,
+    diaDeCorte: null, diaDePago: null, cobraGmf: false, categoriaGmf: null, estilo: null, tasaAnual: null,
+  })
+  const conCuentas = (): FuenteDeCuentas => ({
+    cargar: vi.fn(async () => ({
+      hogarId: 'h1',
+      cuentas: [
+        cuenta('nomina', 'debit', 753543),
+        cuenta('efectivo', 'cash', 125707),
+        cuenta('nu', 'savings', 200000),
+        cuenta('tc', 'credit_card', -828167),
+        cuenta('vieja', 'debit', 999, true),
+      ],
+      deudas: [],
+      categoriasDeGasto: [],
+    })),
+    movimientos: vi.fn(async () => []),
+    ejecutar: vi.fn(async () => null),
+    subirFoto: vi.fn(async () => ''),
+    borrarFoto: vi.fn(async () => {}),
+  })
+  const montarEn = (ahora: string) =>
+    render(
+      <ProveedorDeSesion cliente={auth}>
+        <Tablero fuente={fuente()} cuentas={conCuentas()} mesInicial="2026-10" ahora={() => new Date(ahora)} />
+      </ProveedorDeSesion>,
+    )
+
+  it('leads the income card with the liquid balance while the month runs', async () => {
+    montarEn('2026-10-20T15:00:00Z')
+    const ingresos = await screen.findByRole('region', { name: 'Ingresos del mes' })
+    expect(await within(ingresos).findByText('Disponible hoy')).toBeInTheDocument()
+    expect(ingresos).toHaveTextContent('Disponible hoy$879.250')
+  })
+
+  it('a past month does not show today', async () => {
+    montarEn('2026-11-20T15:00:00Z')
+    const ingresos = await screen.findByRole('region', { name: 'Ingresos del mes' })
+    expect(within(ingresos).queryByText('Disponible hoy')).not.toBeInTheDocument()
+  })
+})
+
 describe('the tabs', () => {
   const cuentas = (): FuenteDeCuentas => ({
     cargar: vi.fn(async () => ({ hogarId: 'h1', cuentas: [], deudas: [], categoriasDeGasto: [] })),

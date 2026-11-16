@@ -352,3 +352,11 @@ export const textoDeTasa = (tasa: number) => String(Math.round(tasa * 10000) / 1
  */
 export const etiquetaDeCuenta = (c: Pick<CuentaConSaldo, 'tipo' | 'tasaAnual'>) =>
   c.tasaAnual == null ? ETIQUETA[c.tipo] : `${ETIQUETA[c.tipo]} · ${textoDeTasa(c.tasaAnual)} % E.A.`
+
+/**
+ * The money in liquid accounts today (cash, debit, wallet, voucher), live
+ * ones only. It carries every month, savings included. Phone repo:
+ * «de verdad tengo 1400000».
+ */
+export const disponibleHoy = (cuentas: CuentaConSaldo[]) =>
+  cuentas.filter((c) => !c.archivada && grupoDe(c) === 'corriente').reduce((total, c) => total + c.saldo, 0)
