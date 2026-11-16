@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@floating-ui/react": "0.27.20",
     "@supabase/supabase-js": "^2.49.4",
     "react": "^19.1.0",
     "react-day-picker": "9.14.0",

@@ -39,6 +39,14 @@ describe('Anillo', () => {
     expect(container.querySelectorAll('.anillo-seg')).toHaveLength(2)
   })
 
+  it('names the hovered segment in a tooltip', async () => {
+    const { container } = render(<Anillo etiqueta="x" partes={partes} elegido={null} alElegir={() => {}} />)
+    expect(container.querySelector('title')).toBeNull()
+
+    await userEvent.hover(container.querySelectorAll('.anillo-seg')[1])
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Dos')
+  })
+
   it('draws its segments also after a StrictMode remount', async () => {
     const { container } = render(
       <StrictMode>

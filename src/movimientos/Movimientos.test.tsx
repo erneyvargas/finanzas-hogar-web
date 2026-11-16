@@ -382,7 +382,11 @@ describe('the filter panel', () => {
 
     const festivo = within(lista).getByRole('button', { name: '12 de octubre, festivo: Día de la Raza' })
     expect(festivo).toHaveClass('festivo')
-    expect(festivo.title).toContain('Día de la Raza')
+    expect(festivo).not.toHaveAttribute('title')
+    await userEvent.hover(festivo)
+    const ayuda = await screen.findByRole('tooltip')
+    expect(ayuda.textContent).toMatch(/^Día de la Raza( · \$[\d.]+)?$/)
+    expect(festivo).toHaveAttribute('aria-describedby', ayuda.id)
     expect(within(lista).getByRole('button', { name: '13 de octubre' })).not.toHaveClass('festivo')
   })
 
@@ -940,6 +944,16 @@ describe('correcting a movement', () => {
     expect(within(p).getByRole('group', { name: 'Sale de' })).toHaveTextContent('Master Card BBVA')
     expect(within(p).getByLabelText('Fecha')).toHaveTextContent('24 oct 2026')
     expect(within(p).getByLabelText('Comercio')).toHaveValue('Aguacate')
+  })
+
+  it('the disabled merchant field says why in a tooltip over it', async () => {
+    const p = await abrirAguacate(movimientos())
+    const comercio = within(p).getByLabelText('Comercio')
+    expect(comercio).toBeDisabled()
+    expect(comercio).not.toHaveAttribute('title')
+
+    await userEvent.hover(comercio.closest('.con-sugerencias')!)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('El comercio no se corrige desde aquí')
   })
 
   it('saving calls only the functions of the fields that changed', async () => {

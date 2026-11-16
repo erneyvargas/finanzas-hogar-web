@@ -95,6 +95,24 @@ describe('the Por rubro card', () => {
     expect(within(t).getByText('2 rubros')).toBeInTheDocument()
   })
 
+  it('the comparison explains itself with both amounts in a tooltip, on hover and on focus of the row', async () => {
+    montar()
+    const t = await tarjeta()
+    const cambio = within(t).getByRole('button', { name: /^Hogar/ })
+    const texto =
+      'Del 1 al 28 de octubre llevas $40.000; en el mismo periodo de septiembre fueron $20.000: 100 % más.'
+
+    await userEvent.hover(cambio)
+    const ayuda = await screen.findByRole('tooltip')
+    expect(ayuda).toHaveTextContent(texto)
+    expect(cambio).toHaveAttribute('aria-describedby', ayuda.id)
+    await userEvent.unhover(cambio)
+    await waitFor(() => expect(screen.queryByRole('tooltip')).toBeNull())
+
+    cambio.focus()
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(texto)
+  })
+
   // The user's words: «quiero quitar este y que al darle click me filtre» the
   // «Categorías por persona» table. The card no longer lists movements.
   it('choosing a rubro filters the Categorías por persona table to it; tapping again clears it', async () => {

@@ -113,11 +113,18 @@ describe('the month dashboard', () => {
     expect(ingresos).toHaveTextContent('Abonos a deudas$30.000')
   })
 
-  it('the six-month chart names the rubro of each bar piece', async () => {
+  it('the six-month chart names the rubro of each bar piece in a tooltip on hover', async () => {
     montar(fuente())
     const grafico = await screen.findByRole('img', { name: 'Gasto de los últimos seis meses por persona' })
-    const titulos = [...grafico.querySelectorAll('title')].map((t) => t.textContent)
-    expect(titulos.some((t) => /^Karen · Oct: \$/.test(t ?? ''))).toBe(true)
+    expect(grafico.querySelector('title')).toBeNull()
+    const textos: string[] = []
+    for (const barra of grafico.querySelectorAll('rect[opacity="1"]')) {
+      await userEvent.hover(barra)
+      textos.push((await screen.findByRole('tooltip')).textContent ?? '')
+      await userEvent.unhover(barra)
+      await waitFor(() => expect(screen.queryByRole('tooltip')).toBeNull())
+    }
+    expect(textos.some((t) => /^Karen · Oct: \$[\d.]+$/.test(t))).toBe(true)
   })
 
   it('crosses categories with persons in a table', async () => {
@@ -512,6 +519,23 @@ describe('the Por vencer tab', () => {
     expect(agua).toHaveClass('bola-rayado')
     expect(agua.closest('[data-sin-fecha]')).not.toBeNull()
     expect(cal.querySelector('[data-dia="15"]')).toHaveClass('hoy')
+  })
+
+  it('a calendar circle shows its label in a tooltip on hover and on keyboard focus', async () => {
+    await montarPv()
+    const cal = screen.getByRole('group', { name: 'Calendario de noviembre' })
+    const nubank = within(cal).getByRole('button', { name: 'Nubank · debes $737.627 · revisa el extracto' })
+    expect(nubank).not.toHaveAttribute('title')
+
+    await userEvent.hover(nubank)
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Nubank · debes $737.627 · revisa el extracto')
+    await userEvent.unhover(nubank)
+    await waitFor(() => expect(screen.queryByRole('tooltip')).toBeNull())
+
+    nubank.focus()
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Nubank · debes $737.627 · revisa el extracto')
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('tooltip')).toBeNull())
   })
 
   it('animates the unpaid circles by urgency: due today or overdue ripples, this week glows, later and paid stay still', async () => {

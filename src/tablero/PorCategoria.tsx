@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Anillo } from '../core/ui/Anillo'
+import { Ayuda } from '../core/ui/Ayuda'
+import { explicarCambio } from './cambio'
 import { Cifra } from '../core/ui/Cifra'
 import { colorDe, dinero, nombreDelMes } from '../core/formato'
 import { moverMes, type CategoriaDelMes } from './calculo'
@@ -18,7 +20,11 @@ interface Grupo extends CategoriaDelMes {
 function agrupar(categorias: CategoriaDelMes[]): Grupo[] {
   const grandes = categorias.length > CUANTAS ? categorias.slice(0, CUANTAS - 1) : categorias
   // A rubro brings its own color (the phone's); a slice without one takes the palette's.
-  const grupos: Grupo[] = grandes.map((c, i) => ({ ...c, color: colorDe(c.color ?? PALETA[i]), ids: [c.id] }))
+  const grupos: Grupo[] = grandes.map((c, i) => ({
+    ...c,
+    color: colorDe(c.color ?? PALETA[i]),
+    ids: [c.id],
+  }))
   const resto = categorias.slice(grandes.length)
   if (resto.length > 0) {
     grupos.push({
@@ -48,10 +54,13 @@ const editable = (el: EventTarget | null) =>
 export function PorCategoria({
   mes,
   categorias,
+  comparadoHasta = null,
   alAnadir,
   alElegirGrupo,
 }: {
   mes: string
+  /** The day the comparison with the month before stops at; null for a closed month. */
+  comparadoHasta?: number | null
   categorias: CategoriaDelMes[]
   /** Opens a new expense for the chosen level-2 category, or none. */
   alAnadir?: (categoriaId: string | null) => void
@@ -87,8 +96,8 @@ export function PorCategoria({
       const n = Number(e.key)
       if (Number.isInteger(n) && n >= 1 && n <= grupos.length) alternar(grupos[n - 1].id)
     }
-    window.addEventListener('keydown', alTeclear)
-    return () => window.removeEventListener('keydown', alTeclear)
+    window.addEventListener('keydown', alTeclear, true)
+    return () => window.removeEventListener('keydown', alTeclear, true)
   }, [grupos])
 
   const subtitulo = grupo
@@ -123,7 +132,12 @@ export function PorCategoria({
         <div className="pc-cuerpo">
           <Anillo
             etiqueta={`Gasto por rubro de ${nombreDelMes(mes)}`}
-            partes={grupos.map((g) => ({ id: g.id, valor: g.total, color: g.color, nombre: g.nombre }))}
+            partes={grupos.map((g) => ({
+              id: g.id,
+              valor: g.total,
+              color: g.color,
+              nombre: g.nombre,
+            }))}
             elegido={elegido}
             alElegir={alternar}
             clave={mes}
@@ -138,40 +152,46 @@ export function PorCategoria({
               const cambio = g.anterior > 0 ? Math.round(((g.total - g.anterior) / g.anterior) * 100) : null
               return (
                 <li key={g.id}>
-                  <button
-                    type="button"
-                    className="pc-cat"
-                    aria-pressed={g.id === elegido}
-                    aria-keyshortcuts={String(i + 1)}
-                    style={{ ['--c' as string]: g.color }}
-                    onClick={() => alternar(g.id)}
-                  >
-                    <span className="pc-cat-nom">{g.nombre}</span>
-                    <span className="pc-pildora num">{pct(g.total, total)} %</span>
-                    <b className="pc-cat-monto num">{dinero(g.total)}</b>
-                    <span className="pc-cat-cambio">
-                      {cambio === null ? (
-                        `Sin gasto en ${anterior}`
-                      ) : cambio === 0 ? (
-                        `Igual que en ${anterior}`
-                      ) : (
-                        <span className={cambio > 0 ? 'sube' : 'baja'}>
-                          {cambio > 0 ? '↑' : '↓'} {Math.abs(cambio)} % vs {anterior}
-                        </span>
-                      )}
-                    </span>
-                    <span className="pc-barra" aria-hidden="true">
-                      <i style={{ ['--w' as string]: total > 0 ? g.total / total : 0 }} />
-                    </span>
-                  </button>
+                  {/* The explanation of the comparison belongs to the row button: hover or
+                      keyboard focus on the row shows it, with no control nested in a control. */}
+                  <Ayuda texto={explicarCambio(g.total, g.anterior, mes, comparadoHasta)}>
+                    <button
+                      type="button"
+                      className="pc-cat"
+                      aria-pressed={g.id === elegido}
+                      aria-keyshortcuts={String(i + 1)}
+                      style={{ ['--c' as string]: g.color }}
+                      onClick={() => alternar(g.id)}
+                    >
+                      <span className="pc-cat-nom">{g.nombre}</span>
+                      <span className="pc-pildora num">{pct(g.total, total)} %</span>
+                      <b className="pc-cat-monto num">{dinero(g.total)}</b>
+                      <span className="pc-cat-cambio">
+                        {cambio === null ? (
+                          `Sin gasto en ${anterior}`
+                        ) : cambio === 0 ? (
+                          `Igual que en ${anterior}`
+                        ) : (
+                          <span className={cambio > 0 ? 'sube' : 'baja'}>
+                            {cambio > 0 ? '↑' : '↓'} {Math.abs(cambio)} % vs {anterior}
+                          </span>
+                        )}
+                      </span>
+                      <span className="pc-barra" aria-hidden="true">
+                        <i
+                          style={{
+                            ['--w' as string]: total > 0 ? g.total / total : 0,
+                          }}
+                        />
+                      </span>
+                    </button>
+                  </Ayuda>
                 </li>
               )
             })}
           </ul>
         </div>
       )}
-
-
     </section>
   )
 }

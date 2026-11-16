@@ -479,7 +479,7 @@ export function Panel({
               sugerencias={sugerir(historial.comercios, comercio, categoriaId)}
               nombreDeLista="Sugerencias de comercio"
               disabled={corrigiendo}
-              title={corrigiendo ? 'El comercio no se corrige desde aquí' : undefined}
+              ayuda={corrigiendo ? 'El comercio no se corrige desde aquí' : undefined}
             />
           </div>
         </div>
