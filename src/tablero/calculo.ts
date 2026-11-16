@@ -76,6 +76,14 @@ export interface ResumenDelMes {
   /** Day of the month the comparison stops at, when the month is still running. */
   comparadoHasta: number | null
   ingresos: number
+  /** Debt payments of the month (capital and interest): money that left, not an expense line. */
+  abonos: number
+  /** Expense movements of the month (not parts). */
+  cuantosGastos?: number
+  /** Spent per day so far: up to today in a running month, else the whole month. */
+  promedioDiario?: number
+  /** The most expensive day of the month, as its day number and total. */
+  diaMasCaro?: { dia: number; monto: number } | null
   porRubro: TotalDeRubro[]
   matriz: FilaDeMatriz[]
   /** Biggest first; only categories that spent this month. */
@@ -83,6 +91,8 @@ export interface ResumenDelMes {
   /** The same by rubro, with its color: what the «Por rubro» card shows. */
   porRubroDelMes: CategoriaDelMes[]
   meses: MesDeTendencia[]
+  /** Name and color of every rubro in [meses], for the chart (also past months' rubros). */
+  rubros?: Record<string, { nombre: string; color: string | null }>
 }
 
 /** The phone app's namespace for the adjustment categories. */
@@ -218,6 +228,16 @@ export function resumenDelMes(entrada: {
       .map((m) => m.monto),
   )
 
+  const porDia = new Map<number, number>()
+  for (const l of delMes) porDia.set(l.dia, (porDia.get(l.dia) ?? 0) + l.monto)
+  const caro = [...porDia.entries()].sort((a, b) => b[1] - a[1])[0]
+  const diasContados = comparadoHasta ?? Number(new Date(Date.UTC(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)), 0)).getUTCDate())
+  const cuantosGastos = movimientos.filter((m) => m.tipo === 'expense' && !m.anulado && mesDe(m.fecha) === mes && m.rubroId !== ajuste).length
+
+  const abonos = sumar(
+    movimientos.filter((m) => m.tipo === 'debt_payment' && !m.anulado && mesDe(m.fecha) === mes).map((m) => m.monto),
+  )
+
   const delAnterior = lineas
     .filter((l) => l.mes === moverMes(mes, -1))
     .filter((l) => comparadoHasta === null || l.dia <= comparadoHasta)
@@ -262,6 +282,10 @@ export function resumenDelMes(entrada: {
     gastadoAnterior: sumar(delAnterior.map((l) => l.monto)),
     comparadoHasta,
     ingresos,
+    abonos,
+    cuantosGastos,
+    promedioDiario: diasContados > 0 ? Math.round(sumar(delMes.map((l) => l.monto)) / diasContados) : 0,
+    diaMasCaro: caro ? { dia: caro[0], monto: caro[1] } : null,
     porRubro: [...rubros.entries()]
       .map(([id, total]) => ({
         id,
@@ -274,5 +298,11 @@ export function resumenDelMes(entrada: {
     porCategoria: [...porCategoria.values()].sort((a, b) => b.total - a.total),
     porRubroDelMes: [...porRubroDelMes.values()].sort((a, b) => b.total - a.total),
     meses,
+    rubros: Object.fromEntries(
+      [...new Set(meses.flatMap((m) => Object.keys(m.porRubro)))].map((id) => [
+        id,
+        { nombre: cat.get(id)?.nombre ?? 'Sin rubro', color: cat.get(id)?.color ?? null },
+      ]),
+    ),
   }
 }

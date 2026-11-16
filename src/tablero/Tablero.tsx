@@ -255,6 +255,18 @@ export function Tablero({
     abrir(null)
     setInicio(hijas.length === 1 ? { categoria: hijas[0].id } : nombre ? { busqueda: nombre } : {})
   }
+  /**
+   * A paid item in Por vencer opens what paid it: the expense, to correct
+   * it; a card or debt payment (a transfer, not editable as an expense)
+   * opens the account it went into, with its movements. The user's words:
+   * «cuando le de click quiero que me lleve al movimiento».
+   */
+  const verPago = (v: Vencimiento) => {
+    const fila = v.pagoId ? lista?.datos.movimientos.find((m) => m.id === v.pagoId) : undefined
+    if (fila) return abrir(fila)
+    const cuentaId = v.destinoId ?? v.cuentaId
+    if (cuentas && datosDeCuentas && cuentaId) abrirCuentas({ v: 'detalle', id: cuentaId })
+  }
   /** Pagar in Por vencer: a new expense with the bill's amount, category, account and name. */
   const pagar = (v: Vencimiento) => {
     const regla = v.tipo === 'regla' ? { id: v.id, nombre: v.nombre } : null
@@ -475,8 +487,6 @@ export function Tablero({
           <Contenido
             mes={mes}
             r={resumen}
-            lista={listaDelMes}
-            alElegirMovimiento={abrir}
             alAnadir={movimientos && lista ? anadir : undefined}
           />
         )}
@@ -509,6 +519,7 @@ export function Tablero({
             datos={datosPorVencer}
             hoy={diaDeHoy}
             alPagar={movimientos && lista ? pagar : undefined}
+            alVerPago={movimientos && lista ? verPago : undefined}
             puedeTransferir={!!cuentas && !!datosDeCuentas}
             alNuevaRegla={porVencer?.ejecutar && lista ? () => abrirRegla(null) : undefined}
             alEditarRegla={porVencer?.ejecutar && lista ? abrirRegla : undefined}
@@ -650,17 +661,16 @@ function Esqueleto({ mes, conResumen, conLista }: { mes: string; conResumen: boo
       {conResumen && (
         <div className="rejilla">
           {pequena}
+          <div className="tarjeta esqueleto-alto" aria-hidden="true">
+            <span className="skeleton skeleton--text sk-w40" style={{ ['--sk-line' as string]: '19px', marginBottom: 15 }} />
+            <span className="skeleton" style={{ height: 200 }} />
+          </div>
           {pequena}
-          {pequena}
-          <div className="tarjeta ancha esqueleto-alto" aria-hidden="true">
+          <div className="tarjeta completa esqueleto-alto" aria-hidden="true">
             <span className="skeleton skeleton--text sk-w30" style={{ ['--sk-line' as string]: '19px', marginBottom: 15 }} />
             {[100, 80, 65].map((w) => (
               <span key={w} className={`skeleton skeleton--text sk-w${w}`} style={{ ['--sk-line' as string]: '37px' }} />
             ))}
-          </div>
-          <div className="tarjeta esqueleto-alto" aria-hidden="true">
-            <span className="skeleton skeleton--text sk-w40" style={{ ['--sk-line' as string]: '19px', marginBottom: 15 }} />
-            <span className="skeleton" style={{ height: 200 }} />
           </div>
         </div>
       )}
@@ -715,22 +725,30 @@ function diasDelMes(mes: string): number {
 function Contenido({
   mes,
   r,
-  lista,
-  alElegirMovimiento,
   alAnadir,
 }: {
   mes: string
   r: ResumenDelMes
-  lista: DatosDeMovimientos | null
-  alElegirMovimiento: (m: FilaDeMovimiento) => void
   alAnadir?: (categoriaId: string | null) => void
 }) {
   const anterior =
     nombreDelMes(moverMes(mes, -1)) +
     (r.comparadoHasta === null ? '' : ` hasta el día ${r.comparadoHasta}`)
   const cambio = r.gastadoAnterior > 0 ? (r.gastado - r.gastadoAnterior) / r.gastadoAnterior : null
-  const quedan = r.ingresos - r.gastado
-  const columnas = r.porRubro
+  // What is left: income minus expenses and debt payments (the user's words: «revisa
+  // este dato ya que no me queda todo eso»; the cuotas and abonos were left out).
+  const abonos = r.abonos ?? 0
+  const quedan = r.ingresos - r.gastado - abonos
+  // Choosing a rubro in «Por rubro» narrows the table to it (the user's words:
+  // «quiero quitar este y que al darle click me filtre»).
+  const [rubrosElegidos, setRubrosElegidos] = useState<string[] | null>(null)
+  const columnas = rubrosElegidos ? r.porRubro.filter((c) => rubrosElegidos.includes(c.id)) : r.porRubro
+  const filasDeMatriz = rubrosElegidos
+    ? r.matriz
+        .map((f) => ({ ...f, total: columnas.reduce((s, c) => s + (f.porRubro[c.id] ?? 0), 0) }))
+        .filter((f) => f.total > 0)
+        .sort((a, b) => b.total - a.total)
+    : r.matriz
   const maxCelda = Math.max(1, ...r.matriz.flatMap((f) => Object.values(f.porRubro)))
 
   return (
@@ -754,29 +772,34 @@ function Contenido({
             </>
           )}
         </p>
-      </section>
-
-      <section className="tarjeta" aria-labelledby="t-personas">
-        <h2 id="t-personas">Por persona</h2>
-        {columnas.length === 0 ? (
-          <p className="nota">Sin gastos este mes.</p>
-        ) : (
-          <>
-            <div className="barra-apilada" aria-hidden="true">
-              {columnas.map((c) => (
-                <div key={c.id} style={{ flex: c.total, background: colorDe(c.color) }} title={c.nombre} />
-              ))}
+              {r.gastado > 0 && (
+          <dl className="desglose-ingresos num">
+            <div>
+              <dt>Promedio por día</dt>
+              <dd>{dinero(r.promedioDiario ?? 0)}</dd>
             </div>
-            <ul className="leyenda">
-              {columnas.map((c) => (
-                <li key={c.id}>
-                  <i style={{ background: colorDe(c.color) }} />
-                  <span>{c.nombre}</span> <b className="num">{dinero(c.total)}</b>
-                </li>
-              ))}
-            </ul>
-          </>
+            {r.diaMasCaro && (
+              <div>
+                <dt>Día más caro</dt>
+                <dd>
+                  {r.diaMasCaro.dia} {mesCorto(mes).toLowerCase()} · {dinero(r.diaMasCaro.monto)}
+                </dd>
+              </div>
+            )}
+            <div>
+              <dt>Movimientos</dt>
+              <dd>{r.cuantosGastos ?? 0}</dd>
+            </div>
+          </dl>
         )}
+</section>
+
+      {/* Where «Por persona» was: it repeated the «Por rubro» card (the user's words:
+          «este ya sobra ya que es lo mismo que dice en la grafica de abajo», then
+          «Últimos seis meses dejalo donde quitamos Por persona»). */}
+      <section className="tarjeta" aria-labelledby="t-meses">
+        <h2 id="t-meses">Últimos seis meses</h2>
+        <Tendencia r={r} />
       </section>
 
       <section className="tarjeta" aria-labelledby="t-ingresos">
@@ -785,20 +808,34 @@ function Contenido({
         <p className="nota">
           {quedan >= 0 ? 'Te quedan ' : 'Gastaste de más '}
           <b className={`num ${quedan < 0 ? 'sube' : ''}`}>{dinero(Math.abs(quedan))}</b>
-          {quedan >= 0 ? ' después de los gastos' : ' sobre lo que entró'}
+          {quedan >= 0 ? (abonos > 0 ? ' después de gastos y abonos a deudas' : ' después de los gastos') : ' sobre lo que entró'}
         </p>
+        <dl className="desglose-ingresos num">
+          <div>
+            <dt>Gastos</dt>
+            <dd>{dinero(r.gastado)}</dd>
+          </div>
+          {abonos > 0 && (
+            <div>
+              <dt>Abonos a deudas</dt>
+              <dd>{dinero(abonos)}</dd>
+            </div>
+          )}
+          <div className="queda">
+            <dt>{quedan >= 0 ? 'Queda' : 'Falta'}</dt>
+            <dd>{dinero(Math.abs(quedan))}</dd>
+          </div>
+        </dl>
       </section>
 
       <PorCategoria
         mes={mes}
         categorias={r.porRubroDelMes}
-        filas={lista?.movimientos ?? null}
-        categoriasDeMovimientos={lista?.categorias ?? []}
-        alElegirMovimiento={alElegirMovimiento}
         alAnadir={alAnadir}
+        alElegirGrupo={setRubrosElegidos}
       />
 
-      <section className="tarjeta ancha" aria-labelledby="t-matriz">
+      <section className="tarjeta completa" aria-labelledby="t-matriz">
         <h2 id="t-matriz">Categorías por persona</h2>
         {r.matriz.length === 0 ? (
           <p className="nota">Sin gastos este mes.</p>
@@ -815,7 +852,7 @@ function Contenido({
                 </tr>
               </thead>
               <tbody>
-                {r.matriz.map((f) => (
+                {filasDeMatriz.map((f) => (
                   <tr key={f.categoria}>
                     <td>{f.categoria}</td>
                     {columnas.map((c) => {
@@ -849,10 +886,7 @@ function Contenido({
         )}
       </section>
 
-      <section className="tarjeta" aria-labelledby="t-meses">
-        <h2 id="t-meses">Últimos seis meses</h2>
-        <Tendencia r={r} />
-      </section>
+
     </div>
   )
 }
@@ -875,6 +909,7 @@ function Tendencia({ r }: { r: ResumenDelMes }) {
   const ancho = (W - pad.l - pad.r) / r.meses.length
   const y = (v: number) => H - pad.b - (v / tope) * alto
   const color = new Map(r.porRubro.map((c) => [c.id, c.color]))
+  const rubroDe = (id: string) => r.rubros?.[id] ?? { nombre: r.porRubro.find((c) => c.id === id)?.nombre ?? 'Sin rubro', color: color.get(id) ?? null }
   const lineas = Array.from({ length: Math.round(tope / s) + 1 }, (_, i) => i * s)
   const corto = (v: number) => (v >= 1e6 ? `${v / 1e6}M` : v >= 1e3 ? `${v / 1e3}k` : `${v}`)
 
@@ -904,10 +939,10 @@ function Tendencia({ r }: { r: ResumenDelMes }) {
                   y={base}
                   width={ancho * 0.64}
                   height={h}
-                  fill={colorDe(color.get(id) ?? null)}
+                  fill={colorDe(rubroDe(id).color)}
                   opacity={ultimo ? 1 : 0.55}
                 >
-                  <title>{`${mesCorto(m.mes)}: ${dinero(v)}`}</title>
+                  <title>{`${rubroDe(id).nombre} · ${mesCorto(m.mes)}: ${dinero(v)}`}</title>
                 </rect>
               )
             })}

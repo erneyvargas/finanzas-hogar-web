@@ -95,22 +95,28 @@ describe('the Por rubro card', () => {
     expect(within(t).getByText('2 rubros')).toBeInTheDocument()
   })
 
-  it('choosing a rubro shows its total and only its movements; tapping again clears it', async () => {
+  // The user's words: «quiero quitar este y que al darle click me filtre» the
+  // «Categorías por persona» table. The card no longer lists movements.
+  it('choosing a rubro filters the Categorías por persona table to it; tapping again clears it', async () => {
     montar()
     const t = await tarjeta()
-    await within(t).findByText('Fruver')
+    const tabla = await screen.findByRole('table')
+    expect(within(t).queryByText('Fruver')).toBeNull()
+    expect(within(t).queryByText(/movimientos/)).toBeNull()
 
     const erney = within(t).getByRole('button', { name: /^Erney/ })
     await userEvent.click(erney)
 
     expect(erney).toHaveAttribute('aria-pressed', 'true')
-    expect(within(t).getByText('Casino MCT')).toBeInTheDocument()
-    expect(within(t).queryByText('Fruver')).toBeNull()
-    expect(within(t).queryByText('Buseta')).toBeNull()
+    expect(within(tabla).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Categoría', 'Erney', 'Total'])
+    const filas = within(tabla).getAllByRole('row').slice(1)
+    expect(filas).toHaveLength(1)
+    expect(filas[0]).toHaveTextContent('Almuerzo')
 
     await userEvent.click(erney)
     expect(erney).toHaveAttribute('aria-pressed', 'false')
-    expect(within(t).getByText('Fruver')).toBeInTheDocument()
+    expect(within(tabla).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Categoría', 'Hogar', 'Erney', 'Total'])
+    expect(within(tabla).getAllByRole('row').slice(1)).toHaveLength(3)
   })
 
   it('Escape and the filter pill clear the chosen rubro', async () => {
@@ -136,7 +142,7 @@ describe('the Por rubro card', () => {
   it('Añadir gasto opens the panel searching the chosen rubro, and Deshacer deletes what was saved', async () => {
     const m = montar()
     const t = await tarjeta()
-    await within(t).findByText('Fruver')
+    await waitFor(() => expect(within(t).getByRole('button', { name: 'Añadir gasto' })).toBeEnabled())
     await userEvent.click(within(t).getByRole('button', { name: /^Hogar/ }))
 
     await userEvent.click(within(t).getByRole('button', { name: 'Añadir gasto' }))
@@ -161,7 +167,7 @@ describe('the Por rubro card', () => {
   it('a rubro with a single subcategory comes already chosen', async () => {
     montar()
     const t = await tarjeta()
-    await within(t).findByText('Fruver')
+    await waitFor(() => expect(within(t).getByRole('button', { name: 'Añadir gasto' })).toBeEnabled())
     await userEvent.click(within(t).getByRole('button', { name: /^Erney/ }))
     await userEvent.click(within(t).getByRole('button', { name: 'Añadir gasto' }))
 

@@ -2,15 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { Anillo } from '../core/ui/Anillo'
 import { Cifra } from '../core/ui/Cifra'
 import { colorDe, dinero, nombreDelMes } from '../core/formato'
-import { pasaLaSeleccion } from '../movimientos/filtros'
-import { rutaDeCategoria, type CategoriaDeMovimiento, type FilaDeMovimiento } from '../movimientos/reglas'
-import { diaDe, moverMes, type CategoriaDelMes } from './calculo'
+import { moverMes, type CategoriaDelMes } from './calculo'
 
 /** Six slices read at a glance; the rest go together. */
 const CUANTAS = 6
 /** Palette keys of the phone app, in the order the slices take them. */
 const PALETA = ['marino', 'arcilla', 'laguna', 'lavanda', 'musgo', 'ciruela']
-const FILAS_A_LA_VISTA = 6
 
 interface Grupo extends CategoriaDelMes {
   color: string
@@ -51,24 +48,25 @@ const editable = (el: EventTarget | null) =>
 export function PorCategoria({
   mes,
   categorias,
-  filas,
-  categoriasDeMovimientos,
-  alElegirMovimiento,
   alAnadir,
+  alElegirGrupo,
 }: {
   mes: string
   categorias: CategoriaDelMes[]
-  /** The month's movements; without them the card shows no list. */
-  filas: FilaDeMovimiento[] | null
-  categoriasDeMovimientos: CategoriaDeMovimiento[]
-  alElegirMovimiento: (fila: FilaDeMovimiento) => void
   /** Opens a new expense for the chosen level-2 category, or none. */
   alAnadir?: (categoriaId: string | null) => void
+  /** The rubro ids of the chosen slice, or null when none: the page filters with it. */
+  alElegirGrupo?: (ids: string[] | null) => void
 }) {
   const grupos = useMemo(() => agrupar(categorias), [categorias])
   const total = grupos.reduce((s, g) => s + g.total, 0)
   const [elegido, setElegido] = useState<string | null>(null)
   const grupo = grupos.find((g) => g.id === elegido) ?? null
+  // The page narrows the «Categorías por persona» table to the chosen rubro.
+  const idsElegidos = grupo ? grupo.ids.join('|') : null
+  useEffect(() => {
+    alElegirGrupo?.(idsElegidos ? idsElegidos.split('|') : null)
+  }, [idsElegidos, alElegirGrupo])
   const anterior = nombreDelMes(moverMes(mes, -1))
 
   // A new month starts with nothing chosen.
@@ -93,16 +91,6 @@ export function PorCategoria({
     return () => window.removeEventListener('keydown', alTeclear)
   }, [grupos])
 
-  const delGrupo = (f: FilaDeMovimiento) => {
-    if (!grupo) return true
-    if ((grupo.ids.includes('sin-categoria') || grupo.ids.includes('sin-rubro')) && f.categoriaId === null) return true
-    return pasaLaSeleccion(new Set(grupo.ids), f.categoriaId, categoriasDeMovimientos)
-  }
-  const visibles = (filas ?? [])
-    .filter((f) => f.tipo === 'expense' && delGrupo(f))
-    .sort((a, b) => (a.fecha < b.fecha ? 1 : -1))
-
-  const cuantos = visibles.length
   const subtitulo = grupo
     ? `${pct(grupo.total, total)} % del mes`
     : `${grupos.length} ${grupos.length === 1 ? 'rubro' : 'rubros'}`
@@ -183,30 +171,7 @@ export function PorCategoria({
         </div>
       )}
 
-      {filas && grupos.length > 0 && (
-        <div className="pc-movimientos">
-          <p className="nota">
-            {cuantos} {cuantos === 1 ? 'movimiento' : 'movimientos'}
-            {grupo ? ` de ${grupo.nombre}` : ''}
-            {cuantos > FILAS_A_LA_VISTA ? ` · los ${FILAS_A_LA_VISTA} más recientes` : ''}
-          </p>
-          <ul>
-            {visibles.slice(0, FILAS_A_LA_VISTA).map((f) => {
-              const ruta = rutaDeCategoria(f.categoriaId, categoriasDeMovimientos).texto
-              const dia = diaDe(f.fecha)
-              return (
-                <li key={f.id} className="pc-mov">
-                  <button type="button" onClick={() => alElegirMovimiento(f)}>
-                    <span className="pc-mov-nom">{f.comercio || ruta.split(' › ').pop() || 'Sin categoría'}</span>
-                    <span className="nota">{`${Number(dia.slice(8))} ${nombreDelMes(dia.slice(0, 7)).slice(0, 3)}`}</span>
-                    <b className="num">−{dinero(f.monto)}</b>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      )}
+
     </section>
   )
 }

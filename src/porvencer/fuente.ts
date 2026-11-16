@@ -58,7 +58,7 @@ export function fuenteDePorVencerDeSupabase(sb: SupabaseClient, hogar: () => Pro
         todas((a, b) =>
           sb
             .from('transactions')
-            .select('category_id, occurred_at')
+            .select('id, category_id, occurred_at')
             .eq('household_id', hogarId)
             .is('deleted_at', null)
             .not('voided', 'is', true)
@@ -81,7 +81,7 @@ export function fuenteDePorVencerDeSupabase(sb: SupabaseClient, hogar: () => Pro
           : todas((a, b) =>
                 sb
                   .from('transactions')
-                  .select('debt_id, occurred_at')
+                  .select('id, debt_id, occurred_at')
                   .eq('household_id', hogarId)
                   .is('deleted_at', null)
                   .not('voided', 'is', true)
@@ -134,7 +134,7 @@ export function fuenteDePorVencerDeSupabase(sb: SupabaseClient, hogar: () => Pro
           : await todas((a, b) =>
               sb
                 .from('transactions')
-                .select('counter_account_id, amount, occurred_at')
+                .select('id, counter_account_id, amount, occurred_at')
                 .eq('household_id', hogarId)
                 .is('deleted_at', null)
                 .not('voided', 'is', true)
@@ -201,9 +201,9 @@ export function fuenteDePorVencerDeSupabase(sb: SupabaseClient, hogar: () => Pro
         })),
         cuentas: cuentas.map((c) => ({ id: c.id, nombre: c.name, principal: c.is_principal === true })),
         saldos,
-        gastos: gastos.map((g) => ({ categoriaId: g.category_id ?? null, dia: diaDe(g.occurred_at) })),
-        abonos: abonos.map((x) => ({ deudaId: x.debt_id as string, dia: diaDe(x.occurred_at) })),
-        pagosATarjetas: pagos.map((p) => ({ haciaCuentaId: p.counter_account_id, dia: diaDe(p.occurred_at), monto: Number(p.amount) })),
+        gastos: gastos.map((g) => ({ id: g.id, categoriaId: g.category_id ?? null, dia: diaDe(g.occurred_at) })),
+        abonos: abonos.map((x) => ({ id: x.id as string, deudaId: x.debt_id as string, dia: diaDe(x.occurred_at) })),
+        pagosATarjetas: pagos.map((p) => ({ id: p.id, haciaCuentaId: p.counter_account_id, dia: diaDe(p.occurred_at), monto: Number(p.amount) })),
       }
     },
 

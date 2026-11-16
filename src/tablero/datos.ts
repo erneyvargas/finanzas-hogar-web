@@ -59,7 +59,7 @@ export async function cargarTablero(
         .select('id, kind, amount, occurred_at, rubro_id, category_l2_id, voided')
         .eq('household_id', hogarId)
         .is('deleted_at', null)
-        .in('kind', ['expense', 'income'])
+        .in('kind', ['expense', 'income', 'debt_payment'])
         .gte('occurred_at', desde)
         .lt('occurred_at', hasta)
         .order('occurred_at')
