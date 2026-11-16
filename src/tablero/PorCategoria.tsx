@@ -20,12 +20,13 @@ interface Grupo extends CategoriaDelMes {
 
 function agrupar(categorias: CategoriaDelMes[]): Grupo[] {
   const grandes = categorias.length > CUANTAS ? categorias.slice(0, CUANTAS - 1) : categorias
-  const grupos: Grupo[] = grandes.map((c, i) => ({ ...c, color: colorDe(PALETA[i]), ids: [c.id] }))
+  // A rubro brings its own color (the phone's); a slice without one takes the palette's.
+  const grupos: Grupo[] = grandes.map((c, i) => ({ ...c, color: colorDe(c.color ?? PALETA[i]), ids: [c.id] }))
   const resto = categorias.slice(grandes.length)
   if (resto.length > 0) {
     grupos.push({
       id: 'otras',
-      nombre: 'Otras',
+      nombre: 'Otros',
       total: resto.reduce((s, c) => s + c.total, 0),
       anterior: resto.reduce((s, c) => s + c.anterior, 0),
       color: 'var(--grafito)',
@@ -40,7 +41,8 @@ const editable = (el: EventTarget | null) =>
   el instanceof HTMLElement && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))
 
 /**
- * Spending by category (the Moxen "Gastos" layout): a ring with the
+ * Spending by rubro (the Moxen "Gastos" layout; the user asked «este quiero
+ * que sea por rubro»): a ring with the
  * month's total in the middle, the categories with their share and the
  * change against the month before, and the month's movements below.
  * Choosing a category (its row, its slice or keys 1–6) narrows all of it;
@@ -93,7 +95,7 @@ export function PorCategoria({
 
   const delGrupo = (f: FilaDeMovimiento) => {
     if (!grupo) return true
-    if (grupo.ids.includes('sin-categoria') && f.categoriaId === null) return true
+    if ((grupo.ids.includes('sin-categoria') || grupo.ids.includes('sin-rubro')) && f.categoriaId === null) return true
     return pasaLaSeleccion(new Set(grupo.ids), f.categoriaId, categoriasDeMovimientos)
   }
   const visibles = (filas ?? [])
@@ -103,12 +105,12 @@ export function PorCategoria({
   const cuantos = visibles.length
   const subtitulo = grupo
     ? `${pct(grupo.total, total)} % del mes`
-    : `${grupos.length} ${grupos.length === 1 ? 'categoría' : 'categorías'}`
+    : `${grupos.length} ${grupos.length === 1 ? 'rubro' : 'rubros'}`
 
   return (
     <section className="tarjeta completa por-categoria" aria-labelledby="t-categorias">
       <div className="pc-cabeza">
-        <h2 id="t-categorias">Por categoría</h2>
+        <h2 id="t-categorias">Por rubro</h2>
         {grupo && (
           <button
             type="button"
@@ -132,7 +134,7 @@ export function PorCategoria({
       ) : (
         <div className="pc-cuerpo">
           <Anillo
-            etiqueta={`Gasto por categoría de ${nombreDelMes(mes)}`}
+            etiqueta={`Gasto por rubro de ${nombreDelMes(mes)}`}
             partes={grupos.map((g) => ({ id: g.id, valor: g.total, color: g.color, nombre: g.nombre }))}
             elegido={elegido}
             alElegir={alternar}
