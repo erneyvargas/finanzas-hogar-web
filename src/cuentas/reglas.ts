@@ -342,3 +342,13 @@ export function errorDeTarjeta(cupo: number | null, corte: number | null, pago: 
   if (cupo != null && (Number.isNaN(cupo) || cupo < 0)) return 'El cupo no puede ser negativo'
   return null
 }
+
+/** The rate as people read it: 0.0935 → «9,35». */
+export const textoDeTasa = (tasa: number) => String(Math.round(tasa * 10000) / 100).replace('.', ',')
+
+/**
+ * The account type, plus the yield rate of a savings account:
+ * «Ahorros · 9,35 % E.A.». Phone repo, «falta en la Card».
+ */
+export const etiquetaDeCuenta = (c: Pick<CuentaConSaldo, 'tipo' | 'tasaAnual'>) =>
+  c.tasaAnual == null ? ETIQUETA[c.tipo] : `${ETIQUETA[c.tipo]} · ${textoDeTasa(c.tasaAnual)} % E.A.`
