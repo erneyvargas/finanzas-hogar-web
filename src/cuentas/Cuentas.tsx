@@ -3,7 +3,6 @@ import { dinero } from '../core/formato'
 import { guardarEnLaPestana, leerDeLaPestana } from '../core/recordado'
 import { Cara } from '../movimientos/ListaDeMovimientos'
 import {
-  ETIQUETA,
   ORDENES,
   conSigno,
   debes,
@@ -14,6 +13,7 @@ import {
   type CuentaConSaldo,
   type DatosDeCuentas,
   type Orden,
+  etiquetaDeCuenta,
 } from './reglas'
 
 /**
@@ -187,7 +187,7 @@ function FilaDeCuenta({
           <span>{c.nombre}</span>
         </button>
       </td>
-      <td className="tipo">{ETIQUETA[c.tipo]}</td>
+      <td className="tipo">{etiquetaDeCuenta(c)}</td>
       <td className="det">
         <Detalle c={c} datos={datos} />
       </td>

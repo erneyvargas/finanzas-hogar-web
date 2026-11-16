@@ -31,6 +31,8 @@ import {
   type DatosDeCuentas,
   type MovimientoDeCuenta,
   type TipoDeCuenta,
+  etiquetaDeCuenta,
+  textoDeTasa,
 } from './reglas'
 
 /** What the accounts panel shows; `desde` is the account a form goes back to. */
@@ -259,7 +261,7 @@ function Detalle({
         <Cara nombre={c.nombre} foto={c.foto} clase="cara enorme" />
         <div>
           <small className="apagado">
-            {ETIQUETA[c.tipo]}
+            {etiquetaDeCuenta(c)}
             {c.archivada ? ' · Archivada' : ''}
           </small>
           <div className={`saldo-grande num ${grupoDe(c) === 'credito' && c.saldo < 0 ? 'gasto' : ''}`}>{conSigno(c.saldo)}</div>
@@ -635,7 +637,7 @@ function tasaDesdeTexto(texto: string): number | null | undefined {
 }
 
 function Tasa({ c, base, error, setError, guardando, correr, volver }: Comun & { c: CuentaConSaldo; base: Record<string, unknown> }) {
-  const [texto, setTexto] = useState(c.tasaAnual == null ? '' : String(Math.round(c.tasaAnual * 10000) / 100).replace('.', ','))
+  const [texto, setTexto] = useState(c.tasaAnual == null ? '' : textoDeTasa(c.tasaAnual))
   return (
     <form
       className="panel-cuerpo"

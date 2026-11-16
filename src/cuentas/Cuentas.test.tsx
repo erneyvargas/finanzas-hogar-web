@@ -137,6 +137,14 @@ describe('the accounts tab', () => {
     expect(within(fila('Libranza Davivienda')).getByText('Debes $4.967.500 · Cuota 14 de 36')).toBeInTheDocument()
   })
 
+  // Phone repo, «falta en la Card»: a savings account shows its rate.
+  it('shows the yield rate of a savings account next to its type', async () => {
+    await montar(fuente(undefined, { ...datos, cuentas: datos.cuentas.map((c) => (c.id === 'aho' ? { ...c, tasaAnual: 0.0935 } : c)) }))
+
+    expect(within(fila('Ahorros')).getByText('Ahorros · 9,35 % E.A.')).toBeInTheDocument()
+    expect(within(fila('Efectivo')).queryByText(/E\.A\./)).not.toBeInTheDocument()
+  })
+
   it('keeps settled debts and archived accounts behind their buttons', async () => {
     await montar()
 
