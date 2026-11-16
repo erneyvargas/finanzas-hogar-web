@@ -115,6 +115,38 @@ describe('the month dashboard', () => {
     expect(ingresos).toHaveTextContent('Abonos a deudas$30.000')
   })
 
+  // «Aca y en la web se deben descontar los ahorros»: money moved into a
+  // savings account leaves what is left; money moved back returns.
+  it('what is left subtracts the net moved into savings', async () => {
+    const base = fuente()
+    const conAhorro: FuenteDelTablero = {
+      cargar: vi.fn(async (mes: string) => {
+        const r = await base.cargar(mes)
+        const t = (id: string, monto: number, desde: string, hacia: string) => ({
+          id, tipo: 'transfer', monto, fecha: '2026-10-10T15:00:00Z', rubroId: null, categoriaId: null, anulado: false,
+          tipoDeCuenta: desde, tipoDeContra: hacia,
+        })
+        return {
+          ...r,
+          datos: {
+            ...r.datos,
+            movimientos: [
+              ...r.datos.movimientos,
+              t('a1', 20000, 'debit', 'savings'),
+              t('a2', 5000, 'savings', 'cash'),
+              // Between two liquid accounts: not saving.
+              t('a3', 9000, 'debit', 'cash'),
+            ],
+          },
+        }
+      }),
+    }
+    montar(conAhorro)
+    const ingresos = await screen.findByRole('region', { name: 'Ingresos del mes' })
+    expect(ingresos).toHaveTextContent('Te quedan $57.000 después de gastos y ahorros')
+    expect(ingresos).toHaveTextContent('Ahorros$15.000')
+  })
+
   it('the six-month chart names the rubro of each bar piece in a tooltip on hover', async () => {
     montar(fuente())
     const grafico = await screen.findByRole('img', { name: 'Gasto de los últimos seis meses por persona' })

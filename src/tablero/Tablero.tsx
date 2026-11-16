@@ -772,7 +772,10 @@ function Contenido({
   // What is left: income minus expenses and debt payments (the user's words: «revisa
   // este dato ya que no me queda todo eso»; the cuotas and abonos were left out).
   const abonos = r.abonos ?? 0
-  const quedan = r.ingresos - r.gastado - abonos
+  // And the net moved into savings: owned, not available (the user's words:
+  // «se deben descontar los ahorros»).
+  const ahorrado = r.ahorrado ?? 0
+  const quedan = r.ingresos - r.gastado - abonos - ahorrado
   // Choosing a rubro in «Por rubro» narrows the table to it (the user's words:
   // «quiero quitar este y que al darle click me filtre»).
   const [rubrosElegidos, setRubrosElegidos] = useState<string[] | null>(null)
@@ -842,7 +845,7 @@ function Contenido({
         <p className="nota">
           {quedan >= 0 ? 'Te quedan ' : 'Gastaste de más '}
           <b className={`num ${quedan < 0 ? 'sube' : ''}`}>{dinero(Math.abs(quedan))}</b>
-          {quedan >= 0 ? (abonos > 0 ? ' después de gastos y abonos a deudas' : ' después de los gastos') : ' sobre lo que entró'}
+          {quedan >= 0 ? despuesDe(abonos, ahorrado) : ' sobre lo que entró'}
         </p>
         <dl className="desglose-ingresos num">
           <div>
@@ -853,6 +856,12 @@ function Contenido({
             <div>
               <dt>Abonos a deudas</dt>
               <dd>{dinero(abonos)}</dd>
+            </div>
+          )}
+          {ahorrado !== 0 && (
+            <div>
+              <dt>Ahorros</dt>
+              <dd>{ahorrado < 0 ? `−${dinero(-ahorrado)}` : dinero(ahorrado)}</dd>
             </div>
           )}
           <div className="queda">
@@ -988,4 +997,12 @@ function Tendencia({ r }: { r: ResumenDelMes }) {
       })}
     </svg>
   )
+}
+
+/** The tail of «Te quedan $X …»: what was taken from the income. */
+function despuesDe(abonos: number, ahorrado: number) {
+  if (abonos > 0 && ahorrado !== 0) return ' después de gastos, abonos a deudas y ahorros'
+  if (abonos > 0) return ' después de gastos y abonos a deudas'
+  if (ahorrado !== 0) return ' después de gastos y ahorros'
+  return ' después de los gastos'
 }

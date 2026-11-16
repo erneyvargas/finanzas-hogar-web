@@ -56,10 +56,10 @@ export async function cargarTablero(
     todas((a, b) =>
       sb
         .from('transactions')
-        .select('id, kind, amount, occurred_at, rubro_id, category_l2_id, voided, cuenta:accounts!account_id(type)')
+        .select('id, kind, amount, occurred_at, rubro_id, category_l2_id, voided, cuenta:accounts!account_id(type), contra:accounts!counter_account_id(type)')
         .eq('household_id', hogarId)
         .is('deleted_at', null)
-        .in('kind', ['expense', 'income', 'debt_payment'])
+        .in('kind', ['expense', 'income', 'debt_payment', 'transfer'])
         .gte('occurred_at', desde)
         .lt('occurred_at', hasta)
         .order('occurred_at')
@@ -94,6 +94,7 @@ export async function cargarTablero(
       categoriaId: m.category_l2_id,
       anulado: m.voided === true,
       tipoDeCuenta: (m.cuenta as { type?: string } | null)?.type ?? null,
+      tipoDeContra: (m.contra as { type?: string } | null)?.type ?? null,
     })),
     partes: partes.map((p) => ({
       movimientoId: p.transaction_id,
