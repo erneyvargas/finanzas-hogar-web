@@ -24,6 +24,8 @@ export interface Movimiento {
   anulado: boolean
   /** Type of the movement's account (`accounts.type`); absent when unknown. */
   tipoDeCuenta?: string | null
+  /** Type of a transfer's destination account; absent when unknown. */
+  tipoDeContra?: string | null
 }
 
 /**
@@ -36,6 +38,19 @@ const CUENTAS_LIQUIDAS = new Set(['cash', 'debit', 'wallet', 'voucher'])
 /** Whether an income into an account of [tipo] is available money; an unknown type counts. */
 export const esIngresoDisponible = (tipo: string | null | undefined) => !tipo || CUENTAS_LIQUIDAS.has(tipo)
 const entraADisponible = (m: Movimiento) => esIngresoDisponible(m.tipoDeCuenta)
+
+/**
+ * What a transfer saves: + from a liquid account into savings, − back from
+ * savings into a liquid account, 0 otherwise. The user's words: «se deben
+ * descontar los ahorros».
+ */
+export function ahorradoDe(m: Movimiento): number {
+  if (m.tipo !== 'transfer' || m.anulado) return 0
+  const liquida = (t: string | null | undefined) => !!t && CUENTAS_LIQUIDAS.has(t)
+  if (m.tipoDeContra === 'savings' && liquida(m.tipoDeCuenta)) return m.monto
+  if (m.tipoDeCuenta === 'savings' && liquida(m.tipoDeContra)) return -m.monto
+  return 0
+}
 
 export interface Parte {
   movimientoId: string
@@ -91,6 +106,8 @@ export interface ResumenDelMes {
   ingresos: number
   /** Debt payments of the month (capital and interest): money that left, not an expense line. */
   abonos: number
+  /** Net moved from liquid accounts into savings this month. */
+  ahorrado?: number
   /** Expense movements of the month (not parts). */
   cuantosGastos?: number
   /** Spent per day so far: up to today in a running month, else the whole month. */
@@ -251,6 +268,8 @@ export function resumenDelMes(entrada: {
     movimientos.filter((m) => m.tipo === 'debt_payment' && !m.anulado && mesDe(m.fecha) === mes).map((m) => m.monto),
   )
 
+  const ahorrado = sumar(movimientos.filter((m) => mesDe(m.fecha) === mes).map(ahorradoDe))
+
   const delAnterior = lineas
     .filter((l) => l.mes === moverMes(mes, -1))
     .filter((l) => comparadoHasta === null || l.dia <= comparadoHasta)
@@ -296,6 +315,7 @@ export function resumenDelMes(entrada: {
     comparadoHasta,
     ingresos,
     abonos,
+    ahorrado,
     cuantosGastos,
     promedioDiario: diasContados > 0 ? Math.round(sumar(delMes.map((l) => l.monto)) / diasContados) : 0,
     diaMasCaro: caro ? { dia: caro[0], monto: caro[1] } : null,
