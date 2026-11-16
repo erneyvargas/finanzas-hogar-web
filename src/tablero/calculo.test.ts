@@ -30,6 +30,7 @@ function mov(p: Partial<Movimiento> & { monto: number; fecha: string }): Movimie
     fecha: p.fecha,
     rubroId: p.rubroId ?? 'karen',
     categoriaId: p.categoriaId ?? 'k-transp',
+    tipoDeCuenta: p.tipoDeCuenta,
     anulado: p.anulado ?? false,
   }
 }
@@ -164,6 +165,24 @@ describe('resumenDelMes', () => {
 
     expect(r.ingresos).toBe(5200000)
     expect(r.gastado).toBe(80000)
+  })
+
+  // odd/tasks/rendimiento-de-ahorros.md S4 (phone repo): the yield the
+  // server writes into a savings account is not month income. «No suma».
+  it('leaves income into a savings account out of the month income', () => {
+    const r = resumenDelMes({
+      movimientos: [
+        mov({ monto: 5200000, fecha: '2026-10-01T15:00:00Z', tipo: 'income', tipoDeCuenta: 'debit' }),
+        mov({ monto: 7347.49, fecha: '2026-10-31T15:00:00Z', tipo: 'income', tipoDeCuenta: 'savings' }),
+        mov({ monto: 1000, fecha: '2026-10-05T15:00:00Z', tipo: 'income', tipoDeCuenta: 'investment' }),
+      ],
+      partes: [],
+      categorias: cats,
+      mes: '2026-10',
+      hogarId: HOGAR,
+    })
+
+    expect(r.ingresos).toBe(5200000)
   })
 
   it('gives the last six months by rubro for the trend', () => {

@@ -44,6 +44,7 @@ const cuenta = (c: Partial<CuentaConSaldo> & Pick<CuentaConSaldo, 'id' | 'nombre
   cobraGmf: false,
   categoriaGmf: null,
   estilo: null,
+  tasaAnual: null,
   ...c,
 })
 
@@ -332,6 +333,27 @@ describe('editing an account', () => {
       p_account_id: 'nequi',
       p_cobra: false,
       p_category_id: null,
+    })
+  })
+
+  // odd/tasks/rendimiento-de-ahorros.md S1 (phone repo): only a savings
+  // account takes a rate, typed as a percentage and sent as a fraction.
+  it('sets the yield rate of a savings account', async () => {
+    const f = await montar()
+    let p = await abrir('Nequi Karen')
+    await masAcciones(p)
+    expect(within(p).queryByRole('button', { name: 'Tasa de rendimiento' })).not.toBeInTheDocument()
+    await userEvent.click(within(p).getByRole('button', { name: 'Cerrar' }))
+
+    p = await abrir('Ahorros')
+    await masAcciones(p)
+    await userEvent.click(within(p).getByRole('button', { name: 'Tasa de rendimiento' }))
+    await userEvent.type(within(p).getByLabelText('Tasa efectiva anual (%)'), '9,35')
+    await userEvent.click(within(p).getByRole('button', { name: 'Guardar tasa' }))
+    expect(f.ejecutar).toHaveBeenCalledWith('cambiar_tasa_de_cuenta', {
+      p_household_id: 'h1',
+      p_account_id: 'aho',
+      p_tasa: 0.0935,
     })
   })
 

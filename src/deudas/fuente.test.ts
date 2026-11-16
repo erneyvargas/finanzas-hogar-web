@@ -47,6 +47,9 @@ describe('where the debt plan reads', () => {
         { kind: 'expense', amount: 5400000, rubro_id: 'hogar' },
         // An adjustment is not money that came in.
         { kind: 'income', amount: 3000000, rubro_id: idDelRubroDeAjuste('h1') },
+        // The yield written into a savings account is not available money
+        // (phone repo, odd/tasks/rendimiento-de-ahorros.md S4).
+        { kind: 'income', amount: 7347.49, rubro_id: null, cuenta: { type: 'savings' } },
       ],
     }
     const rpc = vi.fn(async () => ({ data: -124754493, error: null }))

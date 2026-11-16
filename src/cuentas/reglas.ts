@@ -83,6 +83,8 @@ export interface CuentaConSaldo {
   cobraGmf: boolean
   categoriaGmf: string | null
   estilo: string | null
+  /** Effective annual rate of a savings account as a fraction (0.0935), or null. */
+  tasaAnual: number | null
 }
 
 /** The debt a loan or receivable account belongs to. */
@@ -319,6 +321,7 @@ export function accionesDe(c: CuentaConSaldo) {
     principal: viva && grupoDe(c) === 'corriente' && c.tipo !== 'voucher' && !c.principal,
     cambiarTipo: viva && TIPOS_SIMPLES.includes(c.tipo),
     gmf: viva && ['debit', 'savings', 'wallet'].includes(c.tipo),
+    tasa: viva && c.tipo === 'savings',
     estilo: viva && ['credit_card', 'debit', 'wallet'].includes(c.tipo),
     foto: viva,
     archivar: viva && !c.principal,

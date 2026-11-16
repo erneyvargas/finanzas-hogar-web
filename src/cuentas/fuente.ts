@@ -11,6 +11,7 @@ export type FuncionDeCuentas =
   | 'marcar_cuenta_principal'
   | 'cambiar_tipo_de_cuenta'
   | 'cambiar_gmf_de_cuenta'
+  | 'cambiar_tasa_de_cuenta'
   | 'cambiar_foto_de_cuenta'
   | 'cambiar_estilo_de_tarjeta'
   | 'ajustar_saldo_de_cuenta'
@@ -50,7 +51,7 @@ export function fuenteDeCuentasDeSupabase(sb: SupabaseClient, hogar: () => Promi
           sb
             .from('accounts')
             .select(
-              'id, name, type, archived, is_principal, image_path, credit_limit, cut_day, due_day, applies_gmf, gmf_category_id, card_style',
+              'id, name, type, archived, is_principal, image_path, credit_limit, cut_day, due_day, applies_gmf, gmf_category_id, card_style, annual_rate',
             )
             .eq('household_id', hogarId)
             .is('deleted_at', null)
@@ -117,6 +118,7 @@ export function fuenteDeCuentasDeSupabase(sb: SupabaseClient, hogar: () => Promi
           cobraGmf: c.applies_gmf === true,
           categoriaGmf: c.gmf_category_id ?? null,
           estilo: c.card_style ?? null,
+          tasaAnual: c.annual_rate == null ? null : Number(c.annual_rate),
         })),
         deudas: deudas.map((d) => ({
           cuentaId: d.account_id,
